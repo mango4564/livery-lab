@@ -1,0 +1,88 @@
+{
+  "source": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\乾途单挡3.6米车高（车长12米）3261074.fs",
+  "sha256": "2d6ccf0b201e256228fd2067acb1c8c69948d7d2169462f2d0a1ca7be22e8e2d",
+  "streams": {
+    "FlexiSIGN Contents/Document Contents": 527,
+    "FlexiSIGN Contents/Header": 470,
+    "FlexiSIGN Contents/Index/ClassTable": 554,
+    "FlexiSIGN Contents/Master Page/Objects": 365,
+    "FlexiSIGN Contents/Page 1/Objects": 2032848,
+    "FlexiSIGN Contents/Preview": 58399,
+    "FlexiSIGN Contents/Reference/AColorItem Data": 6229,
+    "FlexiSIGN Contents/Reference/AGradientBrushItem Data": 15643,
+    "FlexiSIGN Contents/Reference/ALayerItem Data": 363,
+    "FlexiSIGN Contents/Reference/APenItem Data": 455,
+    "FlexiSIGN Contents/Reference/ASolidBrushItem Data": 2042,
+    "FlexiSIGN Contents/Reference/Header": 259,
+    "FlexiSIGN Contents/Selection": 55,
+    "OLE Contents": 4
+  },
+  "preview": {
+    "width": 224,
+    "height": 256,
+    "depth": 8,
+    "palette_entries": 256,
+    "source_stride": 224
+  },
+  "objects": {
+    "compression": "zlib-blocks",
+    "tlv_word_bytes": 8,
+    "expected_inflated": 9516692,
+    "block_size": 1048576,
+    "compressed_region": 2032821,
+    "reserved": 0,
+    "blocks": [
+      {
+        "offset": 18,
+        "compressed": 214334,
+        "inflated": 1048576
+      },
+      {
+        "offset": 214356,
+        "compressed": 205461,
+        "inflated": 1048576
+      },
+      {
+        "offset": 419821,
+        "compressed": 159300,
+        "inflated": 1048576
+      },
+      {
+        "offset": 579125,
+        "compressed": 208850,
+        "inflated": 1048576
+      },
+      {
+        "offset": 787979,
+        "compressed": 228983,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1016966,
+        "compressed": 207327,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1224297,
+        "compressed": 206820,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1431121,
+        "compressed": 159848,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1590973,
+        "compressed": 210581,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1801558,
+        "compressed": 231260,
+        "inflated": 1048576
+      }
+    ],
+    "tail_hex": "040d0000000000000000000000010d00000000000000df000000"
+  }
+}

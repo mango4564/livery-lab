@@ -1,0 +1,31 @@
+{
+  "source": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\6907凯旋 7250044(1).fs",
+  "sha256": "f90d745f7e4c4d19a320a4c67d0444fa344df1f38d5b7ed961dfd6f15fe4ecbb",
+  "streams": {
+    "FlexiSIGN Contents/Document Contents": 527,
+    "FlexiSIGN Contents/Header": 470,
+    "FlexiSIGN Contents/Index/ClassTable": 535,
+    "FlexiSIGN Contents/Master Page/Objects": 1378,
+    "FlexiSIGN Contents/Page 1/Objects": 18259338,
+    "FlexiSIGN Contents/Preview": 50209,
+    "FlexiSIGN Contents/Reference/AColorItem Data": 5920,
+    "FlexiSIGN Contents/Reference/AGradientBrushItem Data": 36653,
+    "FlexiSIGN Contents/Reference/ALayerItem Data": 363,
+    "FlexiSIGN Contents/Reference/APenItem Data": 455,
+    "FlexiSIGN Contents/Reference/ASolidBrushItem Data": 1930,
+    "FlexiSIGN Contents/Reference/Header": 259,
+    "OLE Contents": 4
+  },
+  "preview": {
+    "width": 192,
+    "height": 256,
+    "depth": 8,
+    "palette_entries": 256,
+    "source_stride": 192
+  },
+  "objects": {
+    "compression": "none",
+    "tlv_word_bytes": 4,
+    "expected_inflated": 18259338
+  }
+}

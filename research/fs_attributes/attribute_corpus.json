@@ -1,0 +1,200 @@
+[
+  {
+    "name": "6907凯旋 7250044(1).fs",
+    "objects": 18266,
+    "colors": 37,
+    "fill_status": {
+      "stored_display_rgb": 17445,
+      "unsupported_appearance": 821
+    }
+  },
+  {
+    "name": "乾途单挡3.5米测试.fs",
+    "objects": 78813,
+    "colors": 45,
+    "fill_status": {
+      "unsupported_appearance": 949,
+      "stored_display_rgb": 77863,
+      "invalid_appearance": 1
+    }
+  },
+  {
+    "name": "乾途单挡3.5米车高（车长11米） 3261042.fs",
+    "objects": 3309,
+    "colors": 39,
+    "fill_status": {
+      "stored_display_rgb": 3093,
+      "unsupported_appearance": 216
+    }
+  },
+  {
+    "name": "乾途单挡3.5米车高（车长11米） 3261588.fs",
+    "objects": 4985,
+    "colors": 36,
+    "fill_status": {
+      "stored_display_rgb": 4728,
+      "unsupported_appearance": 257
+    }
+  },
+  {
+    "name": "乾途单挡3.6米车高（车长11.7）3261754.fs",
+    "objects": 4541,
+    "colors": 36,
+    "fill_status": {
+      "stored_display_rgb": 4318,
+      "unsupported_appearance": 223
+    },
+    "targets": [
+      {
+        "object_id": 233,
+        "fill": "#167ce2",
+        "fill_status": "stored_display_rgb",
+        "appearances": [
+          {
+            "object_id": 234,
+            "class_id": 9,
+            "brush_id": 41,
+            "owner_id": 233,
+            "color_id": 5,
+            "color": {
+              "class_id": 1,
+              "name": "蓝色",
+              "rgb": [
+                22,
+                124,
+                226
+              ],
+              "hex": "#167ce2",
+              "spot_tint": null
+            }
+          }
+        ]
+      },
+      {
+        "object_id": 235,
+        "fill": "#167ce2",
+        "fill_status": "stored_display_rgb",
+        "appearances": [
+          {
+            "object_id": 236,
+            "class_id": 9,
+            "brush_id": 41,
+            "owner_id": 235,
+            "color_id": 5,
+            "color": {
+              "class_id": 1,
+              "name": "蓝色",
+              "rgb": [
+                22,
+                124,
+                226
+              ],
+              "hex": "#167ce2",
+              "spot_tint": null
+            }
+          }
+        ]
+      },
+      {
+        "object_id": 237,
+        "fill": "#167ce2",
+        "fill_status": "stored_display_rgb",
+        "appearances": [
+          {
+            "object_id": 238,
+            "class_id": 9,
+            "brush_id": 41,
+            "owner_id": 237,
+            "color_id": 5,
+            "color": {
+              "class_id": 1,
+              "name": "蓝色",
+              "rgb": [
+                22,
+                124,
+                226
+              ],
+              "hex": "#167ce2",
+              "spot_tint": null
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "乾途单挡3.6米车高（车长12米）3261074.fs",
+    "objects": 10190,
+    "colors": 39,
+    "fill_status": {
+      "stored_display_rgb": 9716,
+      "unsupported_appearance": 474
+    }
+  },
+  {
+    "name": "乾途单挡3.6米车高（车长12米）ai测试低版本.fs",
+    "objects": 7276,
+    "colors": 42,
+    "fill_status": {
+      "stored_display_rgb": 6958,
+      "unsupported_appearance": 318
+    }
+  },
+  {
+    "name": "乾途单挡6827柴油.fs",
+    "objects": 33397,
+    "colors": 29,
+    "fill_status": {
+      "stored_display_rgb": 33191,
+      "unsupported_appearance": 206
+    }
+  },
+  {
+    "name": "乾途单挡6827纯电 7260798.fs",
+    "objects": 54210,
+    "colors": 45,
+    "fill_status": {
+      "stored_display_rgb": 53856,
+      "empty_appearance_inheritance_unknown": 2,
+      "unsupported_appearance": 351,
+      "invalid_appearance": 1
+    }
+  },
+  {
+    "name": "乾途单挡6907柴油 7260812.fs",
+    "objects": 25702,
+    "colors": 35,
+    "fill_status": {
+      "stored_display_rgb": 25485,
+      "unsupported_appearance": 216,
+      "invalid_appearance": 1
+    }
+  },
+  {
+    "name": "乾途双挡 3.8米车高（12米车长）3261129.fs",
+    "objects": 20889,
+    "colors": 34,
+    "fill_status": {
+      "stored_display_rgb": 20670,
+      "unsupported_appearance": 219
+    }
+  },
+  {
+    "name": "乾途双挡3.8米车高（车长12米）3261627.fs",
+    "objects": 24988,
+    "colors": 50,
+    "fill_status": {
+      "stored_display_rgb": 24737,
+      "unsupported_appearance": 251
+    }
+  },
+  {
+    "name": "乾途双挡柴油 （车长13.2米） 3261895.fs",
+    "objects": 6205,
+    "colors": 33,
+    "fill_status": {
+      "stored_display_rgb": 5868,
+      "unsupported_appearance": 337
+    }
+  }
+]

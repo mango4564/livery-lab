@@ -1,0 +1,113 @@
+{
+  "source": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\乾途单挡3.5米车高（车长11米） 3261588.fs",
+  "sha256": "c48da80c8fc30d1e3550a6eae8433c6fff1b744dfcc13a1c4ed46450e3123dec",
+  "streams": {
+    "FlexiSIGN Contents/Document Contents": 544,
+    "FlexiSIGN Contents/Header": 470,
+    "FlexiSIGN Contents/Index/ClassTable": 566,
+    "FlexiSIGN Contents/Master Page/Objects": 378,
+    "FlexiSIGN Contents/Page 1/Objects": 3366889,
+    "FlexiSIGN Contents/Preview": 22559,
+    "FlexiSIGN Contents/Reference/AColorItem Data": 5775,
+    "FlexiSIGN Contents/Reference/AGradientBrushItem Data": 13614,
+    "FlexiSIGN Contents/Reference/ALayerItem Data": 363,
+    "FlexiSIGN Contents/Reference/APenItem Data": 1456,
+    "FlexiSIGN Contents/Reference/ASolidBrushItem Data": 1874,
+    "FlexiSIGN Contents/Reference/Header": 259,
+    "FlexiSIGN Contents/Selection": 55,
+    "OLE Contents": 4
+  },
+  "preview": {
+    "width": 84,
+    "height": 256,
+    "depth": 8,
+    "palette_entries": 256,
+    "source_stride": 84
+  },
+  "objects": {
+    "compression": "zlib-blocks",
+    "tlv_word_bytes": 8,
+    "expected_inflated": 15498401,
+    "block_size": 1048576,
+    "compressed_region": 3366862,
+    "reserved": 0,
+    "blocks": [
+      {
+        "offset": 18,
+        "compressed": 216696,
+        "inflated": 1048576
+      },
+      {
+        "offset": 216718,
+        "compressed": 186548,
+        "inflated": 1048576
+      },
+      {
+        "offset": 403270,
+        "compressed": 211409,
+        "inflated": 1048576
+      },
+      {
+        "offset": 614683,
+        "compressed": 201499,
+        "inflated": 1048576
+      },
+      {
+        "offset": 816186,
+        "compressed": 214865,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1031055,
+        "compressed": 183848,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1214907,
+        "compressed": 222115,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1437026,
+        "compressed": 261343,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1698373,
+        "compressed": 248511,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1946888,
+        "compressed": 245864,
+        "inflated": 1048576
+      },
+      {
+        "offset": 2192756,
+        "compressed": 258639,
+        "inflated": 1048576
+      },
+      {
+        "offset": 2451399,
+        "compressed": 247838,
+        "inflated": 1048576
+      },
+      {
+        "offset": 2699241,
+        "compressed": 197492,
+        "inflated": 1048576
+      },
+      {
+        "offset": 2896737,
+        "compressed": 230682,
+        "inflated": 1048576
+      },
+      {
+        "offset": 3127423,
+        "compressed": 239436,
+        "inflated": 1048576
+      }
+    ],
+    "tail_hex": "040d0000000000000000000000010d00000000000000ce000000"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "source": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\乾途单挡3.6米车高（车长12米）ai测试低版本.fs",
+  "sha256": "1eeedbe1d0c2be5e30b914bd4df3bdd6c8696f193c87669e78687e1412654522",
+  "streams": {
+    "FlexiSIGN Contents/Document Contents": 527,
+    "FlexiSIGN Contents/Header": 470,
+    "FlexiSIGN Contents/Index/ClassTable": 554,
+    "FlexiSIGN Contents/Master Page/Objects": 370,
+    "FlexiSIGN Contents/Page 1/Objects": 1277273,
+    "FlexiSIGN Contents/Preview": 40992,
+    "FlexiSIGN Contents/Reference/AColorItem Data": 6739,
+    "FlexiSIGN Contents/Reference/AGradientBrushItem Data": 15191,
+    "FlexiSIGN Contents/Reference/ALayerItem Data": 363,
+    "FlexiSIGN Contents/Reference/APenItem Data": 598,
+    "FlexiSIGN Contents/Reference/ASolidBrushItem Data": 2210,
+    "FlexiSIGN Contents/Reference/Header": 259,
+    "OLE Contents": 4
+  },
+  "preview": {
+    "width": 156,
+    "height": 256,
+    "depth": 8,
+    "palette_entries": 256,
+    "source_stride": 156
+  },
+  "objects": {
+    "compression": "zlib-blocks",
+    "tlv_word_bytes": 4,
+    "expected_inflated": 5759422,
+    "block_size": 1048576,
+    "compressed_region": 1277254,
+    "reserved": null,
+    "blocks": [
+      {
+        "offset": 14,
+        "compressed": 228386,
+        "inflated": 1048576
+      },
+      {
+        "offset": 228404,
+        "compressed": 225820,
+        "inflated": 1048576
+      },
+      {
+        "offset": 454228,
+        "compressed": 179248,
+        "inflated": 1048576
+      },
+      {
+        "offset": 633480,
+        "compressed": 224576,
+        "inflated": 1048576
+      },
+      {
+        "offset": 858060,
+        "compressed": 233367,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1091431,
+        "compressed": 185820,
+        "inflated": 1048576
+      }
+    ],
+    "tail_hex": "0409000000000000000109000000e0000000"
+  }
+}

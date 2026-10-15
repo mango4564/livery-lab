@@ -1,0 +1,26 @@
+[
+  {
+    "reference_id": "native-233",
+    "decoded_object_id": 233,
+    "source_offset": 56890,
+    "coordinate_count": 22,
+    "max_coordinate_error": 0.0,
+    "command_sequence_equal": true
+  },
+  {
+    "reference_id": "native-235",
+    "decoded_object_id": 235,
+    "source_offset": 57501,
+    "coordinate_count": 22,
+    "max_coordinate_error": 0.0,
+    "command_sequence_equal": true
+  },
+  {
+    "reference_id": "native-237",
+    "decoded_object_id": 237,
+    "source_offset": 58112,
+    "coordinate_count": 126,
+    "max_coordinate_error": 0.0,
+    "command_sequence_equal": true
+  }
+]

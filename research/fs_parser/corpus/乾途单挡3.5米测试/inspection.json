@@ -1,0 +1,352 @@
+{
+  "source": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\乾途单挡3.5米测试.fs",
+  "sha256": "af6edf79cd885c642b1eea2ef486eee16e5f092fef3645c377b8ec9c3fd0ba67",
+  "streams": {
+    "FlexiSIGN Contents/Document Contents": 544,
+    "FlexiSIGN Contents/Header": 470,
+    "FlexiSIGN Contents/Index/ClassTable": 541,
+    "FlexiSIGN Contents/Master Page/Objects": 370,
+    "FlexiSIGN Contents/Page 1/Objects": 11086520,
+    "FlexiSIGN Contents/Preview": 48160,
+    "FlexiSIGN Contents/Reference/AColorItem Data": 7220,
+    "FlexiSIGN Contents/Reference/AGradientBrushItem Data": 28228,
+    "FlexiSIGN Contents/Reference/ALayerItem Data": 363,
+    "FlexiSIGN Contents/Reference/APenItem Data": 1027,
+    "FlexiSIGN Contents/Reference/ASolidBrushItem Data": 2322,
+    "FlexiSIGN Contents/Reference/Header": 259,
+    "OLE Contents": 4
+  },
+  "preview": {
+    "width": 256,
+    "height": 184,
+    "depth": 8,
+    "palette_entries": 256,
+    "source_stride": 256
+  },
+  "objects": {
+    "compression": "zlib-blocks",
+    "tlv_word_bytes": 4,
+    "expected_inflated": 65482228,
+    "block_size": 1048576,
+    "compressed_region": 11086501,
+    "reserved": null,
+    "blocks": [
+      {
+        "offset": 14,
+        "compressed": 224390,
+        "inflated": 1048576
+      },
+      {
+        "offset": 224408,
+        "compressed": 234456,
+        "inflated": 1048576
+      },
+      {
+        "offset": 458868,
+        "compressed": 206624,
+        "inflated": 1048576
+      },
+      {
+        "offset": 665496,
+        "compressed": 229082,
+        "inflated": 1048576
+      },
+      {
+        "offset": 894582,
+        "compressed": 212353,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1106939,
+        "compressed": 231208,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1338151,
+        "compressed": 270221,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1608376,
+        "compressed": 218984,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1827364,
+        "compressed": 223987,
+        "inflated": 1048576
+      },
+      {
+        "offset": 2051355,
+        "compressed": 192314,
+        "inflated": 1048576
+      },
+      {
+        "offset": 2243673,
+        "compressed": 164977,
+        "inflated": 1048576
+      },
+      {
+        "offset": 2408654,
+        "compressed": 173864,
+        "inflated": 1048576
+      },
+      {
+        "offset": 2582522,
+        "compressed": 188655,
+        "inflated": 1048576
+      },
+      {
+        "offset": 2771181,
+        "compressed": 213088,
+        "inflated": 1048576
+      },
+      {
+        "offset": 2984273,
+        "compressed": 191447,
+        "inflated": 1048576
+      },
+      {
+        "offset": 3175724,
+        "compressed": 189348,
+        "inflated": 1048576
+      },
+      {
+        "offset": 3365076,
+        "compressed": 218206,
+        "inflated": 1048576
+      },
+      {
+        "offset": 3583286,
+        "compressed": 213718,
+        "inflated": 1048576
+      },
+      {
+        "offset": 3797008,
+        "compressed": 222008,
+        "inflated": 1048576
+      },
+      {
+        "offset": 4019020,
+        "compressed": 218769,
+        "inflated": 1048576
+      },
+      {
+        "offset": 4237793,
+        "compressed": 193252,
+        "inflated": 1048576
+      },
+      {
+        "offset": 4431049,
+        "compressed": 165649,
+        "inflated": 1048576
+      },
+      {
+        "offset": 4596702,
+        "compressed": 170901,
+        "inflated": 1048576
+      },
+      {
+        "offset": 4767607,
+        "compressed": 199667,
+        "inflated": 1048576
+      },
+      {
+        "offset": 4967278,
+        "compressed": 213794,
+        "inflated": 1048576
+      },
+      {
+        "offset": 5181076,
+        "compressed": 191482,
+        "inflated": 1048576
+      },
+      {
+        "offset": 5372562,
+        "compressed": 195908,
+        "inflated": 1048576
+      },
+      {
+        "offset": 5568474,
+        "compressed": 212749,
+        "inflated": 1048576
+      },
+      {
+        "offset": 5781227,
+        "compressed": 227768,
+        "inflated": 1048576
+      },
+      {
+        "offset": 6008999,
+        "compressed": 213160,
+        "inflated": 1048576
+      },
+      {
+        "offset": 6222163,
+        "compressed": 162978,
+        "inflated": 1048576
+      },
+      {
+        "offset": 6385145,
+        "compressed": 158224,
+        "inflated": 1048576
+      },
+      {
+        "offset": 6543373,
+        "compressed": 172515,
+        "inflated": 1048576
+      },
+      {
+        "offset": 6715892,
+        "compressed": 175632,
+        "inflated": 1048576
+      },
+      {
+        "offset": 6891528,
+        "compressed": 225935,
+        "inflated": 1048576
+      },
+      {
+        "offset": 7117467,
+        "compressed": 223900,
+        "inflated": 1048576
+      },
+      {
+        "offset": 7341371,
+        "compressed": 199529,
+        "inflated": 1048576
+      },
+      {
+        "offset": 7540904,
+        "compressed": 161969,
+        "inflated": 1048576
+      },
+      {
+        "offset": 7702877,
+        "compressed": 160798,
+        "inflated": 1048576
+      },
+      {
+        "offset": 7863679,
+        "compressed": 195448,
+        "inflated": 1048576
+      },
+      {
+        "offset": 8059131,
+        "compressed": 216870,
+        "inflated": 1048576
+      },
+      {
+        "offset": 8276005,
+        "compressed": 201725,
+        "inflated": 1048576
+      },
+      {
+        "offset": 8477734,
+        "compressed": 192860,
+        "inflated": 1048576
+      },
+      {
+        "offset": 8670598,
+        "compressed": 231351,
+        "inflated": 1048576
+      },
+      {
+        "offset": 8901953,
+        "compressed": 247161,
+        "inflated": 1048576
+      },
+      {
+        "offset": 9149118,
+        "compressed": 223830,
+        "inflated": 1048576
+      },
+      {
+        "offset": 9372952,
+        "compressed": 180041,
+        "inflated": 1048576
+      },
+      {
+        "offset": 9552997,
+        "compressed": 160015,
+        "inflated": 1048576
+      },
+      {
+        "offset": 9713016,
+        "compressed": 206021,
+        "inflated": 1048576
+      },
+      {
+        "offset": 9919041,
+        "compressed": 143926,
+        "inflated": 1048576
+      },
+      {
+        "offset": 10062971,
+        "compressed": 67529,
+        "inflated": 1048576
+      },
+      {
+        "offset": 10130504,
+        "compressed": 75188,
+        "inflated": 1048576
+      },
+      {
+        "offset": 10205696,
+        "compressed": 83889,
+        "inflated": 1048576
+      },
+      {
+        "offset": 10289589,
+        "compressed": 83494,
+        "inflated": 1048576
+      },
+      {
+        "offset": 10373087,
+        "compressed": 72627,
+        "inflated": 1048576
+      },
+      {
+        "offset": 10445718,
+        "compressed": 68831,
+        "inflated": 1048576
+      },
+      {
+        "offset": 10514553,
+        "compressed": 75416,
+        "inflated": 1048576
+      },
+      {
+        "offset": 10589973,
+        "compressed": 79356,
+        "inflated": 1048576
+      },
+      {
+        "offset": 10669333,
+        "compressed": 116760,
+        "inflated": 1048576
+      },
+      {
+        "offset": 10786097,
+        "compressed": 73356,
+        "inflated": 1048576
+      },
+      {
+        "offset": 10859457,
+        "compressed": 71535,
+        "inflated": 1048576
+      },
+      {
+        "offset": 10930996,
+        "compressed": 75847,
+        "inflated": 1048576
+      },
+      {
+        "offset": 11006847,
+        "compressed": 79651,
+        "inflated": 1048576
+      }
+    ],
+    "tail_hex": "04090000000000000001090000005e010000"
+  }
+}

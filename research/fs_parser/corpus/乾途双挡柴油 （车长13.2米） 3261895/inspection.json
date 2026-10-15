@@ -1,0 +1,68 @@
+{
+  "source": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\乾途双挡柴油 （车长13.2米） 3261895.fs",
+  "sha256": "bdf3ac0104853c5e1d52d116aa0a536fdab63ead001e10aaa5e4f657af6e5947",
+  "streams": {
+    "FlexiSIGN Contents/Document Contents": 527,
+    "FlexiSIGN Contents/Header": 470,
+    "FlexiSIGN Contents/Index/ClassTable": 541,
+    "FlexiSIGN Contents/Master Page/Objects": 368,
+    "FlexiSIGN Contents/Page 1/Objects": 1090930,
+    "FlexiSIGN Contents/Preview": 33824,
+    "FlexiSIGN Contents/Reference/AColorItem Data": 5330,
+    "FlexiSIGN Contents/Reference/AGradientBrushItem Data": 13298,
+    "FlexiSIGN Contents/Reference/ALayerItem Data": 363,
+    "FlexiSIGN Contents/Reference/APenItem Data": 598,
+    "FlexiSIGN Contents/Reference/ASolidBrushItem Data": 1706,
+    "FlexiSIGN Contents/Reference/Header": 259,
+    "FlexiSIGN Contents/Selection": 55,
+    "OLE Contents": 4
+  },
+  "preview": {
+    "width": 256,
+    "height": 128,
+    "depth": 8,
+    "palette_entries": 256,
+    "source_stride": 256
+  },
+  "objects": {
+    "compression": "zlib-blocks",
+    "tlv_word_bytes": 8,
+    "expected_inflated": 5736129,
+    "block_size": 1048576,
+    "compressed_region": 1090903,
+    "reserved": 0,
+    "blocks": [
+      {
+        "offset": 18,
+        "compressed": 192231,
+        "inflated": 1048576
+      },
+      {
+        "offset": 192253,
+        "compressed": 163731,
+        "inflated": 1048576
+      },
+      {
+        "offset": 355988,
+        "compressed": 164368,
+        "inflated": 1048576
+      },
+      {
+        "offset": 520360,
+        "compressed": 182388,
+        "inflated": 1048576
+      },
+      {
+        "offset": 702752,
+        "compressed": 174092,
+        "inflated": 1048576
+      },
+      {
+        "offset": 876848,
+        "compressed": 214052,
+        "inflated": 1048576
+      }
+    ],
+    "tail_hex": "040d0000000000000000000000010d00000000000000c0000000"
+  }
+}

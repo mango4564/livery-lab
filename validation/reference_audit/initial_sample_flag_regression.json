@@ -1,0 +1,29 @@
+{
+  "source_sha": "caeb83693a165d0c7a6275b00bb5dfdf2acdf21292a8cd5d4400f6ee10f81da0",
+  "reference_sha": "e59742558a0215450d3c8abe61840e855dd01fe0d7c9857a5725696661d89d91",
+  "matches": [
+    {
+      "reference": "native-233",
+      "independent_matched_ids": [
+        233
+      ]
+    },
+    {
+      "reference": "native-235",
+      "independent_matched_ids": [
+        235
+      ]
+    },
+    {
+      "reference": "native-237",
+      "independent_matched_ids": [
+        237
+      ]
+    }
+  ],
+  "stale_handle_statistics": {
+    "paths_with_stale_handles": 176,
+    "straight_segments_with_stale_handles": 349,
+    "parsed_edit_paths": 3975
+  }
+}

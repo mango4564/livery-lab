@@ -1,0 +1,104 @@
+{
+  "source": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\乾途单挡6907柴油 7260812.fs",
+  "sha256": "c46a8d904d7777482d923d900db012656860f6a3c93138768870a548b7ecda6a",
+  "streams": {
+    "FlexiSIGN Contents/Document Contents": 527,
+    "FlexiSIGN Contents/Header": 470,
+    "FlexiSIGN Contents/ICC Data": 1284,
+    "FlexiSIGN Contents/Index/ClassTable": 567,
+    "FlexiSIGN Contents/Master Page/Objects": 380,
+    "FlexiSIGN Contents/Page 1/Objects": 1510395,
+    "FlexiSIGN Contents/Preview": 38944,
+    "FlexiSIGN Contents/Reference/AColorItem Data": 5604,
+    "FlexiSIGN Contents/Reference/AGradientBrushItem Data": 12458,
+    "FlexiSIGN Contents/Reference/ALayerItem Data": 363,
+    "FlexiSIGN Contents/Reference/APenItem Data": 598,
+    "FlexiSIGN Contents/Reference/ASolidBrushItem Data": 1818,
+    "FlexiSIGN Contents/Reference/Header": 259,
+    "FlexiSIGN Contents/Selection": 255,
+    "OLE Contents": 4
+  },
+  "preview": {
+    "width": 256,
+    "height": 148,
+    "depth": 8,
+    "palette_entries": 256,
+    "source_stride": 256
+  },
+  "objects": {
+    "compression": "zlib-blocks",
+    "tlv_word_bytes": 8,
+    "expected_inflated": 12859078,
+    "block_size": 1048576,
+    "compressed_region": 1510368,
+    "reserved": 0,
+    "blocks": [
+      {
+        "offset": 18,
+        "compressed": 265133,
+        "inflated": 1048576
+      },
+      {
+        "offset": 265155,
+        "compressed": 129426,
+        "inflated": 1048576
+      },
+      {
+        "offset": 394585,
+        "compressed": 77578,
+        "inflated": 1048576
+      },
+      {
+        "offset": 472167,
+        "compressed": 79642,
+        "inflated": 1048576
+      },
+      {
+        "offset": 551813,
+        "compressed": 82044,
+        "inflated": 1048576
+      },
+      {
+        "offset": 633861,
+        "compressed": 172513,
+        "inflated": 1048576
+      },
+      {
+        "offset": 806378,
+        "compressed": 80499,
+        "inflated": 1048576
+      },
+      {
+        "offset": 886881,
+        "compressed": 79607,
+        "inflated": 1048576
+      },
+      {
+        "offset": 966492,
+        "compressed": 82439,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1048935,
+        "compressed": 73294,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1122233,
+        "compressed": 48111,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1170348,
+        "compressed": 145951,
+        "inflated": 1048576
+      },
+      {
+        "offset": 1316303,
+        "compressed": 194062,
+        "inflated": 1048576
+      }
+    ],
+    "tail_hex": "040d0000000000000000000000010d00000000000000bf000000"
+  }
+}

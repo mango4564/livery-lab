@@ -1,0 +1,16 @@
+__pycache__/
+settings.json
+settings.json.tmp
+.api-key.dpapi
+.api-key.dpapi.*.tmp
+output/
+output-v2/
+build/
+release/
+*.spec
+reference_library/*.png
+native/*.exe
+research/*.json
+research/**/*.bin
+research/**/objects.bin
+research/**/sample_geometry/

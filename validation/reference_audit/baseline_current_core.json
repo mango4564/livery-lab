@@ -1,0 +1,1064 @@
+[
+  {
+    "source": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\乾途单挡3.5米车高（车长11米） 3261042.fs",
+    "reference": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\导出彩条参考\\乾途单挡3.5米车高（车长11米） 3261042.svg",
+    "source_sha": "a826b0ca33ab600d6e4d1b9114e691b6971fa48d4751aab54f56b6c3a7f445a6",
+    "reference_sha": "25c7b720a47e73454ed0c0dd7fd721c143e2a63313ae2b88afb891709ff3dad6",
+    "reference_source_sha_matches": true,
+    "matching_method": "independent command sequence and every coordinate; no object-ID hints used",
+    "fresh_decode_error": null,
+    "geometry_input": "fresh core decode",
+    "positives": [
+      {
+        "object_id": 2744,
+        "source_offset": 1297010,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 16,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          236.31697403413182,
+          291.42473855346054,
+          296.7741755812315,
+          330.98958832087294
+        ],
+        "source_collinear_cubics_normalized": 1,
+        "reference_collinear_cubics_normalized": 1,
+        "reference_fill": "#da6522",
+        "decoded_fill": "#da6522",
+        "class_name": "AEditPath",
+        "previous_score": 0.0,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 2746,
+        "source_offset": 1297473,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 26,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          300.02139090583546,
+          325.3066292632112,
+          490.4401338464904,
+          351.1182594503217
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#9d6f3e",
+        "decoded_fill": "#9d6f3e",
+        "class_name": "AEditPath",
+        "previous_score": 0.8069,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 2748,
+        "source_offset": 1297985,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 16,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          198.384143027728,
+          291.42473855346054,
+          289.12861095106723,
+          331.84373311856655
+        ],
+        "source_collinear_cubics_normalized": 1,
+        "reference_collinear_cubics_normalized": 1,
+        "reference_fill": "#ffffff",
+        "decoded_fill": "#ffffff",
+        "class_name": "AEditPath",
+        "previous_score": 0.0,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      }
+    ],
+    "unmatched": [],
+    "previous_selected_ids": [
+      "2746"
+    ],
+    "previous_suggested_ids": [
+      "2746"
+    ],
+    "geometry_stats": {
+      "objects": 3309,
+      "APath": 544,
+      "AEditPath": 2765,
+      "rejected_marker_candidates": 448,
+      "tlv_word_bytes": 8
+    },
+    "positive_ids": [
+      2744,
+      2746,
+      2748
+    ],
+    "target_view_bbox": [
+      198.384143027728,
+      291.42473855346054,
+      490.4401338464904,
+      351.1182594503217
+    ],
+    "reference_viewBox": "197.88414302772799 -351.61825945032172 293.05599081876244 60.693520896861173",
+    "composite_requirements": {
+      "required_fills": {
+        "#da6522": 1,
+        "#9d6f3e": 1,
+        "#ffffff": 1
+      },
+      "multi_color": true,
+      "white_elements_required": true,
+      "required_object_count": 3,
+      "preserve_reference_object_order": true
+    },
+    "missed_by_previous_selection": [
+      2744,
+      2746,
+      2748
+    ],
+    "missed_by_previous_suggestions": [
+      2744,
+      2746,
+      2748
+    ],
+    "previous_extra_ids": [
+      "2746"
+    ],
+    "metadata_ids_match_independent_matches": true
+  },
+  {
+    "source": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\乾途单挡3.6米车高（车长12米）3261074.fs",
+    "reference": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\导出彩条参考\\乾途单挡3.6米车高（车长12米）3261074.svg",
+    "source_sha": "2d6ccf0b201e256228fd2067acb1c8c69948d7d2169462f2d0a1ca7be22e8e2d",
+    "reference_sha": "1f7f54f034d196b0d17b603e65b73176efba55b55f8b154e758c1494591f7fb8",
+    "reference_source_sha_matches": true,
+    "matching_method": "independent command sequence and every coordinate; no object-ID hints used",
+    "fresh_decode_error": null,
+    "geometry_input": "fresh core decode",
+    "positives": [
+      {
+        "object_id": 14705,
+        "source_offset": 6071884,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 22,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          189.68249985225793,
+          180.98990711375984,
+          539.1035155720136,
+          286.51672866825504
+        ],
+        "source_collinear_cubics_normalized": 1,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#94bdd1",
+        "decoded_fill": "#94bdd1",
+        "class_name": "AEditPath",
+        "previous_score": 0.7246,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 14707,
+        "source_offset": 6072397,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 28,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          189.68249985225793,
+          208.02382071290174,
+          539.1035155720136,
+          258.3484455607562
+        ],
+        "source_collinear_cubics_normalized": 1,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#039cd5",
+        "decoded_fill": "#039cd5",
+        "class_name": "AEditPath",
+        "previous_score": 0.9378,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 14709,
+        "source_offset": 6072959,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 26,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          189.68249985225793,
+          206.48752263077915,
+          509.72359575277096,
+          258.3484455607562
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#4373a4",
+        "decoded_fill": "#4373a4",
+        "class_name": "AEditPath",
+        "previous_score": 0.8344,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 14711,
+        "source_offset": 6073472,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 16,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          321.7273188643999,
+          199.63364795015798,
+          539.1035155720136,
+          269.7929659210366
+        ],
+        "source_collinear_cubics_normalized": 1,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#1767a6",
+        "decoded_fill": "#1767a6",
+        "class_name": "AEditPath",
+        "previous_score": 0.7609,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      }
+    ],
+    "unmatched": [],
+    "previous_selected_ids": [
+      "14707",
+      "14709",
+      "12187",
+      "14711",
+      "14735",
+      "14705",
+      "14728",
+      "19468"
+    ],
+    "previous_suggested_ids": [
+      "14707",
+      "14709",
+      "12187",
+      "14711",
+      "14735",
+      "14705",
+      "14728",
+      "19468"
+    ],
+    "geometry_stats": {
+      "objects": 10190,
+      "APath": 1326,
+      "AEditPath": 8864,
+      "rejected_marker_candidates": 1038,
+      "tlv_word_bytes": 8
+    },
+    "positive_ids": [
+      14705,
+      14707,
+      14709,
+      14711
+    ],
+    "target_view_bbox": [
+      189.68249985225793,
+      180.98990711375984,
+      539.1035155720136,
+      286.51672866825504
+    ],
+    "reference_viewBox": "189.18249985225793 -287.01672866825504 350.42101571975536 106.5268215544952",
+    "composite_requirements": {
+      "required_fills": {
+        "#94bdd1": 1,
+        "#039cd5": 1,
+        "#4373a4": 1,
+        "#1767a6": 1
+      },
+      "multi_color": true,
+      "white_elements_required": false,
+      "required_object_count": 4,
+      "preserve_reference_object_order": true
+    },
+    "missed_by_previous_selection": [
+      14705,
+      14707,
+      14709,
+      14711
+    ],
+    "missed_by_previous_suggestions": [
+      14705,
+      14707,
+      14709,
+      14711
+    ],
+    "previous_extra_ids": [
+      "12187",
+      "14705",
+      "14707",
+      "14709",
+      "14711",
+      "14728",
+      "14735",
+      "19468"
+    ],
+    "metadata_ids_match_independent_matches": true
+  },
+  {
+    "source": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\乾途单挡3.6米车高（车长12米）ai测试低版本.fs",
+    "reference": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\导出彩条参考\\乾途单挡3.6米车高（车长12米）ai测试低版本.svg",
+    "source_sha": "1eeedbe1d0c2be5e30b914bd4df3bdd6c8696f193c87669e78687e1412654522",
+    "reference_sha": "f37f21ed66fa4fd226da7d78c0d1a01352535edc1bfbed941fa721e66fc25a9b",
+    "reference_source_sha_matches": true,
+    "matching_method": "independent command sequence and every coordinate; no object-ID hints used",
+    "fresh_decode_error": null,
+    "geometry_input": "fresh core decode",
+    "positives": [
+      {
+        "object_id": 7465,
+        "source_offset": 2694229,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 186,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          144.2360365566899,
+          1057.9701954995562,
+          528.8295135245874,
+          1178.8842947939006
+        ],
+        "source_collinear_cubics_normalized": 1,
+        "reference_collinear_cubics_normalized": 1,
+        "reference_fill": "#d0db9f",
+        "decoded_fill": "#d0db9f",
+        "class_name": "AEditPath",
+        "previous_score": 0.0,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      }
+    ],
+    "unmatched": [
+      {
+        "reference_path_id_hint": "native-7467",
+        "fill": "#76af46",
+        "coordinate_count": 54
+      },
+      {
+        "reference_path_id_hint": "native-7469",
+        "fill": "#d7d17b",
+        "coordinate_count": 16
+      }
+    ],
+    "previous_selected_ids": [
+      "2678"
+    ],
+    "previous_suggested_ids": [
+      "2678"
+    ],
+    "geometry_stats": {
+      "objects": 7276,
+      "APath": 859,
+      "AEditPath": 6417,
+      "rejected_marker_candidates": 202,
+      "tlv_word_bytes": 4
+    },
+    "positive_ids": [
+      7465
+    ],
+    "target_view_bbox": [
+      144.2360365566899,
+      1057.9701954995562,
+      528.8295135245874,
+      1178.8842947939006
+    ],
+    "reference_viewBox": "143.7360365566899 -1179.3842947939006 385.59347696789746 122.07140447146048",
+    "composite_requirements": {
+      "required_fills": {
+        "#d0db9f": 1
+      },
+      "multi_color": false,
+      "white_elements_required": false,
+      "required_object_count": 1,
+      "preserve_reference_object_order": true
+    },
+    "missed_by_previous_selection": [
+      7465
+    ],
+    "missed_by_previous_suggestions": [
+      7465
+    ],
+    "previous_extra_ids": [
+      "2678"
+    ],
+    "metadata_ids_match_independent_matches": false
+  },
+  {
+    "source": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\乾途单挡6827纯电 7260798.fs",
+    "reference": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\导出彩条参考\\乾途单挡6827纯电 7260798.svg",
+    "source_sha": "12a8220a1659fd34fd2200b647e2af73ad0efd26da4dc6ee0ba42aa5f5e77e50",
+    "reference_sha": "8323f165892f261a557339b3b06bd7d4f490a043706c7f39467119b1fc84647b",
+    "reference_source_sha_matches": true,
+    "matching_method": "independent command sequence and every coordinate; no object-ID hints used",
+    "fresh_decode_error": null,
+    "geometry_input": "fresh core decode",
+    "positives": [
+      {
+        "object_id": 957,
+        "source_offset": 3453167,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 16,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          218.78677763227319,
+          1739.134449983182,
+          242.0173064322384,
+          1782.4415365973555
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#101270",
+        "decoded_fill": "#101270",
+        "class_name": "AEditPath",
+        "previous_score": 0.0,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 959,
+        "source_offset": 3453631,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 46,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          263.3821292532446,
+          1723.6131296300741,
+          327.67847313095444,
+          1777.8407654170132
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#012f58",
+        "decoded_fill": "#012f58",
+        "class_name": "AEditPath",
+        "previous_score": 0.0,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 961,
+        "source_offset": 3454340,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 106,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          259.9040323447701,
+          1723.652632487471,
+          367.83413843809035,
+          1770.2915738438933
+        ],
+        "source_collinear_cubics_normalized": 1,
+        "reference_collinear_cubics_normalized": 1,
+        "reference_fill": "#101270",
+        "decoded_fill": "#101270",
+        "class_name": "AEditPath",
+        "previous_score": 0.6757,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 963,
+        "source_offset": 3455539,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 50,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          275.4050990559103,
+          1714.5355554118717,
+          389.15577582467097,
+          1739.4669820358126
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#012f58",
+        "decoded_fill": "#012f58",
+        "class_name": "AEditPath",
+        "previous_score": 0.7559,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 967,
+        "source_offset": 3457055,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 60,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          275.44629891846444,
+          1714.9968664142905,
+          412.20001410668755,
+          1777.7859300039381
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#a6afb4",
+        "decoded_fill": "#a6afb4",
+        "class_name": "AEditPath",
+        "previous_score": 0.0,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      }
+    ],
+    "unmatched": [
+      {
+        "reference_path_id_hint": "native-953",
+        "fill": "#012f58",
+        "coordinate_count": 66
+      },
+      {
+        "reference_path_id_hint": "native-965",
+        "fill": "#4d5c7d",
+        "coordinate_count": 46
+      }
+    ],
+    "previous_selected_ids": [
+      "638",
+      "640",
+      "636"
+    ],
+    "previous_suggested_ids": [
+      "638",
+      "640",
+      "636"
+    ],
+    "geometry_stats": {
+      "objects": 54210,
+      "APath": 1163,
+      "AEditPath": 53047,
+      "rejected_marker_candidates": 3670,
+      "tlv_word_bytes": 8
+    },
+    "positive_ids": [
+      957,
+      959,
+      961,
+      963,
+      967
+    ],
+    "target_view_bbox": [
+      218.78677763227319,
+      1714.5355554118717,
+      412.20001410668755,
+      1782.4415365973555
+    ],
+    "reference_viewBox": "218.28677763227319 -1782.9415365973555 318.86528640881244 70.754685260315682",
+    "composite_requirements": {
+      "required_fills": {
+        "#101270": 2,
+        "#012f58": 2,
+        "#a6afb4": 1
+      },
+      "multi_color": true,
+      "white_elements_required": false,
+      "required_object_count": 5,
+      "preserve_reference_object_order": true
+    },
+    "missed_by_previous_selection": [
+      957,
+      959,
+      961,
+      963,
+      967
+    ],
+    "missed_by_previous_suggestions": [
+      957,
+      959,
+      961,
+      963,
+      967
+    ],
+    "previous_extra_ids": [
+      "636",
+      "638",
+      "640"
+    ],
+    "metadata_ids_match_independent_matches": false
+  },
+  {
+    "source": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\乾途单挡6907柴油 7260812.fs",
+    "reference": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\导出彩条参考\\乾途单挡6907柴油 7260812.svg",
+    "source_sha": "c46a8d904d7777482d923d900db012656860f6a3c93138768870a548b7ecda6a",
+    "reference_sha": "561932fa6c361a851f0780aac62e3434d3e2960c4cd279040f43999099cc2668",
+    "reference_source_sha_matches": true,
+    "matching_method": "independent command sequence and every coordinate; no object-ID hints used",
+    "fresh_decode_error": null,
+    "geometry_input": "fresh core decode",
+    "positives": [
+      {
+        "object_id": 613,
+        "source_offset": 269796,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 34,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          160.01485775357048,
+          144.039331378233,
+          436.1411218031126,
+          200.29388952115153
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#aeafb9",
+        "decoded_fill": "#aeafb9",
+        "class_name": "AEditPath",
+        "previous_score": 0.0,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 615,
+        "source_offset": 270506,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 30,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          119.41013289337673,
+          136.8884164211796,
+          436.1411218031126,
+          200.03212463736156
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#aeafb9",
+        "decoded_fill": "#aeafb9",
+        "class_name": "AEditPath",
+        "previous_score": 0.0,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      }
+    ],
+    "unmatched": [
+      {
+        "reference_path_id_hint": "native-620",
+        "fill": "#aeafb9",
+        "coordinate_count": 38
+      }
+    ],
+    "previous_selected_ids": [],
+    "previous_suggested_ids": [],
+    "geometry_stats": {
+      "objects": 25702,
+      "APath": 393,
+      "AEditPath": 25309,
+      "rejected_marker_candidates": 209395,
+      "tlv_word_bytes": 8
+    },
+    "positive_ids": [
+      613,
+      615
+    ],
+    "target_view_bbox": [
+      119.41013289337673,
+      136.8884164211796,
+      436.1411218031126,
+      200.29388952115153
+    ],
+    "reference_viewBox": "118.91013289337673 -201.05785500295644 317.73098890973586 64.669438581776831",
+    "composite_requirements": {
+      "required_fills": {
+        "#aeafb9": 2
+      },
+      "multi_color": false,
+      "white_elements_required": false,
+      "required_object_count": 2,
+      "preserve_reference_object_order": true
+    },
+    "missed_by_previous_selection": [
+      613,
+      615
+    ],
+    "missed_by_previous_suggestions": [
+      613,
+      615
+    ],
+    "previous_extra_ids": [],
+    "metadata_ids_match_independent_matches": false
+  },
+  {
+    "source": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\乾途双挡 3.8米车高（12米车长）3261129.fs",
+    "reference": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\导出彩条参考\\乾途双挡 3.8米车高（12米车长）3261129.svg",
+    "source_sha": "749abb4bf3b28a9c4404a21b7ac594d7351fedfd6fb761be725e50675ca846aa",
+    "reference_sha": "dca315d95a419dbbd53189930092ecec4983264f0ffc667d1e2fe763feeede0a",
+    "reference_source_sha_matches": true,
+    "matching_method": "independent command sequence and every coordinate; no object-ID hints used",
+    "fresh_decode_error": null,
+    "geometry_input": "fresh core decode",
+    "positives": [
+      {
+        "object_id": 26658,
+        "source_offset": 24508094,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 10,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          63.18506591455207,
+          158.74588594328668,
+          485.3039818188041,
+          163.6249138156453
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#90da35",
+        "decoded_fill": "#90da35",
+        "class_name": "AEditPath",
+        "previous_score": 0.8162,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 26660,
+        "source_offset": 24508607,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 38,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          63.18506591455207,
+          111.34438705700268,
+          292.630554549858,
+          157.2668268486492
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#ed8301",
+        "decoded_fill": "#ed8301",
+        "class_name": "AEditPath",
+        "previous_score": 0.7221,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 26662,
+        "source_offset": 24509806,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 50,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          172.4278419383861,
+          169.4734348712085,
+          451.6286454869138,
+          185.36780084137615
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#90da35",
+        "decoded_fill": "#90da35",
+        "class_name": "AEditPath",
+        "previous_score": 0.8719,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      }
+    ],
+    "unmatched": [
+      {
+        "reference_path_id_hint": "native-26664",
+        "fill": "#ed8301",
+        "coordinate_count": 56
+      }
+    ],
+    "previous_selected_ids": [
+      "693",
+      "695"
+    ],
+    "previous_suggested_ids": [
+      "693",
+      "695"
+    ],
+    "geometry_stats": {
+      "objects": 20889,
+      "APath": 183,
+      "AEditPath": 20706,
+      "rejected_marker_candidates": 170483,
+      "tlv_word_bytes": 8
+    },
+    "positive_ids": [
+      26658,
+      26660,
+      26662
+    ],
+    "target_view_bbox": [
+      63.18506591455207,
+      111.34438705700268,
+      485.3039818188041,
+      185.36780084137615
+    ],
+    "reference_viewBox": "62.685065914552069 -185.86780084137615 423.11891590425205 75.023413784373474",
+    "composite_requirements": {
+      "required_fills": {
+        "#90da35": 2,
+        "#ed8301": 1
+      },
+      "multi_color": true,
+      "white_elements_required": false,
+      "required_object_count": 3,
+      "preserve_reference_object_order": true
+    },
+    "missed_by_previous_selection": [
+      26658,
+      26660,
+      26662
+    ],
+    "missed_by_previous_suggestions": [
+      26658,
+      26660,
+      26662
+    ],
+    "previous_extra_ids": [
+      "693",
+      "695"
+    ],
+    "metadata_ids_match_independent_matches": false
+  },
+  {
+    "source": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\乾途双挡3.8米车高（车长12米）3261627.fs",
+    "reference": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\导出彩条参考\\乾途双挡3.8米车高（车长12米）3261627.svg",
+    "source_sha": "6442e00aff00c019c6c4aec4bcbda6218ec7421b72fab3fd95624f96a5683c23",
+    "reference_sha": "fad898d65bea6f765cb3de0ab73247d954c06213bd8109287f824d61b3647a57",
+    "reference_source_sha_matches": true,
+    "matching_method": "independent command sequence and every coordinate; no object-ID hints used",
+    "fresh_decode_error": null,
+    "geometry_input": "fresh core decode",
+    "positives": [
+      {
+        "object_id": 15619,
+        "source_offset": 10266461,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 22,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          238.04350596444152,
+          301.2506466234845,
+          411.9556813517299,
+          359.5020013920103
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#ebebdc",
+        "decoded_fill": "#ebebdc",
+        "class_name": "AEditPath",
+        "previous_score": 0.0,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 15625,
+        "source_offset": 10268154,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 22,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          237.94637563996645,
+          296.0087830817847,
+          460.461116314536,
+          359.18580544089224
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#e2dbc2",
+        "decoded_fill": "#e2dbc2",
+        "class_name": "AEditPath",
+        "previous_score": 0.0,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 15630,
+        "source_offset": 10269592,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 22,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          237.94481961589833,
+          290.57183197104985,
+          520.1546153388957,
+          364.6334171768221
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#d3cdb8",
+        "decoded_fill": "#d3cdb8",
+        "class_name": "AEditPath",
+        "previous_score": 0.0,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 15633,
+        "source_offset": 10270497,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 98,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          358.6062260857979,
+          301.0247567789253,
+          389.4778361808197,
+          321.7815923305461
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#2b328a",
+        "decoded_fill": "#2b328a",
+        "class_name": "AEditPath",
+        "previous_score": 0.0,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 15635,
+        "source_offset": 10271599,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 98,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          402.11184331994633,
+          323.0331064552746,
+          424.63689808875364,
+          339.0197002156313
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#2b328a",
+        "decoded_fill": "#2b328a",
+        "class_name": "AEditPath",
+        "previous_score": 0.0,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 15637,
+        "source_offset": 10272701,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 98,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          453.33069017503243,
+          321.2339988362809,
+          492.479115371883,
+          346.9415130222505
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#2b328a",
+        "decoded_fill": "#2b328a",
+        "class_name": "AEditPath",
+        "previous_score": 0.0,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      },
+      {
+        "object_id": 15684,
+        "source_offset": 10298318,
+        "max_coordinate_error": 0.0,
+        "coordinate_count": 12,
+        "transform": "identity raw FS geometry",
+        "bbox": [
+          393.1121455903675,
+          322.5940084474189,
+          440.404148728583,
+          324.6886610924978
+        ],
+        "source_collinear_cubics_normalized": 0,
+        "reference_collinear_cubics_normalized": 0,
+        "reference_fill": "#000000",
+        "decoded_fill": "#000000",
+        "class_name": "AEditPath",
+        "previous_score": 0.0,
+        "previous_eligible": null,
+        "previous_selected": false,
+        "previous_suggested": false
+      }
+    ],
+    "unmatched": [],
+    "previous_selected_ids": [
+      "15614",
+      "772"
+    ],
+    "previous_suggested_ids": [
+      "15614",
+      "772"
+    ],
+    "geometry_stats": {
+      "objects": 24988,
+      "APath": 321,
+      "AEditPath": 24667,
+      "rejected_marker_candidates": 6112,
+      "tlv_word_bytes": 8
+    },
+    "positive_ids": [
+      15619,
+      15625,
+      15630,
+      15633,
+      15635,
+      15637,
+      15684
+    ],
+    "target_view_bbox": [
+      237.94481961589833,
+      290.57183197104985,
+      520.1546153388957,
+      364.6334171768221
+    ],
+    "reference_viewBox": "237.44481961589833 -365.13341717682209 283.2097957229974 75.061585205772246",
+    "composite_requirements": {
+      "required_fills": {
+        "#ebebdc": 1,
+        "#e2dbc2": 1,
+        "#d3cdb8": 1,
+        "#2b328a": 3,
+        "#000000": 1
+      },
+      "multi_color": true,
+      "white_elements_required": false,
+      "required_object_count": 7,
+      "preserve_reference_object_order": true
+    },
+    "missed_by_previous_selection": [
+      15619,
+      15625,
+      15630,
+      15633,
+      15635,
+      15637,
+      15684
+    ],
+    "missed_by_previous_suggestions": [
+      15619,
+      15625,
+      15630,
+      15633,
+      15635,
+      15637,
+      15684
+    ],
+    "previous_extra_ids": [
+      "15614",
+      "772"
+    ],
+    "metadata_ids_match_independent_matches": true
+  }
+]

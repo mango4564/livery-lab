@@ -1,0 +1,9 @@
+{
+  "enabled": false,
+  "base_url": "",
+  "model": "",
+  "api_key_env": "LIVERY_API_KEY",
+  "timeout_seconds": 90,
+  "max_candidates": 150,
+  "allow_insecure": false
+}

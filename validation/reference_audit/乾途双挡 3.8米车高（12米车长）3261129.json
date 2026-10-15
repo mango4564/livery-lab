@@ -1,0 +1,241 @@
+{
+  "source": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\乾途双挡 3.8米车高（12米车长）3261129.fs",
+  "reference": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\导出彩条参考\\乾途双挡 3.8米车高（12米车长）3261129.svg",
+  "source_sha": "749abb4bf3b28a9c4404a21b7ac594d7351fedfd6fb761be725e50675ca846aa",
+  "reference_sha": "dca315d95a419dbbd53189930092ecec4983264f0ffc667d1e2fe763feeede0a",
+  "reference_source_sha_matches": true,
+  "matching_method": "independent command sequence and every coordinate; no object-ID hints used",
+  "fresh_decode_error": null,
+  "candidate_decoder": "next-node bit0 only",
+  "stale_handle_statistics": {
+    "paths_with_stale_handles": 34,
+    "straight_segments_with_stale_handles": 127,
+    "parsed_edit_paths": 20706
+  },
+  "geometry_input": "fresh core decode",
+  "positives": [
+    {
+      "object_id": 26658,
+      "source_offset": 24508094,
+      "max_coordinate_error": 0.0,
+      "coordinate_count": 10,
+      "transform": "identity raw FS geometry",
+      "bbox": [
+        63.18506591455207,
+        158.74588594328668,
+        485.3039818188041,
+        163.6249138156453
+      ],
+      "source_collinear_cubics_normalized": 0,
+      "reference_collinear_cubics_normalized": 0,
+      "strict_command_sequence_equal": true,
+      "strict_coordinate_count": 10,
+      "strict_max_coordinate_error": 0.0,
+      "reference_fill": "#90da35",
+      "reference_parent_id_hint": null,
+      "reference_subpath_index": null,
+      "decoded_fill": "#90da35",
+      "class_name": "AEditPath",
+      "previous_score": 0.8162,
+      "previous_eligible": null,
+      "container_ids": [
+        240,
+        26657
+      ],
+      "previous_selected": false,
+      "previous_suggested": false
+    },
+    {
+      "object_id": 26660,
+      "source_offset": 24508607,
+      "max_coordinate_error": 0.0,
+      "coordinate_count": 38,
+      "transform": "identity raw FS geometry",
+      "bbox": [
+        63.18506591455207,
+        111.34438705700268,
+        292.630554549858,
+        157.2668268486492
+      ],
+      "source_collinear_cubics_normalized": 0,
+      "reference_collinear_cubics_normalized": 0,
+      "strict_command_sequence_equal": true,
+      "strict_coordinate_count": 38,
+      "strict_max_coordinate_error": 0.0,
+      "reference_fill": "#ed8301",
+      "reference_parent_id_hint": null,
+      "reference_subpath_index": null,
+      "decoded_fill": "#ed8301",
+      "class_name": "AEditPath",
+      "previous_score": 0.7221,
+      "previous_eligible": null,
+      "container_ids": [
+        240,
+        26657
+      ],
+      "previous_selected": false,
+      "previous_suggested": false
+    },
+    {
+      "object_id": 26662,
+      "source_offset": 24509806,
+      "max_coordinate_error": 0.0,
+      "coordinate_count": 50,
+      "transform": "identity raw FS geometry",
+      "bbox": [
+        172.4278419383861,
+        169.4734348712085,
+        451.6286454869138,
+        185.36780084137615
+      ],
+      "source_collinear_cubics_normalized": 0,
+      "reference_collinear_cubics_normalized": 0,
+      "strict_command_sequence_equal": true,
+      "strict_coordinate_count": 50,
+      "strict_max_coordinate_error": 0.0,
+      "reference_fill": "#90da35",
+      "reference_parent_id_hint": null,
+      "reference_subpath_index": null,
+      "decoded_fill": "#90da35",
+      "class_name": "AEditPath",
+      "previous_score": 0.8719,
+      "previous_eligible": null,
+      "container_ids": [
+        240,
+        26657
+      ],
+      "previous_selected": false,
+      "previous_suggested": false
+    },
+    {
+      "object_id": 26666,
+      "source_offset": 24511188,
+      "max_coordinate_error": 0.0,
+      "coordinate_count": 42,
+      "transform": "identity raw FS geometry",
+      "bbox": [
+        170.6766749998426,
+        174.12543656871742,
+        438.76974618505017,
+        176.77842252721973
+      ],
+      "source_collinear_cubics_normalized": 2,
+      "reference_collinear_cubics_normalized": 2,
+      "strict_command_sequence_equal": true,
+      "strict_coordinate_count": 50,
+      "strict_max_coordinate_error": 0.0,
+      "reference_fill": "#ed8301",
+      "reference_parent_id_hint": "native-26664",
+      "reference_subpath_index": "0",
+      "decoded_fill": "#ed8301",
+      "class_name": "AEditPath",
+      "previous_score": 0.8295,
+      "previous_eligible": null,
+      "container_ids": [
+        240,
+        26657,
+        26664
+      ],
+      "previous_selected": false,
+      "previous_suggested": false
+    },
+    {
+      "object_id": 26668,
+      "source_offset": 24512093,
+      "max_coordinate_error": 0.0,
+      "coordinate_count": 14,
+      "transform": "identity raw FS geometry",
+      "bbox": [
+        169.9327758007239,
+        177.36840321967532,
+        440.94230144409164,
+        178.35432459686433
+      ],
+      "source_collinear_cubics_normalized": 1,
+      "reference_collinear_cubics_normalized": 1,
+      "strict_command_sequence_equal": true,
+      "strict_coordinate_count": 18,
+      "strict_max_coordinate_error": 0.0,
+      "reference_fill": "#ed8301",
+      "reference_parent_id_hint": "native-26664",
+      "reference_subpath_index": "1",
+      "decoded_fill": "#ed8301",
+      "class_name": "AEditPath",
+      "previous_score": 0.831,
+      "previous_eligible": null,
+      "container_ids": [
+        240,
+        26657,
+        26664
+      ],
+      "previous_selected": false,
+      "previous_suggested": false
+    }
+  ],
+  "unmatched": [],
+  "previous_selected_ids": [
+    693,
+    695
+  ],
+  "previous_suggested_ids": [
+    693,
+    695
+  ],
+  "geometry_stats": {
+    "objects": 20889,
+    "APath": 183,
+    "AEditPath": 20706,
+    "rejected_marker_candidates": 170483,
+    "tlv_word_bytes": 8
+  },
+  "compound_groups": [
+    {
+      "reference_parent_id_hint": "native-26664",
+      "required_subpaths": 2,
+      "fill_rule": "evenodd"
+    }
+  ],
+  "positive_ids": [
+    26658,
+    26660,
+    26662,
+    26666,
+    26668
+  ],
+  "target_view_bbox": [
+    63.18506591455207,
+    111.34438705700268,
+    485.3039818188041,
+    185.36780084137615
+  ],
+  "reference_viewBox": "62.685065914552069 -185.86780084137615 423.11891590425205 75.023413784373474",
+  "composite_requirements": {
+    "required_fills": {
+      "#90da35": 2,
+      "#ed8301": 3
+    },
+    "multi_color": true,
+    "white_elements_required": false,
+    "required_object_count": 5,
+    "preserve_reference_object_order": true
+  },
+  "missed_by_previous_selection": [
+    26658,
+    26660,
+    26662,
+    26666,
+    26668
+  ],
+  "missed_by_previous_suggestions": [
+    26658,
+    26660,
+    26662,
+    26666,
+    26668
+  ],
+  "previous_extra_ids": [
+    693,
+    695
+  ],
+  "metadata_ids_match_independent_matches": false
+}

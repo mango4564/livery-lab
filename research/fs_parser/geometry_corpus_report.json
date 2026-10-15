@@ -1,0 +1,184 @@
+[
+  {
+    "file": "6907凯旋 7250044(1).fs",
+    "objects": 18266,
+    "APath": 980,
+    "AEditPath": 17286,
+    "rejected_marker_candidates": 840,
+    "tlv_word_bytes": 4,
+    "warnings": [
+      "Object discovery uses validated wrappers; hierarchy is not resolved.",
+      "bbox is the local control-point envelope, not the exact Bezier extrema.",
+      "Parent transforms, colors, visibility, compound operations and clipping are unresolved.",
+      "APath closure flags remain unresolved; AEditPath closure uses field 1 presence."
+    ]
+  },
+  {
+    "file": "乾途单挡3.5米测试.fs",
+    "objects": 78813,
+    "APath": 1548,
+    "AEditPath": 77265,
+    "rejected_marker_candidates": 2272,
+    "tlv_word_bytes": 4,
+    "warnings": [
+      "Object discovery uses validated wrappers; hierarchy is not resolved.",
+      "bbox is the local control-point envelope, not the exact Bezier extrema.",
+      "Parent transforms, colors, visibility, compound operations and clipping are unresolved.",
+      "APath closure flags remain unresolved; AEditPath closure uses field 1 presence."
+    ]
+  },
+  {
+    "file": "乾途单挡3.5米车高（车长11米） 3261042.fs",
+    "objects": 3309,
+    "APath": 544,
+    "AEditPath": 2765,
+    "rejected_marker_candidates": 448,
+    "tlv_word_bytes": 8,
+    "warnings": [
+      "Object discovery uses validated wrappers; hierarchy is not resolved.",
+      "bbox is the local control-point envelope, not the exact Bezier extrema.",
+      "Parent transforms, colors, visibility, compound operations and clipping are unresolved.",
+      "APath closure flags remain unresolved; AEditPath closure uses field 1 presence."
+    ]
+  },
+  {
+    "file": "乾途单挡3.5米车高（车长11米） 3261588.fs",
+    "objects": 4985,
+    "APath": 671,
+    "AEditPath": 4314,
+    "rejected_marker_candidates": 603,
+    "tlv_word_bytes": 8,
+    "warnings": [
+      "Object discovery uses validated wrappers; hierarchy is not resolved.",
+      "bbox is the local control-point envelope, not the exact Bezier extrema.",
+      "Parent transforms, colors, visibility, compound operations and clipping are unresolved.",
+      "APath closure flags remain unresolved; AEditPath closure uses field 1 presence."
+    ]
+  },
+  {
+    "file": "乾途单挡3.6米车高（车长11.7）3261754.fs",
+    "objects": 4541,
+    "APath": 566,
+    "AEditPath": 3975,
+    "rejected_marker_candidates": 6145,
+    "tlv_word_bytes": 8,
+    "warnings": [
+      "Object discovery uses validated wrappers; hierarchy is not resolved.",
+      "bbox is the local control-point envelope, not the exact Bezier extrema.",
+      "Parent transforms, colors, visibility, compound operations and clipping are unresolved.",
+      "APath closure flags remain unresolved; AEditPath closure uses field 1 presence."
+    ]
+  },
+  {
+    "file": "乾途单挡3.6米车高（车长12米）3261074.fs",
+    "objects": 10190,
+    "APath": 1326,
+    "AEditPath": 8864,
+    "rejected_marker_candidates": 1038,
+    "tlv_word_bytes": 8,
+    "warnings": [
+      "Object discovery uses validated wrappers; hierarchy is not resolved.",
+      "bbox is the local control-point envelope, not the exact Bezier extrema.",
+      "Parent transforms, colors, visibility, compound operations and clipping are unresolved.",
+      "APath closure flags remain unresolved; AEditPath closure uses field 1 presence."
+    ]
+  },
+  {
+    "file": "乾途单挡3.6米车高（车长12米）ai测试低版本.fs",
+    "objects": 7276,
+    "APath": 859,
+    "AEditPath": 6417,
+    "rejected_marker_candidates": 202,
+    "tlv_word_bytes": 4,
+    "warnings": [
+      "Object discovery uses validated wrappers; hierarchy is not resolved.",
+      "bbox is the local control-point envelope, not the exact Bezier extrema.",
+      "Parent transforms, colors, visibility, compound operations and clipping are unresolved.",
+      "APath closure flags remain unresolved; AEditPath closure uses field 1 presence."
+    ]
+  },
+  {
+    "file": "乾途单挡6827柴油.fs",
+    "objects": 33397,
+    "APath": 519,
+    "AEditPath": 32878,
+    "rejected_marker_candidates": 38960,
+    "tlv_word_bytes": 8,
+    "warnings": [
+      "Object discovery uses validated wrappers; hierarchy is not resolved.",
+      "bbox is the local control-point envelope, not the exact Bezier extrema.",
+      "Parent transforms, colors, visibility, compound operations and clipping are unresolved.",
+      "APath closure flags remain unresolved; AEditPath closure uses field 1 presence."
+    ]
+  },
+  {
+    "file": "乾途单挡6827纯电 7260798.fs",
+    "objects": 54210,
+    "APath": 1163,
+    "AEditPath": 53047,
+    "rejected_marker_candidates": 3670,
+    "tlv_word_bytes": 8,
+    "warnings": [
+      "Object discovery uses validated wrappers; hierarchy is not resolved.",
+      "bbox is the local control-point envelope, not the exact Bezier extrema.",
+      "Parent transforms, colors, visibility, compound operations and clipping are unresolved.",
+      "APath closure flags remain unresolved; AEditPath closure uses field 1 presence."
+    ]
+  },
+  {
+    "file": "乾途单挡6907柴油 7260812.fs",
+    "objects": 25702,
+    "APath": 393,
+    "AEditPath": 25309,
+    "rejected_marker_candidates": 209395,
+    "tlv_word_bytes": 8,
+    "warnings": [
+      "Object discovery uses validated wrappers; hierarchy is not resolved.",
+      "bbox is the local control-point envelope, not the exact Bezier extrema.",
+      "Parent transforms, colors, visibility, compound operations and clipping are unresolved.",
+      "APath closure flags remain unresolved; AEditPath closure uses field 1 presence."
+    ]
+  },
+  {
+    "file": "乾途双挡 3.8米车高（12米车长）3261129.fs",
+    "objects": 20889,
+    "APath": 183,
+    "AEditPath": 20706,
+    "rejected_marker_candidates": 170483,
+    "tlv_word_bytes": 8,
+    "warnings": [
+      "Object discovery uses validated wrappers; hierarchy is not resolved.",
+      "bbox is the local control-point envelope, not the exact Bezier extrema.",
+      "Parent transforms, colors, visibility, compound operations and clipping are unresolved.",
+      "APath closure flags remain unresolved; AEditPath closure uses field 1 presence."
+    ]
+  },
+  {
+    "file": "乾途双挡3.8米车高（车长12米）3261627.fs",
+    "objects": 24988,
+    "APath": 321,
+    "AEditPath": 24667,
+    "rejected_marker_candidates": 6112,
+    "tlv_word_bytes": 8,
+    "warnings": [
+      "Object discovery uses validated wrappers; hierarchy is not resolved.",
+      "bbox is the local control-point envelope, not the exact Bezier extrema.",
+      "Parent transforms, colors, visibility, compound operations and clipping are unresolved.",
+      "APath closure flags remain unresolved; AEditPath closure uses field 1 presence."
+    ]
+  },
+  {
+    "file": "乾途双挡柴油 （车长13.2米） 3261895.fs",
+    "objects": 6205,
+    "APath": 224,
+    "AEditPath": 5981,
+    "rejected_marker_candidates": 533,
+    "tlv_word_bytes": 8,
+    "warnings": [
+      "Object discovery uses validated wrappers; hierarchy is not resolved.",
+      "bbox is the local control-point envelope, not the exact Bezier extrema.",
+      "Parent transforms, colors, visibility, compound operations and clipping are unresolved.",
+      "APath closure flags remain unresolved; AEditPath closure uses field 1 presence."
+    ]
+  }
+]

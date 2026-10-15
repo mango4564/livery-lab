@@ -1,0 +1,155 @@
+{
+  "source": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\乾途单挡6907柴油 7260812.fs",
+  "reference": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\全车矢量图素材\\导出彩条参考\\乾途单挡6907柴油 7260812.svg",
+  "source_sha": "c46a8d904d7777482d923d900db012656860f6a3c93138768870a548b7ecda6a",
+  "reference_sha": "561932fa6c361a851f0780aac62e3434d3e2960c4cd279040f43999099cc2668",
+  "reference_source_sha_matches": true,
+  "matching_method": "independent command sequence and every coordinate; no object-ID hints used",
+  "fresh_decode_error": null,
+  "candidate_decoder": "next-node bit0 only",
+  "stale_handle_statistics": {
+    "paths_with_stale_handles": 75,
+    "straight_segments_with_stale_handles": 200,
+    "parsed_edit_paths": 25309
+  },
+  "geometry_input": "fresh core decode",
+  "positives": [
+    {
+      "object_id": 613,
+      "source_offset": 269796,
+      "max_coordinate_error": 0.0,
+      "coordinate_count": 34,
+      "transform": "identity raw FS geometry",
+      "bbox": [
+        160.01485775357048,
+        144.039331378233,
+        436.1411218031126,
+        200.29388952115153
+      ],
+      "source_collinear_cubics_normalized": 0,
+      "reference_collinear_cubics_normalized": 0,
+      "strict_command_sequence_equal": true,
+      "strict_coordinate_count": 34,
+      "strict_max_coordinate_error": 0.0,
+      "reference_fill": "#aeafb9",
+      "reference_parent_id_hint": null,
+      "reference_subpath_index": null,
+      "decoded_fill": "#aeafb9",
+      "class_name": "AEditPath",
+      "previous_score": 0.0,
+      "previous_eligible": null,
+      "container_ids": [
+        191,
+        612
+      ],
+      "previous_selected": false,
+      "previous_suggested": false
+    },
+    {
+      "object_id": 615,
+      "source_offset": 270506,
+      "max_coordinate_error": 0.0,
+      "coordinate_count": 30,
+      "transform": "identity raw FS geometry",
+      "bbox": [
+        119.41013289337673,
+        136.8884164211796,
+        436.1411218031126,
+        200.03212463736156
+      ],
+      "source_collinear_cubics_normalized": 0,
+      "reference_collinear_cubics_normalized": 0,
+      "strict_command_sequence_equal": true,
+      "strict_coordinate_count": 30,
+      "strict_max_coordinate_error": 0.0,
+      "reference_fill": "#aeafb9",
+      "reference_parent_id_hint": null,
+      "reference_subpath_index": null,
+      "decoded_fill": "#aeafb9",
+      "class_name": "AEditPath",
+      "previous_score": 0.0,
+      "previous_eligible": null,
+      "container_ids": [
+        191,
+        612
+      ],
+      "previous_selected": false,
+      "previous_suggested": false
+    },
+    {
+      "object_id": 620,
+      "source_offset": 272415,
+      "max_coordinate_error": 0.0,
+      "coordinate_count": 38,
+      "transform": "identity raw FS geometry",
+      "bbox": [
+        191.7924854851725,
+        151.2140424105827,
+        436.1411218031126,
+        200.55785500295644
+      ],
+      "source_collinear_cubics_normalized": 0,
+      "reference_collinear_cubics_normalized": 0,
+      "strict_command_sequence_equal": true,
+      "strict_coordinate_count": 38,
+      "strict_max_coordinate_error": 0.0,
+      "reference_fill": "#aeafb9",
+      "reference_parent_id_hint": null,
+      "reference_subpath_index": null,
+      "decoded_fill": "#aeafb9",
+      "class_name": "AEditPath",
+      "previous_score": 0.0,
+      "previous_eligible": null,
+      "container_ids": [
+        191,
+        612
+      ],
+      "previous_selected": false,
+      "previous_suggested": false
+    }
+  ],
+  "unmatched": [],
+  "previous_selected_ids": [],
+  "previous_suggested_ids": [],
+  "geometry_stats": {
+    "objects": 25702,
+    "APath": 393,
+    "AEditPath": 25309,
+    "rejected_marker_candidates": 209395,
+    "tlv_word_bytes": 8
+  },
+  "compound_groups": [],
+  "positive_ids": [
+    613,
+    615,
+    620
+  ],
+  "target_view_bbox": [
+    119.41013289337673,
+    136.8884164211796,
+    436.1411218031126,
+    200.55785500295644
+  ],
+  "reference_viewBox": "118.91013289337673 -201.05785500295644 317.73098890973586 64.669438581776831",
+  "composite_requirements": {
+    "required_fills": {
+      "#aeafb9": 3
+    },
+    "multi_color": false,
+    "white_elements_required": false,
+    "required_object_count": 3,
+    "preserve_reference_object_order": true
+  },
+  "missed_by_previous_selection": [
+    613,
+    615,
+    620
+  ],
+  "missed_by_previous_suggestions": [
+    613,
+    615,
+    620
+  ],
+  "previous_extra_ids": [],
+  "metadata_ids_match_independent_matches": true
+}
