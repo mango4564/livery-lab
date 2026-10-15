@@ -1,4 +1,4 @@
-"""Opt-in vision selection provider. Never creates geometry or logs credentials."""
+﻿"""Opt-in vision selection provider. Never creates geometry or logs credentials."""
 from __future__ import annotations
 
 import base64
@@ -238,12 +238,85 @@ def recognize(scene: dict, preview_path: Path, candidates_path: Path, config: di
     try:
         envelope = json.loads(raw.decode("utf-8"))
         choice = envelope["choices"][0]
-        if choice.get("finish_reason") != "stop":
+        if str(choice.get("finish_reason", "")).lower() != "stop":
             raise VisionError("AI 响应未正常结束（可能被截断或拒绝），已拒绝结果。")
         content = choice["message"]["content"]
         if not isinstance(content, str):
             raise ValueError()
-        payload = json.loads(content)
+        cleaned = content.strip()
+        if cleaned.startswith("```"):
+            lines = cleaned.splitlines()
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            cleaned = "\n".join(lines).strip()
+        payload = json.loads(cleaned)
     except (ValueError, KeyError, IndexError, TypeError, UnicodeError):
         raise VisionError("AI 响应不是兼容的 Chat Completions 严格 JSON，已拒绝结果。没有自动降级。") from None
     return _validate_selection(payload, allowed)
+
+
+def test_connection(config: dict) -> dict:
+    """Test AI endpoint connectivity and model availability with a lightweight call.
+    Never logs credentials or leaks raw secrets.
+    """
+    endpoint = _endpoint(config)
+    model = config.get("model")
+    if not isinstance(model, str) or not model.strip():
+        raise VisionError("AI 模型尚未配置；请填写视觉模型名称。")
+    key = resolve_api_key(config)
+    if not isinstance(key, str) or not key.strip():
+        raise VisionError("AI 密钥尚未配置；请填写密钥或设置环境变量。")
+    if not key.isascii() or any(ord(c) < 32 or ord(c) == 127 for c in key):
+        raise VisionError("AI 密钥格式无效。")
+
+    timeout = min(15.0, float(config.get("timeout_seconds", 15.0)))
+    body = {
+        "model": model.strip(),
+        "messages": [
+            {"role": "user", "content": "ping"}
+        ],
+        "max_tokens": 5,
+        "stream": False
+    }
+    data = json.dumps(body, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    req = request.Request(
+        endpoint,
+        data=data,
+        headers={"Content-Type": "application/json", "Authorization": "Bearer " + key.strip()},
+        method="POST"
+    )
+    try:
+        with request.build_opener(_NoRedirect()).open(req, timeout=timeout) as response:
+            raw = response.read(64 * 1024 + 1)
+            if len(raw) > 64 * 1024:
+                raise VisionError("AI 接口返回内容过大，已拒绝。")
+    except error.HTTPError as exc:
+        if exc.code == 401:
+            raise VisionError("鉴权失败 (HTTP 401)：API 密钥无效或未授权。") from None
+        elif exc.code == 404:
+            raise VisionError(f"未找到资源 (HTTP 404)：模型 '{model.strip()}' 不存在或 API 地址路径错误。") from None
+        elif exc.code == 429:
+            raise VisionError("请求受限 (HTTP 429)：API 配额耗尽或触发限流。") from None
+        else:
+            raise VisionError(f"AI 接口返回 HTTP {exc.code}，请检查接口与模型配置。") from None
+    except (socket.timeout, TimeoutError):
+        raise VisionError("连接超时：15 秒内未收到服务器响应，请检查网络或 API 地址。") from None
+    except error.URLError as exc:
+        raise VisionError(f"连接失败：{exc.reason}，请检查接口地址或网络环境。") from None
+    except OSError as exc:
+        raise VisionError(f"网络读写失败：{exc}") from None
+
+    try:
+        envelope = json.loads(raw.decode("utf-8"))
+        if "choices" in envelope and envelope["choices"]:
+            return {"ok": True, "message": f"连接成功！\n模型: {model.strip()}\n接口响应正常。"}
+        elif "error" in envelope:
+            err_msg = envelope["error"].get("message", "未知错误")
+            raise VisionError(f"接口返回错误：{err_msg}")
+        return {"ok": True, "message": "连接成功！接口已正常连通。"}
+    except Exception as exc:
+        if isinstance(exc, VisionError):
+            raise
+        raise VisionError("接口已连通，但返回的响应格式非标准 OpenAI JSON。")

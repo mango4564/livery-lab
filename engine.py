@@ -406,22 +406,25 @@ def _run_worker(source,directory,digest,fingerprint,use_ai):
         obj['compound_container_ids']=[c['object_id'] for c in ancestry if c['class_name']=='AComposite']
         obj['requires_review_geometry']=any(c['requires_boolean_semantics'] for c in ancestry)
         # Keep compact provenance; the full raw source is always the authority.
-        for key in ('appearance_hex','appearances','tree_path'):
-            obj.pop(key,None)
-    bounds=rank_candidates(objects)
-    groups=candidate_groups(objects)
+        for attr_key in ('appearance_hex','appearances','tree_path'):
+            obj.pop(attr_key,None)
+    bounds=rank_candidates(objects,containers)
+    groups=candidate_groups(objects,containers)
     reference=match_motifs(objects,_reference_directories(reference_directory),digest)
     related=set(reference.get('candidate_ids',[]))
     matched=set(reference.get('selected_ids',[]))
     for obj in objects:
         if obj['id'] in related:obj['score']=max(obj['score'],.85)
         if obj['id'] in matched:obj['score']=1.0
+    native_top_match = bool(not matched and groups and groups[0].get('is_native_group') and groups[0].get('mean_score', 0) >= 0.8)
+    auto_selected = list(matched) if matched else (list(groups[0]['selected_ids']) if native_top_match else [])
+    method_name = 'reference_motif_matched' if matched else ('native_group_matched' if native_top_match else 'unresolved_review')
     result={'version':VERSION,'pipeline_fingerprint':fingerprint,'source':str(source),
             'run_dir':str(run),'cache_index':str(run.parent/'.cache'/(key+'.json')),
             'source_sha256':digest,'output_dir':str(directory),'status':'review',
-            'method':'reference_motif_matched' if matched else 'unresolved_review','physical_scale_verified':False,
+            'method':method_name,'physical_scale_verified':False,
             'reference_match':reference,
-            'human_confirmed':False,'objects':objects,'selected_ids':reference.get('selected_ids',[]),
+            'human_confirmed':False,'objects':objects,'selected_ids':auto_selected,
             'suggested_ids':groups[0]['selected_ids'] if groups else [],
             'geometry_stats':doc['geometry_stats'],'preview_info':preview_info,
             'warnings':warnings,'preview_png':str(directory/'preview.png'),
@@ -442,10 +445,12 @@ def _run_worker(source,directory,digest,fingerprint,use_ai):
     else:
         _placeholder(directory/'candidates.png','No strong colour candidates. Use Show all objects to review.')
         warnings.append('规则未找到明显彩条候选，请显示全部对象后手动选择。')
-    if not matched:
-        warnings.append('未匹配到完整参考组合；没有采用最高规则分组作为自动提取结果，请使用 AI 或手动复核。')
-    else:
+    if matched:
         warnings.append('参考辅助结果已通过整组曲线形状及相对布局匹配；该样例验收不代表未见图稿的识别准确率。')
+    elif native_top_match:
+        warnings.append('已自动匹配到 FlexiSIGN 原生高置信度组合 (' + groups[0].get('label', '') + ')；可在下拉菜单切换其他候选。')
+    else:
+        warnings.append('未匹配到完整参考组合或高置信原生组合；没有采用最高规则分组作为自动提取结果，请使用 AI 或手动复核。')
     if use_ai and not matched:
         try:
             model_result=recognize({'objects':candidates,'candidate_sheet_png':result.get('candidate_sheet_png')},directory/'preview.png',directory/'candidates.png',config)
@@ -464,9 +469,10 @@ def _run_worker(source,directory,digest,fingerprint,use_ai):
     for i,group in enumerate(groups[:30],1):
         sub=directory/'candidate_groups'/f'{i:02d}'
         sub.mkdir(parents=True)
-        local=dict(result,method='rules_spatial_group')
+        local=dict(result,method='rules_native_group' if group.get('is_native_group') else 'rules_spatial_group')
         a,b=_render_selection(local,group['selected_ids'],sub)
-        result['views'].append({'label':f'候选组合 {i}','selected_ids':group['selected_ids'],'bbox':group['bbox'],'svg':a,'png':b})
+        lbl = group.get('label', f'候选组合 {i}')
+        result['views'].append({'label':f'{lbl} (第{i}组)','selected_ids':group['selected_ids'],'bbox':group['bbox'],'svg':a,'png':b})
     result['result_svg'],result['result_png']=_render_selection(result,result['selected_ids'],directory)
     if _file_sha(source)!=digest:
         raise RuntimeError('处理过程中源文件发生变化，拒绝保存该次结果。')

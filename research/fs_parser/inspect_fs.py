@@ -56,7 +56,7 @@ def decode_preview(data):
 
 
 def unpack_objects(data):
-    if data[:2] != b"\x03\x02":
+    if data[:2] not in (b"\x03\x02", b"\x02\x02"):
         # Earlier files store the TLV object tree directly with 32-bit lengths.
         if data[:2] == b"\x02\x00" and 5 <= struct.unpack_from("<I", data, 2)[0] <= len(data):
             return data, {"compression": "none", "tlv_word_bytes": 4,

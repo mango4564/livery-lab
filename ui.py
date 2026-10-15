@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import json
 from pathlib import Path
 import queue
@@ -10,7 +11,8 @@ import traceback
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from PIL import Image, ImageOps, ImageTk
+from PIL import Image
+from image_preview import ImagePreview
 from runtime import APP_DIR
 
 
@@ -18,7 +20,7 @@ class LiveryApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         root.title("彩条提取工作台")
-        root.geometry("1280x850")
+        root.geometry("1280x880")
         root.minsize(960, 680)
         self.events: queue.Queue = queue.Queue()
         self.stop_event = threading.Event()
@@ -28,9 +30,9 @@ class LiveryApp:
         self.selections: dict[str, set[str]] = {}
         self.current: str | None = None
         self.preview_images = {}
-        self.preview_photos = {}
         self.output = tk.StringVar(value=str(APP_DIR / "output"))
         self.force = tk.BooleanVar(value=False)
+        self.concurrency = tk.IntVar(value=min(os.cpu_count() or 4, 32))
         self.use_ai = tk.BooleanVar(value=False)
         self.ai_status = tk.StringVar(value="AI 未配置")
         self.reference_directory = tk.StringVar()
@@ -72,6 +74,10 @@ class LiveryApp:
         self.start_button.pack(side="right")
         self.stop_button = ttk.Button(toolbar, text="停止后续任务", command=self._stop, state="disabled")
         self.stop_button.pack(side="right", padx=6)
+        self.concurrency_spin = ttk.Spinbox(toolbar, from_=1, to=max(64, (os.cpu_count() or 4) * 2), textvariable=self.concurrency, width=4)
+        self.concurrency_spin.pack(side="right", padx=(2, 6))
+        self.concurrency_label = ttk.Label(toolbar, text="并发核心数:")
+        self.concurrency_label.pack(side="right")
 
         output_row = ttk.Frame(outer)
         output_row.pack(fill="x", pady=(10, 6))
@@ -120,12 +126,11 @@ class LiveryApp:
         self.previews = ttk.Notebook(right)
         self.previews.pack(fill="both", expand=True)
         self.canvases = {}
+        self.preview_viewers = {}
         for key, label in (("preview_png", "整车原图"), ("candidate_png", "候选对象"), ("result_png", "提取结果")):
-            frame = ttk.Frame(self.previews)
-            canvas = tk.Canvas(frame, background="#e8e9ed", highlightthickness=0, height=280)
-            canvas.pack(fill="both", expand=True)
-            canvas.bind("<Configure>", lambda e, k=key: self._draw_preview(k))
-            self.canvases[key] = canvas
+            frame = ImagePreview(self.previews)
+            self.preview_viewers[key] = frame
+            self.canvases[key] = frame.canvas
             self.previews.add(frame, text=label)
 
         group_bar=ttk.Frame(right)
@@ -147,7 +152,7 @@ class LiveryApp:
         self.selection_label.pack(side="right")
         object_frame = ttk.Frame(right)
         object_frame.pack(fill="both", expand=False)
-        self.objects = ttk.Treeview(object_frame, columns=("chosen", "id", "fill", "score", "bbox"), show="headings", selectmode="extended", height=8)
+        self.objects = ttk.Treeview(object_frame, columns=("chosen", "id", "fill", "score", "bbox"), show="headings", selectmode="extended", height=7)
         for key, label, width in (("chosen", "保留", 45), ("id", "对象 ID", 130), ("fill", "填充", 85), ("score", "评分", 65), ("bbox", "边界", 230)):
             self.objects.heading(key, text=label)
             self.objects.column(key, width=width, stretch=key in ("id", "bbox"))
@@ -269,7 +274,7 @@ class LiveryApp:
         if self.busy:
             return
         try:
-            from vision import CONFIG_PATH, DEFAULTS, read_config, configuration_status
+            from vision import CONFIG_PATH, DEFAULTS, read_config, configuration_status, test_connection
             config = read_config()
         except Exception as exc:
             messagebox.showerror("AI 配置错误", str(exc))
@@ -323,27 +328,76 @@ class LiveryApp:
             self._refresh_ai()
             dialog.destroy()
 
+        test_status = tk.StringVar(value="")
+        ttk.Label(frame, textvariable=test_status, foreground="#0066cc", wraplength=540).grid(row=6, column=0, columnspan=2, sticky="w", pady=(0, 6))
+
+        def test_conn():
+            test_button.configure(state="disabled", text="正在测试连接…")
+            test_status.set("正在连接并验证接口地址、模型与密钥…")
+            test_config = {name: config.get(name, default) for name, default in DEFAULTS.items()}
+            test_config.update({name: value.get().strip() for name, value in fields.items()})
+            test_config["enabled"] = True
+            if secret_value.get().strip():
+                test_config["api_key"] = secret_value.get().strip()
+
+            def worker():
+                try:
+                    res = test_connection(test_config)
+                    dialog.after(0, lambda: on_finish(True, res.get("message", "连接成功！")))
+                except Exception as err:
+                    dialog.after(0, lambda: on_finish(False, str(err)))
+
+            def on_finish(ok, msg):
+                test_button.configure(state="normal", text="测试连接")
+                if ok:
+                    test_status.set("✓ 连接成功！接口响应正常。")
+                    messagebox.showinfo("测试连接成功", msg, parent=dialog)
+                else:
+                    test_status.set("✗ 连接失败：" + msg.splitlines()[0])
+                    messagebox.showerror("测试连接失败", msg, parent=dialog)
+
+            threading.Thread(target=worker, daemon=True).start()
+
         actions = ttk.Frame(frame)
-        actions.grid(row=6, column=0, columnspan=2, sticky="e")
+        actions.grid(row=7, column=0, columnspan=2, sticky="e")
+        test_button = ttk.Button(actions, text="测试连接", command=test_conn)
+        test_button.pack(side="left", padx=(0, 16))
         ttk.Button(actions, text="取消", command=dialog.destroy).pack(side="left", padx=6)
         ttk.Button(actions, text="保存配置", command=save).pack(side="left")
 
-    def _open_output(self):
-        target = Path(self.output.get()).expanduser()
-        if self.current in self.results:
-            target = Path(self.results[self.current].get("output_dir") or target)
-        if not target.is_dir():
-            messagebox.showinfo("输出目录", "目录尚未生成。请先完成一次提取。")
+    def _open_file_location(self, target_path=None):
+        if target_path is None:
+            if self.current in self.results:
+                res = self.results[self.current]
+                svg = res.get("result_svg")
+                if svg and Path(svg).is_file():
+                    target_path = Path(svg)
+                else:
+                    target_path = Path(res.get("output_dir") or self.output.get())
+            else:
+                target_path = Path(self.output.get())
+
+        target = Path(target_path).expanduser().resolve()
+        if not target.exists():
+            messagebox.showinfo("打开文件位置", "文件或目录尚未生成，请先完成一次提取或保存。")
             return
         try:
-            os.startfile(str(target.resolve()))
-        except OSError as exc:
-            messagebox.showerror("无法打开目录", str(exc))
+            if target.is_file():
+                subprocess.Popen(f"explorer.exe /select,\"{target}\"", shell=True)
+            else:
+                subprocess.Popen(f"explorer.exe \"{target}\"", shell=True)
+        except Exception as exc:
+            messagebox.showerror("无法打开文件位置", str(exc))
+
+    def _open_output(self):
+        self._open_file_location()
 
     def _set_busy(self, busy):
         self.busy = busy
         for button in (self.start_button, self.add_file_button, self.add_folder_button, self.remove_button, self.save_button, self.ai_config_button, self.reference_button, self.reference_reset_button):
             button.configure(state="disabled" if busy else "normal")
+        if hasattr(self, "concurrency_spin"):
+            self.concurrency_spin.configure(state="disabled" if busy else "normal")
         self.stop_button.configure(state="normal" if busy else "disabled")
 
     def _start(self):
@@ -355,6 +409,11 @@ class LiveryApp:
         if not self.output.get().strip():
             messagebox.showinfo("输出目录", "请选择输出目录。")
             return
+        try:
+            concurrency = max(1, int(self.concurrency.get()))
+        except (ValueError, tk.TclError):
+            concurrency = os.cpu_count() or 4
+            self.concurrency.set(concurrency)
         output = Path(self.output.get()).expanduser().resolve()
         jobs = list(self.sources.items())
         force = self.force.get()
@@ -364,24 +423,43 @@ class LiveryApp:
         self.stop_event.clear()
         self.progress.configure(value=0, maximum=len(jobs))
         self._set_busy(True)
-        self.status.set("正在启动提取引擎…")
-        threading.Thread(target=self._batch_worker, args=(jobs, output, force, use_ai, reference_directory), daemon=True).start()
+        self.status.set(f"正在以 {concurrency} 线程并发启动提取引擎…")
+        threading.Thread(target=self._batch_worker, args=(jobs, output, force, use_ai, reference_directory, concurrency), daemon=True).start()
 
-    def _batch_worker(self, jobs, output, force, use_ai=False, reference_directory=""):
+    def _batch_worker(self, jobs, output, force, use_ai=False, reference_directory="", concurrency=1):
         try:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
             from engine import process_file
             output.mkdir(parents=True, exist_ok=True)
-            for item, source in jobs:
+            worker_count = max(1, min(int(concurrency), len(jobs)))
+            def _worker_task(item, source):
                 if self.stop_event.is_set():
-                    break
+                    return
                 self.events.put(("running", item, source.name))
                 try:
-                    result = process_file(source, output, options={"force": force, "use_ai": use_ai, "reference_directory": reference_directory}, progress=lambda text: self.events.put(("log", str(text))))
+                    result = process_file(
+                        source,
+                        output,
+                        options={"force": force, "use_ai": use_ai, "reference_directory": reference_directory},
+                        progress=lambda text: self.events.put(("log", f"[{source.name}] {text}"))
+                    )
                     self.events.put(("result", item, result))
                 except Exception as exc:
                     self.events.put(("failed", item, str(exc)))
-                    self.events.put(("log", traceback.format_exc()))
-                self.events.put(("step",))
+                    self.events.put(("log", f"[{source.name}] 失败：{exc}\n{traceback.format_exc()}"))
+                finally:
+                    self.events.put(("step",))
+
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                futures = {}
+                for item, source in jobs:
+                    if self.stop_event.is_set():
+                        break
+                    futures[executor.submit(_worker_task, item, source)] = (item, source)
+                for fut in as_completed(futures):
+                    if self.stop_event.is_set():
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        break
         except Exception as exc:
             self.events.put(("error", f"提取引擎无法启动：{exc}\n请确认 engine.py 及其依赖已安装。"))
         finally:
@@ -389,7 +467,7 @@ class LiveryApp:
 
     def _stop(self):
         self.stop_event.set()
-        self.status.set("已请求停止，将在当前文件完成后结束。")
+        self.status.set("已请求停止，正在等待当前运行中的任务结束…")
         self.stop_button.configure(state="disabled")
 
     def _task_selected(self, _event=None):
@@ -611,7 +689,8 @@ class LiveryApp:
             from engine import export_selection
             updated = export_selection(result, ids)
             self.events.put(("result", item, updated))
-            self.events.put(("log", "修正结果已保存。"))
+            self.events.put(("log", f"修正结果已保存：{updated.get("result_svg")}"))
+            self.events.put(("exported", item, updated))
         except Exception as exc:
             self.events.put(("error", f"保存失败：{exc}"))
         finally:
@@ -630,25 +709,7 @@ class LiveryApp:
             self._draw_preview(key)
 
     def _draw_preview(self, key):
-        canvas = self.canvases[key]
-        canvas.delete("all")
-        w, h = max(canvas.winfo_width(), 200), max(canvas.winfo_height(), 150)
-        original = self.preview_images.get(key)
-        if original is None:
-            canvas.create_text(w / 2, h / 2, text="暂无预览", fill="#777777")
-            return
-        img = ImageOps.contain(original, (max(1, w - 24), max(1, h - 24)), Image.Resampling.LANCZOS)
-        background = Image.new("RGBA", img.size, "#ffffff")
-        # Checkerboard makes transparent exports visible, including white artwork.
-        from PIL import ImageDraw
-        draw = ImageDraw.Draw(background)
-        for y in range(0, img.height, 16):
-            for x in range(0, img.width, 16):
-                if (x // 16 + y // 16) % 2:
-                    draw.rectangle((x, y, x + 15, y + 15), fill="#dddddd")
-        background.alpha_composite(img)
-        self.preview_photos[key] = ImageTk.PhotoImage(background)
-        canvas.create_image(w / 2, h / 2, image=self.preview_photos[key])
+        self.preview_viewers[key].set_image(self.preview_images.get(key))
 
     def _append_log(self, text):
         self.log.configure(state="normal")

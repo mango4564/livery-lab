@@ -26,6 +26,12 @@ class ReferenceMatching(unittest.TestCase):
         stream=b'\x03\x02'+struct.pack('<III',len(compressed),3,8)+struct.pack('<I',len(compressed))+compressed
         raw,_=unpack_objects(stream)
         self.assertEqual(raw,b'abc')
+    def test_compression_header_0202_is_supported(self):
+        compressed=zlib.compress(b'abc'+b'\0'*5)
+        stream=b'\x02\x02'+struct.pack('<III',len(compressed),3,8)+struct.pack('<I',len(compressed))+compressed
+        raw,_=unpack_objects(stream)
+        self.assertEqual(raw,b'abc')
+
 
     def make_reference(self,directory):
         p=Path(directory)/'two-parts.svg'
