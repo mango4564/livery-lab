@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import subprocess
 import json
+import hashlib
 from pathlib import Path
 import queue
 import threading
@@ -13,6 +14,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from PIL import Image
 from image_preview import ImagePreview
+from vector_preview import VectorDocument, VectorImage
 from runtime import APP_DIR
 
 
@@ -30,6 +32,8 @@ class LiveryApp:
         self.selections: dict[str, set[str]] = {}
         self.current: str | None = None
         self.preview_images = {}
+        self._source_preview_key = None
+        self._source_vector = None
         self.output = tk.StringVar(value=str(APP_DIR / "output"))
         self.force = tk.BooleanVar(value=False)
         self.concurrency = tk.IntVar(value=min(os.cpu_count() or 4, 32))
@@ -491,7 +495,8 @@ class LiveryApp:
         group=groups[index]
         self.selections[self.current]=set(group['selected_ids'])
         self._populate_objects()
-        preview=dict(self.results[self.current],result_png=group['png'])
+        preview=dict(self.results[self.current],result_png=group['png'],result_svg=group['svg'],
+                     selected_ids=group['selected_ids'])
         self._load_previews(preview)
         self.status.set('已切换候选组合，尚未保存。请核对后保存修正。')
 
@@ -697,7 +702,42 @@ class LiveryApp:
             self.events.put(("done", "保存操作结束，请查看日志及结果预览。"))
 
     def _load_previews(self, result):
+        if not result and self.current in self.sources:
+            source = self.sources[self.current]
+            try:
+                result = {'source':str(source), 'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest()}
+            except OSError as exc:
+                self._append_log(f"原文件无法读取：{exc}")
         self.preview_images.clear()
+        vectors = {}
+        source_key = (result.get('source'), result.get('source_sha256'))
+        if source_key != self._source_preview_key:
+            self._source_preview_key = source_key
+            self._source_vector = None
+        if result.get('source') and result.get('source_sha256'):
+            try:
+                from geometry import svg_document
+                if self._source_vector is None:
+                    from core.fs_scene import source_preview_pages
+                    pages = []
+                    for page in source_preview_pages(result):
+                        number = page['name'].split()[-1]
+                        suffix = '（读取失败，详见日志）' if page['error'] else '（空白）' if not page['objects'] else ''
+                        label = f'第 {number} 页{suffix}'
+                        pages.append(dict(page, label=label, image=VectorImage(
+                            svg_document(page['objects'], background='#ffffff'))))
+                        if page['error']:
+                            self._append_log(f"{label}：{page['error']}")
+                    self._source_vector = VectorDocument(pages)
+                vectors['preview_png'] = self._source_vector
+            except Exception as exc:
+                self._append_log(f"整车矢量预览无法生成：{exc}")
+        svg_path = result.get('result_svg')
+        if svg_path and result.get('selected_ids'):
+            try:
+                vectors['result_png'] = VectorImage(Path(svg_path).read_text(encoding='utf8'))
+            except Exception as exc:
+                self._append_log(f"结果矢量预览无法读取：{exc}")
         for key in self.canvases:
             path = result.get(key)
             if path:
@@ -706,10 +746,13 @@ class LiveryApp:
                         self.preview_images[key] = img.convert("RGBA")
                 except (OSError, ValueError) as exc:
                     self._append_log(f"预览无法读取：{path}（{exc}）")
-            self._draw_preview(key)
-
-    def _draw_preview(self, key):
-        self.preview_viewers[key].set_image(self.preview_images.get(key))
+            self.preview_viewers[key].set_image(
+                self.preview_images.get(key), vectors.get(key),
+                vector_label=("矢量 · 全部文档页面；可选单页放大、切换内嵌原图对照（特殊效果仍需核对）"
+                              if key == 'preview_png' else "矢量 · 当前提取结果 SVG"),
+                raster_label=("位图 · FS 内嵌原图，清晰度受文件内缩略图限制"
+                              if key == 'preview_png' else "位图 · 候选编号预览" if key == 'candidate_png'
+                              else "位图 · 提取结果预览"))
 
     def _append_log(self, text):
         self.log.configure(state="normal")

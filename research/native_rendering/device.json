@@ -1,0 +1,45 @@
+{
+  "evidence_id": "ev_c26c722c7c43f3b4795104f51f624d38a8af4284be90cdcd18d5acbb32f9a012",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll",
+    "digest": {
+      "sha256": "bcddb4912f9b044f1ba6b0350d7145f85983ba0a376b9e4714558bf12197471d"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll"
+  },
+  "procedure": {
+    "address": "0x100994b0",
+    "name": "ADevice::initPenBrushColor",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x100994b0",
+          "end": "0x100998af"
+        }
+      ],
+      "total_bytes": 1024,
+      "span_bytes": 1024,
+      "non_contiguous": false,
+      "contains_entry": true
+    },
+    "signature": "int __thiscall initPenBrushColor(ADevice * this, APen * param_1, ABrush * param_2, AColor * param_3, AColor * param_4, int param_5)",
+    "locals": []
+  },
+  "pseudocode": "\r\n/* protected: int __thiscall ADevice::initPenBrushColor(class APen *,class ABrush *,class AColor\r\n   const *,class AColor const *,int) */\r\n\r\nint __thiscall\r\nADevice::initPenBrushColor\r\n          (ADevice *this,APen *param_1,ABrush *param_2,AColor *param_3,AColor *param_4,int param_5)\r\n\r\n{\r\n  int *piVar1;\r\n  short sVar2;\r\n  int iVar3;\r\n  HGDIOBJ pvVar4;\r\n  CGdiObject *pCVar5;\r\n  undefined4 uVar6;\r\n  CPen *pCVar7;\r\n  CBrush *pCVar8;\r\n  AColor *this_00;\r\n  ulong uVar9;\r\n  uint uVar10;\r\n  int iVar11;\r\n  uint uVar12;\r\n  ulonglong uVar13;\r\n  AColor aAStack_38 [8];\r\n  double dStack_30;\r\n  AColor aAStack_28 [16];\r\n  undefined4 uStack_18;\r\n  ulong uStack_14;\r\n  undefined4 uStack_10;\r\n  void *pvStack_c;\r\n  undefined1 *puStack_8;\r\n  undefined4 uStack_4;\r\n  \r\n                    /* 0x994b0  2777\r\n                       ?initPenBrushColor@ADevice@@IAEHPAVAPen@@PAVABrush@@PBVAColor@@2H@Z */\r\n  uStack_4 = 0xffffffff;\r\n  puStack_8 = &LAB_100dd138;\r\n  pvStack_c = ExceptionList;\r\n  uVar10 = 0;\r\n  ExceptionList = &pvStack_c;\r\n  *(ABrush **)(this + 0x24) = param_2;\r\n  if (((param_2 == (ABrush *)0x0) || (iVar3 = (**(code **)(*(int *)param_2 + 0x40))(), iVar3 == 0))\r\n     && (param_4 == (AColor *)0x0)) {\r\n    *(undefined4 *)(this + 0x58) = 0;\r\n    *(undefined4 *)(this + 0x60) = 0;\r\n  }\r\n  else {\r\n    if (*(int *)(this + 0x24) == 0) {\r\n      *(AColor **)(this + 0x58) = param_4;\r\n    }\r\n    *(undefined4 *)(this + 0x60) = 1;\r\n  }\r\n  if (param_1 == (APen *)0x0) {\r\n    *(undefined4 *)(this + 0x28) = 0;\r\n    *(AColor **)(this + 0x5c) = param_3;\r\n  }\r\n  else {\r\n    *(APen **)(this + 0x28) = param_1;\r\n    *(undefined4 *)(this + 0x5c) = 0;\r\n  }\r\n  *(undefined4 *)(this + 100) = 0;\r\n  if (param_5 != 0) {\r\n    pvVar4 = GetCurrentObject(*(HDC *)(*(int *)(this + 8) + 8),1);\r\n    pCVar5 = CGdiObject::FromHandle(pvVar4);\r\n    if (pCVar5 == (CGdiObject *)0x0) {\r\n      uVar6 = 0;\r\n    }\r\n    else {\r\n      uVar6 = *(undefined4 *)(pCVar5 + 4);\r\n    }\r\n    *(undefined4 *)(this + 0x10) = uVar6;\r\n    pvVar4 = GetCurrentObject(*(HDC *)(*(int *)(this + 8) + 8),2);\r\n    pCVar5 = CGdiObject::FromHandle(pvVar4);\r\n    if (pCVar5 == (CGdiObject *)0x0) {\r\n      uVar6 = 0;\r\n    }\r\n    else {\r\n      uVar6 = *(undefined4 *)(pCVar5 + 4);\r\n    }\r\n    *(undefined4 *)(this + 0x14) = uVar6;\r\n  }\r\n  if ((*(int *)(this + 0x28) == 0) && (*(int *)(this + 0x5c) == 0)) {\r\n    *(undefined2 *)(this + 0xbc) = 0;\r\n    goto LAB_10099806;\r\n  }\r\n  AColor::AColor(aAStack_38);\r\n  if (*(int *)(this + 0x28) == 0) {\r\n    dStack_30 = 0.0;\r\n    AColor::operator=(aAStack_38,*(AColor **)(this + 0x5c));\r\n    iVar3 = 0;\r\n    iVar11 = 0;\r\n    param_1 = (APen *)&DAT_00000001;\r\n    param_3 = (AColor *)0x41200000;\r\n  }\r\n  else {\r\n    iVar3 = *(int *)(*(int *)(this + 0x28) + 4);\r\n    dStack_30 = *(double *)(iVar3 + 0x10);\r\n    (**(code **)(**(int **)(iVar3 + 0xc) + 0x90))(aAStack_28);\r\n    AColor::operator=(aAStack_38,aAStack_28);\r\n    iVar11 = *(int *)(*(int *)(this + 0x28) + 4);\r\n    param_1 = *(APen **)(iVar11 + 0x20);\r\n    param_3 = *(AColor **)(iVar11 + 0x24);\r\n    iVar3 = *(int *)(iVar11 + 0x18);\r\n    iVar11 = *(int *)(iVar11 + 0x1c);\r\n  }\r\n  floor(dStack_30 * **(double **)(this + 0x20) + 0.5);\r\n  uVar13 = FUN_100d450c();\r\n  param_4._0_2_ = (short)uVar13;\r\n  if ((short)param_4 < 1) {\r\n    param_4._0_2_ = 1;\r\n  }\r\n  piVar1 = *(int **)(this + 0xc);\r\n  param_2 = (ABrush *)0x0;\r\n  if (iVar3 == 6) {\r\n    pCVar7 = operator_new(8);\r\n    uStack_4 = 0;\r\n    if (pCVar7 == (CPen *)0x0) {\r\n      pCVar7 = (CPen *)0x0;\r\n    }\r\n    else {\r\n      uVar9 = AColor::operator_unsigned_long(aAStack_38);\r\n      pCVar7 = (CPen *)CPen::CPen(pCVar7,2,0,uVar9);\r\n    }\r\n  }\r\n  else {\r\n    if (1e-05 <= ABS(dStack_30)) {\r\nswitchD_100996ae_caseD_0:\r\n      uVar12 = 0;\r\n    }\r\n    else {\r\n      switch(iVar3) {\r\n      default:\r\n        goto switchD_100996ae_caseD_0;\r\n      case 1:\r\n        uVar12 = 1;\r\n        break;\r\n      case 2:\r\n        uVar12 = 2;\r\n        break;\r\n      case 3:\r\n        uVar12 = 3;\r\n        break;\r\n      case 4:\r\n        uVar12 = 4;\r\n      }\r\n    }\r\n    if ((short)param_4 != 1) {\r\n      uVar10 = 0;\r\n      uVar12 = uVar12 | 0x10000;\r\n      if (iVar11 == 0) {\r\nLAB_100996fd:\r\n        param_2 = (ABrush *)&DAT_00000100;\r\n      }\r\n      else if (iVar11 == 1) {\r\n        param_2 = (ABrush *)0x0;\r\n      }\r\n      else {\r\n        if (iVar11 != 2) goto LAB_100996fd;\r\n        param_2 = (ABrush *)0x200;\r\n      }\r\n      if (param_1 == (APen *)0x0) {\r\nLAB_10099713:\r\n        uVar10 = 0x1000;\r\n      }\r\n      else if (param_1 == (APen *)&DAT_00000001) {\r\n        uVar10 = 0x2000;\r\n      }\r\n      else if (param_1 != (APen *)0x2) goto LAB_10099713;\r\n    }\r\n    uStack_18 = 0;\r\n    uStack_14 = AColor::operator_unsigned_long(aAStack_38);\r\n    uStack_10 = 4;\r\n    pCVar7 = operator_new(8);\r\n    if ((short)param_4 == 1) {\r\n      uStack_4 = 1;\r\n      if (pCVar7 == (CPen *)0x0) {\r\nLAB_100997a9:\r\n        pCVar7 = (CPen *)0x0;\r\n      }\r\n      else {\r\n        uVar9 = AColor::operator_unsigned_long(aAStack_38);\r\n        pCVar7 = (CPen *)CPen::CPen(pCVar7,uVar12,0,uVar9);\r\n      }\r\n    }\r\n    else {\r\n      uStack_4 = 2;\r\n      if (pCVar7 == (CPen *)0x0) goto LAB_100997a9;\r\n      pCVar7 = (CPen *)CPen::CPen(pCVar7,uVar12 | uVar10 | (uint)param_2,(int)(short)param_4,\r\n                                  (tagLOGBRUSH *)&uStack_18,0,(ulong *)0x0);\r\n    }\r\n  }\r\n  uStack_4 = 0xffffffff;\r\n  *(CPen **)(this + 0xc) = pCVar7;\r\n  CDC::SelectObject(*(CDC **)(this + 8),pCVar7);\r\n  if (piVar1 != (int *)0x0) {\r\n    (**(code **)(*piVar1 + 4))();\r\n  }\r\n  SetMiterLimit(*(HDC *)(*(int *)(this + 8) + 4),(FLOAT)param_3,(PFLOAT)0x0);\r\n  CDC::SetBkMode(*(CDC **)(this + 8),1);\r\n  if ((short)param_4 == 1) {\r\n    sVar2 = 0;\r\n  }\r\n  else {\r\n    sVar2 = (short)param_4 << 7;\r\n  }\r\n  *(short *)(this + 0xbc) = sVar2;\r\nLAB_10099806:\r\n  if (*(int *)(this + 0x60) != 0) {\r\n    piVar1 = *(int **)(this + 0x18);\r\n    pCVar8 = operator_new(8);\r\n    uStack_4 = 3;\r\n    if (pCVar8 == (CBrush *)0x0) {\r\n      pCVar8 = (CBrush *)0x0;\r\n    }\r\n    else {\r\n      this_00 = (AColor *)getCurBrushColor(this);\r\n      uVar9 = AColor::operator_unsigned_long(this_00);\r\n      pCVar8 = (CBrush *)CBrush::CBrush(pCVar8,uVar9);\r\n    }\r\n    uStack_4 = 0xffffffff;\r\n    *(CBrush **)(this + 0x18) = pCVar8;\r\n    CDC::SelectObject(*(CDC **)(this + 8),pCVar8);\r\n    if (piVar1 != (int *)0x0) {\r\n      (**(code **)(*piVar1 + 4))(1);\r\n    }\r\n  }\r\n  if (((*(int *)(this + 0x28) == 0) && (*(int *)(this + 0x24) == 0)) &&\r\n     ((*(int *)(this + 0x60) == 0 && (*(int *)(this + 0x5c) == 0)))) {\r\n    ExceptionList = pvStack_c;\r\n    return 0;\r\n  }\r\n  ExceptionList = pvStack_c;\r\n  return 1;\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

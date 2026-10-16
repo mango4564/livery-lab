@@ -1,0 +1,50 @@
+{
+  "evidence_id": "ev_eccde09e5e877b85b6d87e6ae5907d7730dba1ebaa9d57e9cb7e38adc73d0d11",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll",
+    "digest": {
+      "sha256": "bcddb4912f9b044f1ba6b0350d7145f85983ba0a376b9e4714558bf12197471d"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll"
+  },
+  "procedure": {
+    "address": "0x10032dc0",
+    "name": "AObject::draw",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x10032dc0",
+          "end": "0x10032e57"
+        }
+      ],
+      "total_bytes": 152,
+      "span_bytes": 152,
+      "non_contiguous": false,
+      "contains_entry": true
+    },
+    "signature": "int __thiscall draw(AObject * this, ADevice * param_1, ADrawInfo * param_2)",
+    "locals": [
+      {
+        "description": "undefined local_20 @ Stack[-0x20]:1",
+        "provenance": "ghidra-function-database"
+      }
+    ]
+  },
+  "pseudocode": "\r\n/* public: virtual int __thiscall AObject::draw(class ADevice *,class ADrawInfo *) */\r\n\r\nint __thiscall AObject::draw(AObject *this,ADevice *param_1,ADrawInfo *param_2)\r\n\r\n{\r\n  int iVar1;\r\n  AResult *this_00;\r\n  int iVar2;\r\n  AFRect local_20 [32];\r\n  \r\n                    /* 0x32dc0  1606  ?draw@AObject@@UAEHPAVADevice@@PAVADrawInfo@@@Z */\r\n  iVar2 = 1;\r\n  if (*(int *)(param_2 + 0xc) != 0) {\r\n    AFRect::AFRect(local_20);\r\n    iVar1 = getBoundingBox(this,local_20,*(AQuickMatrix **)(param_2 + 0x10));\r\n    if (iVar1 != 0) {\r\n      iVar1 = ABaseRect<double>::IntersectRect\r\n                        ((ABaseRect<double> *)local_20,(ABaseRect<double> *)local_20,\r\n                         *(ABaseRect<double> **)(param_2 + 0xc));\r\n      if (iVar1 != 0) goto LAB_10032e1b;\r\n    }\r\n    return 1;\r\n  }\r\nLAB_10032e1b:\r\n  if ((*(uint *)(this + 8) & 0x8000000) == 0) {\r\n    this_00 = getFinalResult(this,1);\r\n    if (this_00 != (AResult *)0x0) {\r\n      iVar2 = AResult::draw(this_00,param_1,param_2);\r\n    }\r\n    (**(code **)(*(int *)this + 0x60))();\r\n  }\r\n  return iVar2;\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "evidence_id": "ev_e37abffc1e54dd176a081932b94fcacfc8a0832d77fa72b7c44796a21f3875a2",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll",
+    "digest": {
+      "sha256": "bcddb4912f9b044f1ba6b0350d7145f85983ba0a376b9e4714558bf12197471d"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll"
+  },
+  "procedure": {
+    "address": "0x10014ed0",
+    "name": "APen::flexiSerialize",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x10014ed0",
+          "end": "0x10014fdf"
+        }
+      ],
+      "total_bytes": 272,
+      "span_bytes": 272,
+      "non_contiguous": false,
+      "contains_entry": true
+    },
+    "signature": "int __thiscall flexiSerialize(APen * this, AArchive * param_1)",
+    "locals": [
+      {
+        "description": "undefined4 local_4 @ Stack[-0x4]:4",
+        "provenance": "ghidra-function-database"
+      }
+    ]
+  },
+  "pseudocode": "\r\n/* public: virtual int __thiscall APen::flexiSerialize(class AArchive &) */\r\n\r\nint __thiscall APen::flexiSerialize(APen *this,AArchive *param_1)\r\n\r\n{\r\n  int *piVar1;\r\n  AArchive *this_00;\r\n  int iVar2;\r\n  AArchive *pAVar3;\r\n  AArchive *this_01;\r\n  APen *pAVar4;\r\n  AArchive **ppAVar5;\r\n  ARoot *pAVar6;\r\n  \r\n                    /* 0x14ed0  1755  ?flexiSerialize@APen@@UAEHAAVAArchive@@@Z */\r\n  this_00 = param_1;\r\n  AArchive::TagStart(param_1);\r\n  AArchive::Tag(this_00,'\\n');\r\n  iVar2 = ARoot::flexiSerialize((ARoot *)this,this_00);\r\n  if (iVar2 == 0) {\r\n    return 0;\r\n  }\r\n  param_1 = (AArchive *)(int)(char)this[0x38];\r\n  if ((~*(uint *)(this_00 + 0x18) & 1) != 0) {\r\n    pAVar6 = *(ARoot **)(this + 4);\r\n    pAVar3 = AArchive::Tag(this_00,'\\v');\r\n    operator<<(pAVar3,pAVar6);\r\n    pAVar4 = this + 8;\r\n    pAVar3 = AArchive::Tag(this_00,'\\f');\r\n    operator<<(pAVar3,(AQuickMatrix *)pAVar4);\r\n    pAVar3 = param_1;\r\n    this_01 = AArchive::Tag(this_00,'\\r');\r\n    FUN_10015180(this_01,pAVar3);\r\n    AArchive::TagEnd(this_00);\r\n    return 1;\r\n  }\r\n  pAVar4 = this + 4;\r\n  pAVar3 = AArchive::Tag(this_00,'\\v');\r\n  operator>>(pAVar3,(AAttrib **)pAVar4);\r\n  pAVar4 = this + 8;\r\n  pAVar3 = AArchive::Tag(this_00,'\\f');\r\n  operator>>(pAVar3,(AQuickMatrix *)pAVar4);\r\n  ppAVar5 = &param_1;\r\n  pAVar3 = AArchive::Tag(this_00,'\\r');\r\n  AArchive::operator>>(pAVar3,(int *)ppAVar5);\r\n  piVar1 = *(int **)(this + 4);\r\n  this[0x38] = param_1._0_1_;\r\n  if (piVar1 == (int *)0x0) {\r\n    AArchive::TagEnd(this_00);\r\n    return 0;\r\n  }\r\n  (**(code **)(*piVar1 + 0x38))();\r\n  AArchive::TagEnd(this_00);\r\n  return 1;\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

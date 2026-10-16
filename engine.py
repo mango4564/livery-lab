@@ -22,7 +22,7 @@ ROOT=Path(__file__).resolve().parent
 def _code_digest():
     digest=hashlib.sha256()
     inputs=([Path(sys.executable)] if getattr(sys,'frozen',False) else
-            [ROOT/'engine.py',ROOT/'geometry.py',ROOT/'recognition.py',ROOT/'vision.py',ROOT/'credentials.py',ROOT/'runtime.py',
+            [ROOT/'engine.py',ROOT/'geometry.py',ROOT/'vector_preview.py',ROOT/'recognition.py',ROOT/'vision.py',ROOT/'credentials.py',ROOT/'runtime.py',
              *list((ROOT/'core').glob('*.py'))])
     if not getattr(sys,'frozen',False) and (ROOT/'reference_match.py').is_file():
         inputs.append(ROOT/'reference_match.py')
@@ -363,7 +363,7 @@ def _run_worker(source,directory,digest,fingerprint,use_ai):
     word=doc['geometry_stats']['tlv_word_bytes']
     warnings=[
         '当前为需复核的原始曲线提取版本，候选评分未经独立数据集校准。',
-        '只处理第 1 页；未实现隐藏状态、裁剪及复合布尔运算，可能包含不可见的编辑对象。',
+        '提取对象来自第 1 页；整车原图预览可查看全部页面。提取仍可能包含不可见的编辑对象。',
         '保留 FS 源曲线坐标；存储矩阵的语义及父子变换尚未验证，不自动累乘。',
         'APath 闭合标志尚未完全解释；SVG 填充规则暂为 evenodd，复杂孔洞需复核。',
         '物理比例未验证。SVG 像素宽度不代表毫米，不能据此直接确定下料尺寸。']
@@ -378,9 +378,10 @@ def _run_worker(source,directory,digest,fingerprint,use_ai):
             preview_info={'unavailable':True}
             _placeholder(directory/'preview.png','Embedded FS preview unavailable.')
             warnings.append('FS 内嵌预览无法解码；请以原软件核对设计。')
-        page_count=len([p for p in ole.listdir() if p[-1]=='Objects'])
+        page_count=len([p for p in ole.listdir() if len(p)==3 and p[0]=='FlexiSIGN Contents'
+                        and re.fullmatch(r'Page \d+',p[1]) and p[2]=='Objects'])
         if page_count>1:
-            warnings.append(f'本文件有 {page_count} 个对象页，本次只提取第 1 页。')
+            warnings.append(f'本文件有 {page_count} 个文档页，整车预览可逐页查看；本次彩条提取对象来自第 1 页。')
     import heapq
     seen=set();active={};endings=[];container_pos=0
     for obj in objects:

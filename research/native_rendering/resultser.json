@@ -1,0 +1,45 @@
+{
+  "evidence_id": "ev_3b9abd3081a2494ce5c89d39195d1395f1455a68be6a35f9137703b4909e7a5c",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll",
+    "digest": {
+      "sha256": "bcddb4912f9b044f1ba6b0350d7145f85983ba0a376b9e4714558bf12197471d"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll"
+  },
+  "procedure": {
+    "address": "0x10043d70",
+    "name": "AResult::flexiSerialize",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x10043d70",
+          "end": "0x10043e23"
+        }
+      ],
+      "total_bytes": 180,
+      "span_bytes": 180,
+      "non_contiguous": false,
+      "contains_entry": true
+    },
+    "signature": "int __thiscall flexiSerialize(AResult * this, AArchive * param_1)",
+    "locals": []
+  },
+  "pseudocode": "\r\n/* public: virtual int __thiscall AResult::flexiSerialize(class AArchive &) */\r\n\r\nint __thiscall AResult::flexiSerialize(AResult *this,AArchive *param_1)\r\n\r\n{\r\n  AArchive *this_00;\r\n  int iVar1;\r\n  AArchive *pAVar2;\r\n  ARoot **ppAVar3;\r\n  ARoot *pAVar4;\r\n  AResult *pAVar5;\r\n  \r\n                    /* 0x43d70  1764  ?flexiSerialize@AResult@@UAEHAAVAArchive@@@Z */\r\n  this_00 = param_1;\r\n  AArchive::TagStart(param_1);\r\n  AArchive::Tag(this_00,'\\0');\r\n  iVar1 = AObList::flexiSerialize((AObList *)this,this_00);\r\n  if (iVar1 != 0) {\r\n    if ((~*(uint *)(this_00 + 0x18) & 1) == 0) {\r\n      pAVar5 = this + 0x60;\r\n      pAVar2 = AArchive::Tag(this_00,'\\x01');\r\n      operator>>(pAVar2,(AAttrib **)pAVar5);\r\n    }\r\n    else {\r\n      pAVar4 = *(ARoot **)(this + 0x60);\r\n      pAVar2 = AArchive::Tag(this_00,'\\x01');\r\n      operator<<(pAVar2,pAVar4);\r\n    }\r\n    AArchive::TagEnd(this_00);\r\n    if (((byte)this_00[0x18] & 1) != 0) {\r\n      updateBoundingBox(this);\r\n    }\r\n    param_1 = (AArchive *)AObList::GetHeadPosition((AObList *)this);\r\n    while (param_1 != (AArchive *)0x0) {\r\n      ppAVar3 = AObList::GetNext((AObList *)this,(__POSITION **)&param_1);\r\n      AObject::setObjectFlags((AObject *)*ppAVar3,0x40000000,0);\r\n    }\r\n    return 1;\r\n  }\r\n  return 0;\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

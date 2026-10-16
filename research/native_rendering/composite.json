@@ -1,0 +1,70 @@
+{
+  "evidence_id": "ev_4576472d080cf9df340a25900214b53a8a586487efcd5446529c44f6dffa29f0",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll",
+    "digest": {
+      "sha256": "bcddb4912f9b044f1ba6b0350d7145f85983ba0a376b9e4714558bf12197471d"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll"
+  },
+  "procedure": {
+    "address": "0x10020450",
+    "name": "AComposite::draw",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x10020450",
+          "end": "0x100207ac"
+        },
+        {
+          "start": "0x100207b0",
+          "end": "0x10020a9d"
+        }
+      ],
+      "total_bytes": 1611,
+      "span_bytes": 1614,
+      "non_contiguous": true,
+      "contains_entry": true
+    },
+    "signature": "int __thiscall draw(AComposite * this, ADevice * param_1, ADrawInfo * param_2)",
+    "locals": [
+      {
+        "description": "undefined4 local_14 @ Stack[-0x14]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_c @ Stack[-0xc]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_c0 @ Stack[-0xc0]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_d4 @ Stack[-0xd4]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined local_e4 @ Stack[-0xe4]:1",
+        "provenance": "ghidra-function-database"
+      }
+    ]
+  },
+  "pseudocode": "\r\n/* public: virtual int __thiscall AComposite::draw(class ADevice *,class ADrawInfo *) */\r\n\r\nint __thiscall AComposite::draw(AComposite *this,ADevice *param_1,ADrawInfo *param_2)\r\n\r\n{\r\n  AQuickMatrix *this_00;\r\n  int iVar1;\r\n  uint uVar2;\r\n  AResult *pAVar3;\r\n  AColor *pAVar4;\r\n  INT *pIVar5;\r\n  ulong *puVar6;\r\n  CPreviewDC *this_01;\r\n  tagPOINT *ptVar7;\r\n  undefined4 uVar8;\r\n  HGDIOBJ pvVar9;\r\n  CGdiObject *pCVar10;\r\n  CPen *pCVar11;\r\n  int *piVar12;\r\n  int iVar13;\r\n  AColor *unaff_ESI;\r\n  INT *pIVar14;\r\n  undefined1 *puVar15;\r\n  AComposite **ppAVar16;\r\n  ADWordArray *this_02;\r\n  AExPointArray *this_03;\r\n  AExPointArray *pAStack_ec;\r\n  int iStack_e8;\r\n  int local_e4;\r\n  int iStack_e0;\r\n  undefined **ppuStack_dc;\r\n  undefined4 uStack_d8;\r\n  AGroup *local_d4;\r\n  undefined8 uStack_d0;\r\n  AColor aAStack_c8 [8];\r\n  AComposite *local_c0;\r\n  tagPOINT tStack_bc;\r\n  uint uStack_b4;\r\n  undefined1 auStack_b0 [36];\r\n  AFRect aAStack_8c [4];\r\n  AFRect aAStack_88 [32];\r\n  AFRect aAStack_68 [12];\r\n  undefined1 auStack_5c [52];\r\n  void *pvStack_28;\r\n  undefined4 uStack_20;\r\n  void *pvStack_18;\r\n  void *local_14;\r\n  undefined1 *puStack_10;\r\n  undefined4 local_c;\r\n  \r\n                    /* 0x20450  1593  ?draw@AComposite@@UAEHPAVADevice@@PAVADrawInfo@@@Z */\r\n  local_c = 0xffffffff;\r\n  puStack_10 = &LAB_100d64e7;\r\n  local_14 = ExceptionList;\r\n  local_d4 = (AGroup *)&DAT_00000001;\r\n  ExceptionList = &local_14;\r\n  local_c0 = this;\r\n  if (DAT_1014080c == 0xffffffff) {\r\n    ExceptionList = &local_14;\r\n    AString::AString((AString *)&local_e4,\"AContourCutTool\");\r\n    local_c = 0;\r\n    iVar1 = FUN_100a7330(&DAT_10147c10,&local_e4);\r\n    DAT_1014080c = (uint)(iVar1 != 0);\r\n    local_c = 0xffffffff;\r\n    AString::~AString((AString *)&local_e4);\r\n  }\r\n  if (((DAT_1014080c != 0) &&\r\n      (iVar1 = AObject::getObjectFlags((AObject *)this,0x100000), iVar1 != 0)) &&\r\n     (*(int *)(*(int *)(param_1 + 8) + 0xc) != 0)) {\r\n    ExceptionList = local_14;\r\n    return 1;\r\n  }\r\n  uVar2 = *(uint *)param_2 & 0x3f;\r\n  if (((uVar2 == 2) || (uVar2 == 8)) || ((*(uint *)param_2 & 0x40000) != 0)) {\r\n    iVar1 = AGroup::draw((AGroup *)this,param_1,param_2);\r\n    ExceptionList = local_14;\r\n    return iVar1;\r\n  }\r\n  iVar1 = (**(code **)(*(int *)this + 0xa0))(0x20000);\r\n  if ((iVar1 != 0) && (pAVar3 = AObject::getResultParent((AObject *)this), pAVar3 == (AResult *)0x0)\r\n     ) {\r\n    iVar1 = AEffect::draw((AEffect *)this,param_1,param_2);\r\n    ExceptionList = pvStack_18;\r\n    return iVar1;\r\n  }\r\n  AFRect::AFRect(aAStack_8c);\r\n  (**(code **)(*(int *)this + 0x88))(aAStack_8c);\r\n  if (*(AQuickMatrix **)(param_2 + 0x10) != (AQuickMatrix *)0x0) {\r\n    AQuickMatrix::transformBoundingBox(*(AQuickMatrix **)(param_2 + 0x10),aAStack_88,aAStack_88);\r\n  }\r\n  if (*(int *)(param_2 + 0xc) != 0) {\r\n    AFRect::AFRect(aAStack_68);\r\n    iVar1 = ABaseRect<double>::IntersectRect\r\n                      ((ABaseRect<double> *)aAStack_68,(ABaseRect<double> *)aAStack_88,\r\n                       *(ABaseRect<double> **)(param_2 + 0xc));\r\n    if (iVar1 == 0) {\r\n      ExceptionList = local_14;\r\n      return 1;\r\n    }\r\n  }\r\n  iStack_e8 = *(int *)(this + 0x20);\r\n  uStack_d0._0_4_ = *(LONG *)(this + 0x1c);\r\n  uStack_d0._4_4_ = 0;\r\n  iStack_e0 = 0;\r\n  iVar1 = (**(code **)(*(int *)param_1 + 100))();\r\n  piVar12 = &iStack_e0;\r\n  this_03 = (AExPointArray *)((int)&uStack_d0 + 4);\r\n  this_02 = (ADWordArray *)&iStack_e8;\r\n  if (iVar1 == 0) {\r\n    (**(code **)(*(int *)this + 0x104))(param_2);\r\n  }\r\n  else {\r\n    (**(code **)(*(int *)param_1 + 0x68))(&uStack_d0);\r\n  }\r\n  ADrawInfo::ADrawInfo((ADrawInfo *)&uStack_b4,param_2);\r\n  uStack_b4 = uStack_b4 | 0x40000;\r\n  iVar1 = AObject::getObjectFlags((AObject *)this,0x10000000);\r\n  iVar13 = 0;\r\n  if ((iVar1 == 0) || ((piVar12 == (int *)0x0 && (unaff_ESI == (AColor *)0x0)))) goto LAB_1002098c;\r\n  uStack_b4 = 0x80002;\r\n  ADevice::EnableRecording(param_1,1);\r\n  AColor::AColor(aAStack_c8,'\\0','\\0','\\0');\r\n  if (piVar12 == (int *)0x0) {\r\n    pAVar4 = unaff_ESI;\r\n    if (unaff_ESI != (AColor *)0x0) goto LAB_1002069f;\r\n  }\r\n  else {\r\n    pAVar4 = (AColor *)(**(code **)(*piVar12 + 0x3c))(&uStack_d0,0);\r\nLAB_1002069f:\r\n    AColor::operator=(aAStack_c8,pAVar4);\r\n  }\r\n  (**(code **)(*(int *)param_1 + 4))(aAStack_c8,0);\r\n  AGroup::draw((AGroup *)this,param_1,(ADrawInfo *)&tStack_bc);\r\n  (**(code **)(*(int *)param_1 + 0xc))(0);\r\n  pAStack_ec = (AExPointArray *)0x0;\r\n  iVar1 = ADevice::GetPolyPolygon(param_1,&pAStack_ec,(ADWordArray **)&stack0xffffff10);\r\n  if (iVar1 == 0) {\r\n    ADevice::EnableRecording(param_1,0);\r\n  }\r\n  else {\r\n    iVar1 = ADWordArray::GetSize((ADWordArray *)0x0);\r\n    pIVar5 = operator_new__(iVar1 << 2);\r\n    iVar1 = ADWordArray::GetSize((ADWordArray *)0x0);\r\n    if (0 < iVar1) {\r\n      do {\r\n        puVar6 = ADWordArray::operator[]((ADWordArray *)0x0,iVar13);\r\n        pIVar5[iVar13] = *puVar6;\r\n        iVar13 = iVar13 + 1;\r\n        iVar1 = ADWordArray::GetSize((ADWordArray *)0x0);\r\n      } while (iVar13 < iVar1);\r\n    }\r\n    iVar1 = __RTDynamicCast(*(undefined4 *)(param_1 + 8),0,&CDC::RTTI_Type_Descriptor,\r\n                            &CMetaFileDC::RTTI_Type_Descriptor,0);\r\n    if ((iVar1 == 0) &&\r\n       (((piVar12 == (int *)0x0 || (iVar1 = (**(code **)(*piVar12 + 0x40))(), iVar1 == 0)) &&\r\n        (unaff_ESI == (AColor *)0x0)))) {\r\n      this_01 = (CPreviewDC *)\r\n                __RTDynamicCast(*(undefined4 *)(param_1 + 8),0,&CDC::RTTI_Type_Descriptor,\r\n                                &CPreviewDC::RTTI_Type_Descriptor,0);\r\n      if (this_01 != (CPreviewDC *)0x0) {\r\n        iVar13 = 0;\r\n        iVar1 = AExPointArray::getSize(pAStack_ec);\r\n        if (0 < iVar1) {\r\n          do {\r\n            ptVar7 = AExPointArray::getPoint(pAStack_ec,iVar13);\r\n            uStack_d0._0_4_ = ptVar7->x;\r\n            uStack_d0._4_4_ = ptVar7->y;\r\n            CPreviewDC::PrinterDPtoScreenDP(this_01,(tagPOINT *)&uStack_d0);\r\n            AExPointArray::setPoint(pAStack_ec,iVar13,(tagPOINT *)&uStack_d0);\r\n            iVar13 = iVar13 + 1;\r\n            iVar1 = AExPointArray::getSize(pAStack_ec);\r\n          } while (iVar13 < iVar1);\r\n        }\r\n      }\r\n      uStack_d8 = 0;\r\n      ppuStack_dc = &PTR_LAB_100e2cd8;\r\n      iVar13 = 1;\r\n      uStack_20 = 1;\r\n      iVar1 = ADWordArray::GetSize((ADWordArray *)0x0);\r\n      pIVar14 = pIVar5;\r\n      ptVar7 = AExPointArray::getData(pAStack_ec);\r\n      iVar1 = FUN_10013590(&ppuStack_dc,ptVar7,pIVar14,iVar1,iVar13);\r\n      if (iVar1 == 0) {\r\n        ADevice::EnableRecording(param_1,0);\r\n        operator_delete__(pIVar5);\r\n        iStack_e8 = 0;\r\n      }\r\n      else {\r\n        iVar1 = (**(code **)(**(int **)(param_1 + 8) + 0x24))();\r\n        GetViewportOrgEx(*(HDC *)(*(int *)(param_1 + 8) + 4),&tStack_bc);\r\n        FUN_100135c0(&ppuStack_dc,tStack_bc.x,tStack_bc.y);\r\n        ADevice::EnableRecording(param_1,0);\r\n        operator_delete__(pIVar5);\r\n        CDC::SelectClipRgn(*(CDC **)(param_1 + 8),(CRgn *)&ppuStack_dc,1);\r\n        this_00 = *(AQuickMatrix **)(param_2 + 0x10);\r\n        if (this_00 == (AQuickMatrix *)0x0) {\r\n          (*(code *)**(undefined4 **)param_1)(0,piVar12,0,0,1);\r\n          (**(code **)(*(int *)param_1 + 0x30))(auStack_b0);\r\n          (**(code **)(*(int *)param_1 + 0xc))(0);\r\n        }\r\n        else {\r\n          if (piVar12 != (int *)0x0) {\r\n            (**(code **)(*piVar12 + 100))(this_00,&stack0xffffff08);\r\n          }\r\n          (*(code *)**(undefined4 **)param_1)(0,piVar12,0,0,1);\r\n          (**(code **)(*(int *)param_1 + 0x30))(auStack_b0);\r\n          (**(code **)(*(int *)param_1 + 0xc))(0);\r\n          if (piVar12 != (int *)0x0) {\r\n            ppAVar16 = &local_c0;\r\n            local_c0 = (AComposite *)&DAT_00000001;\r\n            puVar15 = auStack_5c;\r\n            uVar8 = AQuickMatrix::getInverse(this_00);\r\n            (*(code *)piVar12[0x19])(uVar8,puVar15,ppAVar16);\r\n          }\r\n        }\r\n        if (iVar1 != 0) {\r\n          (**(code **)(**(int **)(param_1 + 8) + 0x28))(iVar1);\r\n        }\r\n      }\r\n      uStack_20 = 0xffffffff;\r\n      ppuStack_dc = &PTR_LAB_100e2cc0;\r\n      CGdiObject::DeleteObject((CGdiObject *)&ppuStack_dc);\r\n      this = (AComposite *)local_d4;\r\n      if (iStack_e8 == 0) {\r\n        ExceptionList = pvStack_28;\r\n        return 0;\r\n      }\r\n    }\r\n    else {\r\n      (*(code *)**(undefined4 **)param_1)(0,piVar12,0,unaff_ESI,1);\r\n      iVar1 = CDC::SetPolyFillMode(*(CDC **)(param_1 + 8),1);\r\n      pvVar9 = GetStockObject(8);\r\n      pCVar10 = CGdiObject::FromHandle(pvVar9);\r\n      pCVar11 = CDC::SelectObject(*(CDC **)(param_1 + 8),(CPen *)pCVar10);\r\n      iVar13 = ADWordArray::GetSize(this_02);\r\n      pIVar14 = pIVar5;\r\n      ptVar7 = AExPointArray::getData(this_03);\r\n      FUN_100203d0(*(void **)(param_1 + 8),ptVar7,pIVar14,iVar13);\r\n      CDC::SelectObject(*(CDC **)(param_1 + 8),pCVar11);\r\n      CDC::SetPolyFillMode(*(CDC **)(param_1 + 8),iVar1);\r\n      (**(code **)(*(int *)param_1 + 0xc))(0);\r\n      ADevice::EnableRecording(param_1,0);\r\n      operator_delete__(pIVar5);\r\n      this = (AComposite *)local_d4;\r\n    }\r\n  }\r\nLAB_1002098c:\r\n  if ((local_e4 != 0) || (iStack_e0 != 0)) {\r\n    (*(code *)**(undefined4 **)param_1)(local_e4,0,iStack_e0,0,1);\r\n    AGroup::draw((AGroup *)this,param_1,(ADrawInfo *)aAStack_c8);\r\n    (**(code **)(*(int *)param_1 + 0xc))(0);\r\n  }\r\n  ExceptionList = pvStack_28;\r\n  return iStack_e8;\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

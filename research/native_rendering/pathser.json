@@ -1,0 +1,114 @@
+{
+  "evidence_id": "ev_4ce844ec7d5744832ef7e8e72131d5d3f496610280af8606b1acea8622124658",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll",
+    "digest": {
+      "sha256": "bcddb4912f9b044f1ba6b0350d7145f85983ba0a376b9e4714558bf12197471d"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll"
+  },
+  "procedure": {
+    "address": "0x10036f80",
+    "name": "APath::flexiSerialize",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x10036f80",
+          "end": "0x100373a0"
+        }
+      ],
+      "total_bytes": 1057,
+      "span_bytes": 1057,
+      "non_contiguous": false,
+      "contains_entry": true
+    },
+    "signature": "int __thiscall flexiSerialize(APath * this, AArchive * param_1)",
+    "locals": [
+      {
+        "description": "undefined8 local_14 @ Stack[-0x14]:8",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined8 local_1c @ Stack[-0x1c]:8",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined8 local_24 @ Stack[-0x24]:8",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined8 local_2c @ Stack[-0x2c]:8",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined8 local_34 @ Stack[-0x34]:8",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined8 local_3c @ Stack[-0x3c]:8",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_4 @ Stack[-0x4]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_40 @ Stack[-0x40]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined local_50 @ Stack[-0x50]:1",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined8 local_58 @ Stack[-0x58]:8",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined8 local_60 @ Stack[-0x60]:8",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_64 @ Stack[-0x64]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_68 @ Stack[-0x68]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_6c @ Stack[-0x6c]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_70 @ Stack[-0x70]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined local_80 @ Stack[-0x80]:1",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_c @ Stack[-0xc]:4",
+        "provenance": "ghidra-function-database"
+      }
+    ]
+  },
+  "pseudocode": "\r\n/* public: virtual int __thiscall APath::flexiSerialize(class AArchive &) */\r\n\r\nint __thiscall APath::flexiSerialize(APath *this,AArchive *param_1)\r\n\r\n{\r\n  HTOPath *this_00;\r\n  AArchive *this_01;\r\n  byte bVar1;\r\n  int iVar2;\r\n  int iVar3;\r\n  AArchive *pAVar4;\r\n  CArchive *pCVar5;\r\n  char *pcVar6;\r\n  undefined4 uVar7;\r\n  double *pdVar8;\r\n  undefined1 uVar9;\r\n  uint uVar10;\r\n  int *piVar11;\r\n  int *piVar12;\r\n  AArchive **ppAVar13;\r\n  int local_70;\r\n  int local_6c;\r\n  int local_68;\r\n  HTOPath *local_64;\r\n  double local_60;\r\n  double local_58 [3];\r\n  int local_40;\r\n  double local_3c;\r\n  double local_34;\r\n  double local_2c;\r\n  double local_24;\r\n  double local_1c;\r\n  double local_14;\r\n  void *local_c;\r\n  undefined1 *puStack_8;\r\n  undefined4 local_4;\r\n  \r\n  this_01 = param_1;\r\n                    /* 0x36f80  1753  ?flexiSerialize@APath@@UAEHAAVAArchive@@@Z */\r\n  local_4 = 0xffffffff;\r\n  puStack_8 = &LAB_100d748b;\r\n  local_c = ExceptionList;\r\n  local_3c = 0.0;\r\n  local_34 = 0.0;\r\n  local_2c = 0.0;\r\n  local_24 = 0.0;\r\n  local_1c = 0.0;\r\n  local_14 = 0.0;\r\n  local_60 = 0.0;\r\n  local_58[0] = 0.0;\r\n  ExceptionList = &local_c;\r\n  AArchive::TagStart(param_1);\r\n  AArchive::Tag(this_01,'\\0');\r\n  iVar2 = AFigure::flexiSerialize((AFigure *)this,this_01);\r\n  if (iVar2 == 0) {\r\n    ExceptionList = local_c;\r\n    return 0;\r\n  }\r\n  param_1 = (AArchive *)CONCAT31(param_1._1_3_,(byte)this[0xa0] >> 1);\r\n  if ((~*(uint *)(this_01 + 0x18) & 1) == 0) {\r\n    AObject::setObjectFlags((AObject *)this,0x20000000,0);\r\n    this_00 = *(HTOPath **)(this + 0x9c);\r\n    if (this_00 != (HTOPath *)0x0) {\r\n      HTOPath::~HTOPath(this_00);\r\n      operator_delete(this_00);\r\n    }\r\n    piVar12 = &local_70;\r\n    piVar11 = &local_68;\r\n    pAVar4 = AArchive::Tag(this_01,'\\x01');\r\n    pAVar4 = AArchive::operator>>(pAVar4,piVar11);\r\n    AArchive::operator>>(pAVar4,piVar12);\r\n    local_64 = operator_new(0x24);\r\n    iVar2 = 0;\r\n    local_4 = 0;\r\n    if (local_64 == (HTOPath *)0x0) {\r\n      uVar7 = 0;\r\n    }\r\n    else {\r\n      uVar7 = HTOPath::HTOPath(local_64,local_70,local_68,1);\r\n    }\r\n    local_4 = 0xffffffff;\r\n    *(undefined4 *)(this + 0x9c) = uVar7;\r\n    pAVar4 = AArchive::Tag(this_01,'\\x02');\r\n    pdVar8 = local_58;\r\n    pAVar4 = AArchive::operator>>(pAVar4,&local_60);\r\n    AArchive::operator>>(pAVar4,pdVar8);\r\n    HTOPath::setStartPoint(*(HTOPath **)(this + 0x9c),(AFPoint *)&local_60);\r\n    if (0 < local_70) {\r\n      do {\r\n        AArchive::operator>>(this_01,&local_6c);\r\n        pdVar8 = &local_34;\r\n        pAVar4 = AArchive::operator>>(this_01,&local_3c);\r\n        AArchive::operator>>(pAVar4,pdVar8);\r\n        local_40 = local_6c;\r\n        if (local_6c == 4) {\r\n          pdVar8 = &local_24;\r\n          pAVar4 = AArchive::operator>>(this_01,&local_2c);\r\n          AArchive::operator>>(pAVar4,pdVar8);\r\n          pdVar8 = &local_14;\r\n          pAVar4 = AArchive::operator>>(this_01,&local_1c);\r\n          AArchive::operator>>(pAVar4,pdVar8);\r\n        }\r\n        HTOPath::appendSegmentData(*(HTOPath **)(this + 0x9c),iVar2,(tagPathSegment *)&local_40,0);\r\n        iVar2 = iVar2 + 1;\r\n      } while (iVar2 < local_70);\r\n    }\r\n    HTOPath::genAllBBox(*(HTOPath **)(this + 0x9c));\r\n    ppAVar13 = &param_1;\r\n    pAVar4 = AArchive::Tag(this_01,'\\x03');\r\n    AArchive::operator>>(pAVar4,(uchar *)ppAVar13);\r\n    this[0xa0] = (APath)((byte)this[0xa0] & 1 | (char)param_1 << 1);\r\n    pdVar8 = (double *)getEndPoint(this);\r\n    if ((1e-05 <= ABS(local_60 - *pdVar8)) || (1e-05 <= ABS(local_58[0] - pdVar8[1]))) {\r\n      bVar1 = 0;\r\n    }\r\n    else {\r\n      bVar1 = 1;\r\n    }\r\n    this[0xa0] = (APath)((byte)this[0xa0] ^ ((byte)this[0xa0] ^ bVar1) & 1);\r\n  }\r\n  else {\r\n    local_70 = HTOPath::getNumSegments(*(HTOPath **)(this + 0x9c));\r\n    iVar3 = HTOPath::getNumPoints(*(HTOPath **)(this + 0x9c));\r\n    iVar2 = local_70;\r\n    local_68 = iVar3;\r\n    pAVar4 = AArchive::Tag(this_01,'\\x01');\r\n    pCVar5 = FUN_10015180(pAVar4,iVar3);\r\n    FUN_10015180(pCVar5,iVar2);\r\n    HTOPath::getStartPoint(*(HTOPath **)(this + 0x9c),(AFPoint *)&local_60);\r\n    pdVar8 = &local_60;\r\n    pAVar4 = AArchive::Tag(this_01,'\\x02');\r\n    FUN_100068e0((CArchive *)pAVar4,pdVar8);\r\n    uVar10 = 0;\r\n    if (0 < local_70) {\r\n      do {\r\n        HTOPath::getSegmentData(*(HTOPath **)(this + 0x9c),uVar10,(tagPathSegment *)&local_40);\r\n        iVar2 = local_40;\r\n        local_6c = local_40;\r\n        if ((~*(uint *)(this_01 + 0x18) & 1) == 0) goto LAB_10037165;\r\n        if (*(uint *)(this_01 + 0x2c) < *(int *)(this_01 + 0x28) + 4U) {\r\n          CArchive::Flush((CArchive *)this_01);\r\n        }\r\n        **(int **)(this_01 + 0x28) = iVar2;\r\n        *(int *)(this_01 + 0x28) = *(int *)(this_01 + 0x28) + 4;\r\n        FUN_100068e0((CArchive *)this_01,&local_3c);\r\n        if (local_6c == 4) {\r\n          pdVar8 = &local_1c;\r\n          pCVar5 = FUN_100068e0((CArchive *)this_01,&local_2c);\r\n          FUN_100068e0(pCVar5,pdVar8);\r\n        }\r\n        uVar10 = uVar10 + 1;\r\n      } while ((int)uVar10 < local_70);\r\n    }\r\n    uVar9 = (char)param_1;\r\n    uVar10 = (uint)param_1 & 0xff;\r\n    this = (APath *)AArchive::Tag(this_01,'\\x03');\r\n    if ((~*(uint *)(this + 0x18) & 1) == 0) {\r\n      pcVar6 = ATL::CSimpleStringT<char,1>::operator_char_const_\r\n                         ((CSimpleStringT<char,1> *)(this + 0x14));\r\n      AfxThrowArchiveException(2,pcVar6);\r\nLAB_10037165:\r\n      uVar9 = (undefined1)uVar10;\r\n      pcVar6 = ATL::CSimpleStringT<char,1>::operator_char_const_\r\n                         ((CSimpleStringT<char,1> *)(this_01 + 0x14));\r\n      AfxThrowArchiveException(2,pcVar6);\r\n    }\r\n    if (*(uint *)(this + 0x2c) < *(int *)(this + 0x28) + 1U) {\r\n      CArchive::Flush((CArchive *)this);\r\n    }\r\n    **(undefined1 **)(this + 0x28) = uVar9;\r\n    *(int *)(this + 0x28) = *(int *)(this + 0x28) + 1;\r\n  }\r\n  AArchive::TagEnd(this_01);\r\n  ExceptionList = local_c;\r\n  return 1;\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

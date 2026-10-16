@@ -1,0 +1,45 @@
+{
+  "evidence_id": "ev_2f346580289b38a8409b30e2a7ec5d271fd5a480598a5f2a814c59647e2ba8fe",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Plugins\\fseffects.dll",
+    "digest": {
+      "sha256": "faa7dff3adfa33deef49e87dfd54f65dc5bb8533894c8edda4101e516102c06e"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Plugins\\fseffects.dll"
+  },
+  "procedure": {
+    "address": "0x10001170",
+    "name": "FUN_10001170",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x10001170",
+          "end": "0x100011ad"
+        }
+      ],
+      "total_bytes": 62,
+      "span_bytes": 62,
+      "non_contiguous": false,
+      "contains_entry": true
+    },
+    "signature": "undefined4 __thiscall FUN_10001170(void * this, AArchive * param_1)",
+    "locals": []
+  },
+  "pseudocode": "\r\nundefined4 __thiscall FUN_10001170(void *this,AArchive *param_1)\r\n\r\n{\r\n  int iVar1;\r\n  \r\n  AArchive::TagStart(param_1);\r\n  AArchive::Tag(param_1,'\\0');\r\n  iVar1 = AEffect::flexiSerialize(this,param_1);\r\n  if (iVar1 == 0) {\r\n    return 0;\r\n  }\r\n  AArchive::TagEnd(param_1);\r\n  return 1;\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

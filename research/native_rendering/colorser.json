@@ -1,0 +1,50 @@
+{
+  "evidence_id": "ev_d72090c8d21a9c9ea12d974f7d33fbbd05629e63c0eac276ffc7d8edc2dc57f5",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll",
+    "digest": {
+      "sha256": "bcddb4912f9b044f1ba6b0350d7145f85983ba0a376b9e4714558bf12197471d"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll"
+  },
+  "procedure": {
+    "address": "0x1000e730",
+    "name": "AColorItem::flexiSerialize",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x1000e730",
+          "end": "0x1000ea0d"
+        }
+      ],
+      "total_bytes": 734,
+      "span_bytes": 734,
+      "non_contiguous": false,
+      "contains_entry": true
+    },
+    "signature": "int __thiscall flexiSerialize(AColorItem * this, AArchive * param_1)",
+    "locals": [
+      {
+        "description": "undefined4 local_c @ Stack[-0xc]:4",
+        "provenance": "ghidra-function-database"
+      }
+    ]
+  },
+  "pseudocode": "\r\n/* public: virtual int __thiscall AColorItem::flexiSerialize(class AArchive &) */\r\n\r\nint __thiscall AColorItem::flexiSerialize(AColorItem *this,AArchive *param_1)\r\n\r\n{\r\n  int *piVar1;\r\n  AArchive *this_00;\r\n  int iVar2;\r\n  AArchive *pAVar3;\r\n  AArchive *this_01;\r\n  uint uVar4;\r\n  ARoot *pAVar5;\r\n  undefined4 uVar6;\r\n  AColorItem *pAVar7;\r\n  AString *pAVar8;\r\n  AArchive **ppAVar9;\r\n  uint *puVar10;\r\n  uint uStack_18;\r\n  AString aAStack_14 [4];\r\n  AArchive *pAStack_10;\r\n  void *local_c;\r\n  undefined1 *puStack_8;\r\n  undefined4 uStack_4;\r\n  \r\n                    /* 0xe730  1725  ?flexiSerialize@AColorItem@@UAEHAAVAArchive@@@Z */\r\n  this_00 = param_1;\r\n  uStack_4 = 0xffffffff;\r\n  puStack_8 = &LAB_100d5439;\r\n  local_c = ExceptionList;\r\n  ExceptionList = &local_c;\r\n  AArchive::TagStart(param_1);\r\n  AArchive::Tag(this_00,'\\0');\r\n  iVar2 = AReferItem::flexiSerialize((AReferItem *)this,this_00);\r\n  if (iVar2 == 0) {\r\n    ExceptionList = local_c;\r\n    return 0;\r\n  }\r\n  AArchive::Tag(this_00,'\\x02');\r\n  iVar2 = (*(code *)**(undefined4 **)(this + 0x2c))(this_00);\r\n  if (iVar2 == 0) {\r\n    ExceptionList = local_c;\r\n    return 0;\r\n  }\r\n  param_1 = (AArchive *)(*(uint *)(this + 0x20) & 0xf);\r\n  uStack_18 = *(uint *)(this + 0x20) >> 8 & 1;\r\n  if ((~*(uint *)(this_00 + 0x18) & 1) != 0) {\r\n    pAVar7 = this + 0xc;\r\n    pAVar3 = AArchive::Tag(this_00,'\\x03');\r\n    operator<<((CArchive *)pAVar3,(AString *)pAVar7);\r\n    pAVar7 = this + 0x10;\r\n    pAVar3 = AArchive::Tag(this_00,'\\x04');\r\n    operator<<((CArchive *)pAVar3,(AString *)pAVar7);\r\n    pAVar7 = this + 0x14;\r\n    pAVar3 = AArchive::Tag(this_00,'\\x05');\r\n    operator<<((CArchive *)pAVar3,(AString *)pAVar7);\r\n    pAVar7 = this + 0x18;\r\n    pAVar3 = AArchive::Tag(this_00,'\\x01');\r\n    operator<<((CArchive *)pAVar3,(AString *)pAVar7);\r\n    pAVar7 = this + 0x1c;\r\n    pAVar3 = AArchive::Tag(this_00,'\\t');\r\n    operator<<((CArchive *)pAVar3,(AString *)pAVar7);\r\n    pAVar3 = param_1;\r\n    this_01 = AArchive::Tag(this_00,'\\a');\r\n    FUN_10015180(this_01,pAVar3);\r\n    uVar4 = uStack_18;\r\n    pAVar3 = AArchive::Tag(this_00,'\\b');\r\n    FUN_10015180(pAVar3,uVar4);\r\n    uVar6 = *(undefined4 *)(this + 0x28);\r\n    pAVar3 = AArchive::Tag(this_00,'\\v');\r\n    FUN_10015180(pAVar3,uVar6);\r\n    pAVar5 = *(ARoot **)(this + 0x24);\r\n    pAVar3 = AArchive::Tag(this_00,'\\f');\r\n    operator<<(pAVar3,pAVar5);\r\n    uVar6 = 6;\r\n    pAVar3 = AArchive::Tag(this_00,'\\r');\r\n    FUN_10015180(pAVar3,uVar6);\r\n    goto LAB_1000e9ec;\r\n  }\r\n  AString::AString(aAStack_14,(AString *)(this + 0x1c));\r\n  pAVar7 = this + 0xc;\r\n  uStack_4 = 0;\r\n  pAVar3 = AArchive::Tag(this_00,'\\x03');\r\n  operator>>(pAVar3,(AString *)pAVar7);\r\n  pAVar7 = this + 0x10;\r\n  pAVar3 = AArchive::Tag(this_00,'\\x04');\r\n  operator>>(pAVar3,(AString *)pAVar7);\r\n  pAVar7 = this + 0x14;\r\n  pAVar3 = AArchive::Tag(this_00,'\\x05');\r\n  operator>>(pAVar3,(AString *)pAVar7);\r\n  pAVar7 = this + 0x18;\r\n  pAVar3 = AArchive::Tag(this_00,'\\x01');\r\n  operator>>(pAVar3,(AString *)pAVar7);\r\n  pAVar8 = aAStack_14;\r\n  pAVar3 = AArchive::Tag(this_00,'\\t');\r\n  operator>>(pAVar3,pAVar8);\r\n  ppAVar9 = &param_1;\r\n  pAVar3 = AArchive::Tag(this_00,'\\a');\r\n  AArchive::operator>>(pAVar3,(int *)ppAVar9);\r\n  puVar10 = &uStack_18;\r\n  pAVar3 = AArchive::Tag(this_00,'\\b');\r\n  AArchive::operator>>(pAVar3,(int *)puVar10);\r\n  (**(code **)(*(int *)this + 0x84))(aAStack_14);\r\n  uVar4 = *(uint *)(this + 0x20) ^ (uStack_18 << 8 ^ *(uint *)(this + 0x20)) & 0x100;\r\n  *(uint *)(this + 0x20) = uVar4;\r\n  if (((int)param_1 < 0) || (6 < (int)param_1)) {\r\n    param_1 = (AArchive *)0x6;\r\n  }\r\n  pAVar7 = this + 0x28;\r\n  *(uint *)(this + 0x20) = (uVar4 ^ (uint)param_1) & 0xf ^ uVar4;\r\n  pAVar3 = AArchive::Tag(this_00,'\\v');\r\n  AArchive::operator>>(pAVar3,(int *)pAVar7);\r\n  pAVar7 = this + 0x24;\r\n  pAVar3 = AArchive::Tag(this_00,'\\f');\r\n  operator>>(pAVar3,(AAttrib **)pAVar7);\r\n  iVar2 = *(int *)(this + 0x24);\r\n  if (iVar2 != 0) {\r\n    piVar1 = (int *)(iVar2 + 0xc);\r\n    *piVar1 = *piVar1 + 1;\r\n  }\r\n  iVar2 = AArchive::GetTag(this_00,'\\r');\r\n  if (iVar2 == 0) {\r\n    pAStack_10 = (AArchive *)0x5;\r\nLAB_1000e9af:\r\n    if (param_1 == pAStack_10) {\r\n      *(uint *)(this + 0x20) = *(uint *)(this + 0x20) & 0xfffffff6 | 6;\r\n    }\r\n  }\r\n  else {\r\n    AArchive::operator>>(this_00,(int *)&pAStack_10);\r\n    if ((int)pAStack_10 < 6) goto LAB_1000e9af;\r\n  }\r\n  iVar2 = AString::IsEmpty((AString *)(this + 0x1c));\r\n  if (iVar2 == 0) {\r\n    AColorMgr::doCheckNReplaceProfile(this,(AString *)(this + 0x1c));\r\n  }\r\n  uStack_4 = 0xffffffff;\r\n  AString::~AString(aAStack_14);\r\nLAB_1000e9ec:\r\n  AArchive::TagEnd(this_00);\r\n  ExceptionList = local_c;\r\n  return 1;\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

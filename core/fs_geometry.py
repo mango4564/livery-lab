@@ -111,11 +111,11 @@ def class_names(data):
     return names
 
 
-def extract_geometry(source):
+def extract_geometry(source, page='Page 1'):
     source = Path(source)
     with olefile.OleFileIO(source) as ole:
         names = class_names(ole.openstream("FlexiSIGN Contents/Index/ClassTable").read())
-        raw, compression = unpack_objects(ole.openstream("FlexiSIGN Contents/Page 1/Objects").read())
+        raw, compression = unpack_objects(ole.openstream(f"FlexiSIGN Contents/{page}/Objects").read())
     word = compression["tlv_word_bytes"]
     objects, rejected = [], 0
     for class_name, decoder in [("APath", decode_simple), ("AEditPath", decode_edit)]:
@@ -144,7 +144,13 @@ def extract_geometry(source):
                        "d": d, "bbox": [min(x for x, y in points), min(y for x, y in points),
                                           max(x for x, y in points), max(y for x, y in points)],
                        "own_matrix": matrix, "tree_path": None, "details": details,
-                       "appearance_hex": base.get(3, b"").hex()}
+                       "appearance_hex": base.get(3, b"").hex(),
+                       # AFigure fields 2/3 are independent pen/brush attributes;
+                       # AObject field 1 preserves the serialized visibility flags.
+                       # Native evidence: research/native_rendering/figureser.json
+                       # and objectser.json. Decode appearance semantics separately.
+                       "pen_hex": base.get(2, b"").hex(),
+                       "object_flags": int.from_bytes(fields(base[0], word=word)[1], "little")}
                 objects.append(obj)
             except (KeyError, ValueError, struct.error, OverflowError):
                 rejected += 1

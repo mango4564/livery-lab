@@ -1,0 +1,74 @@
+{
+  "evidence_id": "ev_98dffe1d396689a3ea9f6c62b18cd53b09c672c11fd554542a9002a354ec940a",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Plugins\\fseffects.dll",
+    "digest": {
+      "sha256": "faa7dff3adfa33deef49e87dfd54f65dc5bb8533894c8edda4101e516102c06e"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Plugins\\fseffects.dll"
+  },
+  "procedure": {
+    "address": "0x10001630",
+    "name": "FUN_10001630",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x10001630",
+          "end": "0x10001791"
+        }
+      ],
+      "total_bytes": 354,
+      "span_bytes": 354,
+      "non_contiguous": false,
+      "contains_entry": true
+    },
+    "signature": "AResult * __fastcall FUN_10001630(AGroup * param_1)",
+    "locals": [
+      {
+        "description": "undefined4 local_10 @ Stack[-0x10]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_14 @ Stack[-0x14]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_18 @ Stack[-0x18]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_1c @ Stack[-0x1c]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_20 @ Stack[-0x20]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined local_64 @ Stack[-0x64]:1",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_8 @ Stack[-0x8]:4",
+        "provenance": "ghidra-function-database"
+      }
+    ]
+  },
+  "pseudocode": "\r\nAResult * __fastcall FUN_10001630(AGroup *param_1)\r\n\r\n{\r\n  int iVar1;\r\n  AProgressReporter *this;\r\n  AResult *pAVar2;\r\n  APen *pAVar3;\r\n  ABrush *pAVar4;\r\n  TOF_CombineWeld local_64 [68];\r\n  AResult *local_20;\r\n  AProgressReporter *local_1c;\r\n  AResult *local_18;\r\n  undefined1 *local_14;\r\n  void *local_10;\r\n  undefined1 *puStack_c;\r\n  undefined4 local_8;\r\n  \r\n  local_8 = 0xffffffff;\r\n  puStack_c = &LAB_1004acfd;\r\n  local_10 = ExceptionList;\r\n  local_14 = &stack0xffffff90;\r\n  local_18 = (AResult *)0x0;\r\n  ExceptionList = &local_10;\r\n  iVar1 = AObList::GetCount((AObList *)(param_1 + 0x94));\r\n  if (iVar1 == 0) {\r\n    ExceptionList = local_10;\r\n    return (AResult *)0x0;\r\n  }\r\n  this = operator_new(0x30);\r\n  local_8 = 0;\r\n  if (this == (AProgressReporter *)0x0) {\r\n    local_1c = (AProgressReporter *)0x0;\r\n  }\r\n  else {\r\n    local_1c = this;\r\n    AProgressReporter::AProgressReporter(this,2,1,0,(HWND__ *)0x0);\r\n    *(undefined ***)this = &PTR_LAB_10052dc0;\r\n    local_1c = this;\r\n  }\r\n  local_8 = 1;\r\n  TOF_CombineWeld::TOF_CombineWeld(local_64);\r\n  local_8._0_1_ = 2;\r\n  pAVar2 = operator_new(0x68);\r\n  local_8._0_1_ = 3;\r\n  local_20 = pAVar2;\r\n  if (pAVar2 == (AResult *)0x0) {\r\n    pAVar2 = (AResult *)0x0;\r\n  }\r\n  else {\r\n    AResult::AResult(pAVar2,(AObject *)param_1,1);\r\n    *(undefined ***)pAVar2 = &PTR_LAB_10052d64;\r\n  }\r\n  local_8 = CONCAT31(local_8._1_3_,2);\r\n  local_18 = pAVar2;\r\n  iVar1 = TOF_Action((TOF_ROOT *)local_64,(AObList *)(param_1 + 0x94),(AObList *)pAVar2,1,1,\r\n                     (AObject *)0x0);\r\n  if (iVar1 < 1) {\r\n    if (pAVar2 != (AResult *)0x0) {\r\n      (**(code **)(*(int *)pAVar2 + 4))(1);\r\n    }\r\n    pAVar2 = AGroup::getNewResult(param_1);\r\n    local_18 = pAVar2;\r\n  }\r\n  else {\r\n    pAVar3 = (APen *)(**(code **)(*(int *)param_1 + 100))();\r\n    AResult::onChangePen(pAVar2,pAVar3);\r\n    pAVar4 = (ABrush *)(**(code **)(*(int *)param_1 + 0x6c))();\r\n    AResult::onChangeBrush(pAVar2,pAVar4);\r\n    AResult::inheritObjAttrs(pAVar2);\r\n    AResult::updateBoundingBox(pAVar2);\r\n  }\r\n  local_8 = CONCAT31(local_8._1_3_,1);\r\n  TOF_CombineWeld::~TOF_CombineWeld(local_64);\r\n  local_8 = 0xffffffff;\r\n  if (local_1c != (AProgressReporter *)0x0) {\r\n    (**(code **)(*(int *)local_1c + 4))(1);\r\n  }\r\n  ExceptionList = local_10;\r\n  return pAVar2;\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "ACombineCutOut": {
+    "type_descriptor": "0x100752bc",
+    "complete_object_locator": "0x1005d2bc",
+    "vtable": "0x100525e4",
+    "draw_slot_0x100": "0x100496b4",
+    "getNewResult_slot_0x110": "0x10001800"
+  },
+  "ACombineWeld": {
+    "type_descriptor": "0x100752a0",
+    "complete_object_locator": "0x1005d254",
+    "vtable": "0x10052404",
+    "draw_slot_0x100": "0x100496b4",
+    "getNewResult_slot_0x110": "0x10001630"
+  },
+  "ACombineCommon": {
+    "type_descriptor": "0x100752dc",
+    "complete_object_locator": "0x1005d324",
+    "vtable": "0x100527c4",
+    "draw_slot_0x100": "0x100496b4",
+    "getNewResult_slot_0x110": "0x10001aa0"
+  }
+}

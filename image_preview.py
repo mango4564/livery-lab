@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from PIL import Image, ImageDraw, ImageTk
+from vector_preview import VectorDocument, VectorImage
 
 
 class ImagePreview(ttk.Frame):
@@ -18,6 +19,10 @@ class ImagePreview(ttk.Frame):
         self.fitting = True
         self._drag = None
         self._size = None
+        self.vector_image = None
+        self.raster_image = None
+        self.vector_label = "矢量"
+        self.raster_label = "位图"
         bar = ttk.Frame(self)
         bar.pack(fill="x")
         self.controls = []
@@ -30,6 +35,15 @@ class ImagePreview(ttk.Frame):
             self.controls.append(button)
         self.percent = ttk.Label(bar, width=9)
         self.percent.pack(side="left")
+        self.source_button = ttk.Button(bar, text="", command=self.toggle_source)
+        self.source_label = ttk.Label(self, foreground="#666666", wraplength=650)
+        self.page_bar = ttk.Frame(self)
+        ttk.Label(self.page_bar, text="页面").pack(side="left")
+        self.page_choice = ttk.Combobox(self.page_bar, state='readonly', width=30)
+        self.page_choice.pack(side='left', padx=5, pady=3)
+        self.page_choice.bind('<<ComboboxSelected>>', lambda e: self.show_page(self.page_choice.current()))
+        ttk.Button(self.page_bar, text='上一页', command=lambda: self.show_page(self.page_choice.current()-1)).pack(side='left')
+        ttk.Button(self.page_bar, text='下一页', command=lambda: self.show_page(self.page_choice.current()+1)).pack(side='left', padx=4)
         if allow_expand:
             button = ttk.Button(bar, text="大窗口查看", command=self.expand)
             button.pack(side="left")
@@ -47,12 +61,54 @@ class ImagePreview(ttk.Frame):
         self.canvas.bind("<Double-Button-1>", lambda e: self.fit())
         ttk.Label(self, text="滚轮缩放 · 按住左键拖动 · 双击适应窗口",
                   foreground="#666666").pack(anchor="w")
+        self.source_label.pack(anchor="w")
         self.set_image(None)
 
-    def set_image(self, image):
-        self.image = image
+    def set_image(self, image, vector=None, *, vector_label="矢量", raster_label="位图"):
+        self.vector_image, self.raster_image = vector, image
+        self.vector_label, self.raster_label = vector_label, raster_label
+        self.image = vector if vector is not None else image
+        self.page_bar.pack_forget()
+        if isinstance(vector, VectorDocument):
+            self.page_choice.configure(values=[f'全部页面（共 {len(vector.pages)} 页）'] +
+                                       [page['label'] for page in vector.pages])
+            self.page_choice.current(0)
+            self.page_bar.pack(fill='x', before=self.canvas)
+        else:
+            self.page_choice.configure(values=[])
+        self._update_source()
         for button in self.controls:
-            button.configure(state="normal" if image is not None else "disabled")
+            button.configure(state="normal" if self.image is not None else "disabled")
+        self.fit()
+
+    def _update_source(self):
+        is_vector = isinstance(self.image, VectorImage)
+        self.source_label.configure(text=(self.vector_label if is_vector else self.raster_label)
+                                    if self.image is not None else "")
+        self.source_button.pack_forget()
+        if self.vector_image is not None and self.raster_image is not None:
+            self.source_button.configure(text=("查看内嵌原图" if "内嵌原图" in self.raster_label else "查看位图")
+                                         if is_vector else "查看矢量曲线")
+            self.source_button.pack(side="left", padx=4)
+
+    def toggle_source(self):
+        if isinstance(self.image, VectorImage):
+            self.image = self.raster_image
+        else:
+            index = self.page_choice.current()
+            self.image = (self.vector_image.pages[index-1]['image']
+                          if isinstance(self.vector_image, VectorDocument) and index > 0 else self.vector_image)
+        self._update_source()
+        self.fit()
+
+    def show_page(self, index):
+        if not isinstance(self.vector_image, VectorDocument):
+            return
+        if not 0 <= index <= len(self.vector_image.pages):
+            return
+        self.page_choice.current(index)
+        self.image = self.vector_image.pages[index-1]['image'] if index else self.vector_image
+        self._update_source()
         self.fit()
 
     def fit(self):
@@ -136,10 +192,17 @@ class ImagePreview(ttk.Frame):
         # Render only the visible region, so even 3200% zoom never creates a
         # giant intermediate bitmap. Coordinates always refer to the source.
         size = (right - left, bottom - top)
-        tile = self.image.transform(size, Image.Transform.AFFINE,
-                                    (1 / self.scale, 0, (left - ox) / self.scale,
-                                     0, 1 / self.scale, (top - oy) / self.scale),
-                                    Image.Resampling.BICUBIC)
+        if isinstance(self.image, VectorImage):
+            rendered = self.image.render(self.scale, self.offset, (w, h))
+            if rendered is None:
+                return
+            tile, left, top = rendered
+            size = tile.size
+        else:
+            tile = self.image.transform(size, Image.Transform.AFFINE,
+                                        (1 / self.scale, 0, (left - ox) / self.scale,
+                                         0, 1 / self.scale, (top - oy) / self.scale),
+                                        Image.Resampling.BICUBIC)
         background = Image.new("RGBA", size, "white")
         draw = ImageDraw.Draw(background)
         for y in range(0, size[1], 16):
@@ -159,5 +222,10 @@ class ImagePreview(ttk.Frame):
         window.minsize(600, 400)
         viewer = ImagePreview(window, allow_expand=False)
         viewer.pack(fill="both", expand=True)
-        viewer.set_image(self.image)
+        viewer.set_image(self.raster_image, self.vector_image,
+                         vector_label=self.vector_label, raster_label=self.raster_label)
+        if isinstance(self.vector_image, VectorDocument):
+            viewer.show_page(self.page_choice.current())
+        if not isinstance(self.image, VectorImage) and self.vector_image is not None:
+            viewer.toggle_source()
         window.bind("<Escape>", lambda e: window.destroy())

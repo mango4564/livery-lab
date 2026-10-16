@@ -1,0 +1,114 @@
+{
+  "evidence_id": "ev_7a44283174b19539ff64de3c7065cf27e1f766c7e14016b176c88f2aab102ed9",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Plugins\\fseffects.dll",
+    "digest": {
+      "sha256": "faa7dff3adfa33deef49e87dfd54f65dc5bb8533894c8edda4101e516102c06e"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Plugins\\fseffects.dll"
+  },
+  "procedure": {
+    "address": "0x10001aa0",
+    "name": "FUN_10001aa0",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x10001aa0",
+          "end": "0x10001e13"
+        }
+      ],
+      "total_bytes": 884,
+      "span_bytes": 884,
+      "non_contiguous": false,
+      "contains_entry": true
+    },
+    "signature": "AResult * __fastcall FUN_10001aa0(AObject * param_1)",
+    "locals": [
+      {
+        "description": "undefined4 local_10 @ Stack[-0x10]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_14 @ Stack[-0x14]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_18 @ Stack[-0x18]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_1c @ Stack[-0x1c]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_20 @ Stack[-0x20]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_24 @ Stack[-0x24]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_28 @ Stack[-0x28]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_2c @ Stack[-0x2c]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_30 @ Stack[-0x30]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_34 @ Stack[-0x34]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined local_54 @ Stack[-0x54]:1",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined local_74 @ Stack[-0x74]:1",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_8 @ Stack[-0x8]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined local_b4 @ Stack[-0xb4]:1",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined local_b8 @ Stack[-0xb8]:1",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined local_f8 @ Stack[-0xf8]:1",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined local_fc @ Stack[-0xfc]:1",
+        "provenance": "ghidra-function-database"
+      }
+    ]
+  },
+  "pseudocode": "\r\nAResult * __fastcall FUN_10001aa0(AObject *param_1)\r\n\r\n{\r\n  int iVar1;\r\n  AResult *pAVar2;\r\n  ARoot **ppAVar3;\r\n  AObject *pAVar4;\r\n  ARoot *pAVar5;\r\n  ARoot *pAVar6;\r\n  AResult *this;\r\n  TOF_CombineCommon local_fc [4];\r\n  HTOCollectable local_f8 [64];\r\n  TOF_CombineWeld local_b8 [4];\r\n  HTOCollectable local_b4 [64];\r\n  AObList local_74 [32];\r\n  AObList local_54 [32];\r\n  __POSITION *local_34;\r\n  __POSITION *local_30;\r\n  AProgressReporter *local_2c;\r\n  AObject *local_28;\r\n  __POSITION *local_24;\r\n  AObject *local_20;\r\n  AProgressReporter *local_1c;\r\n  AResult *local_18;\r\n  undefined1 *local_14;\r\n  void *local_10;\r\n  undefined1 *puStack_c;\r\n  undefined4 local_8;\r\n  \r\n  local_8 = 0xffffffff;\r\n  puStack_c = &LAB_1004ad8e;\r\n  local_10 = ExceptionList;\r\n  local_14 = &stack0xfffffef8;\r\n  local_18 = (AResult *)0x0;\r\n  ExceptionList = &local_10;\r\n  local_28 = param_1;\r\n  iVar1 = AObList::GetCount((AObList *)(param_1 + 0x94));\r\n  if (iVar1 < 2) {\r\n    ExceptionList = local_10;\r\n    return (AResult *)0x0;\r\n  }\r\n  local_2c = operator_new(0x30);\r\n  local_8 = 0;\r\n  local_1c = local_2c;\r\n  if (local_2c == (AProgressReporter *)0x0) {\r\n    local_2c = (AProgressReporter *)0x0;\r\n  }\r\n  else {\r\n    AProgressReporter::AProgressReporter(local_2c,2,1,0,(HWND__ *)0x0);\r\n    *(undefined ***)local_2c = &PTR_LAB_10052dc0;\r\n  }\r\n  local_8 = 1;\r\n  pAVar2 = operator_new(0x68);\r\n  local_8._0_1_ = 2;\r\n  if (pAVar2 == (AResult *)0x0) {\r\n    this = (AResult *)0x0;\r\n    local_1c = (AProgressReporter *)pAVar2;\r\n  }\r\n  else {\r\n    local_1c = (AProgressReporter *)pAVar2;\r\n    AResult::AResult(pAVar2,param_1,1);\r\n    *(undefined ***)pAVar2 = &PTR_LAB_10052d64;\r\n    this = pAVar2;\r\n  }\r\n  local_8._0_1_ = 1;\r\n  local_18 = this;\r\n  AObList::AObList(local_54,0,10);\r\n  local_8._0_1_ = 3;\r\n  AObList::AObList(local_74,0,10);\r\n  local_8 = CONCAT31(local_8._1_3_,4);\r\n  ppAVar3 = AObList::GetTail((AObList *)(param_1 + 0x94));\r\n  pAVar4 = (AObject *)\r\n           __RTDynamicCast(*ppAVar3,0,&ARoot::RTTI_Type_Descriptor,&AObject::RTTI_Type_Descriptor,0)\r\n  ;\r\n  local_20 = pAVar4;\r\n  pAVar2 = AObject::getFinalResult(pAVar4,1);\r\n  local_1c = (AProgressReporter *)pAVar2;\r\n  if (pAVar2 != (AResult *)0x0) {\r\n    local_30 = AObList::GetHeadPosition((AObList *)pAVar2);\r\n    while (local_30 != (__POSITION *)0x0) {\r\n      ppAVar3 = AObList::GetNext((AObList *)pAVar2,&local_30);\r\n      pAVar5 = (ARoot *)__RTDynamicCast(*ppAVar3,0,&ARoot::RTTI_Type_Descriptor,\r\n                                        &AObject::RTTI_Type_Descriptor,0);\r\n      AObList::AddHead(local_54,pAVar5);\r\n      TOF_CombineCommon::TOF_CombineCommon(local_fc);\r\n      local_8 = CONCAT31(local_8._1_3_,5);\r\n      local_24 = AObList::GetHeadPosition((AObList *)(local_28 + 0x94));\r\n      while (local_24 != (__POSITION *)0x0) {\r\n        ppAVar3 = AObList::GetNext((AObList *)(local_28 + 0x94),&local_24);\r\n        pAVar4 = (AObject *)\r\n                 __RTDynamicCast(*ppAVar3,0,&ARoot::RTTI_Type_Descriptor,\r\n                                 &AObject::RTTI_Type_Descriptor,0);\r\n        if (pAVar4 == local_20) break;\r\n        pAVar2 = AObject::getFinalResult(pAVar4,1);\r\n        if (pAVar2 != (AResult *)0x0) {\r\n          local_34 = AObList::GetHeadPosition((AObList *)pAVar2);\r\n          while (local_34 != (__POSITION *)0x0) {\r\n            ppAVar3 = AObList::GetNext((AObList *)pAVar2,&local_34);\r\n            pAVar6 = (ARoot *)__RTDynamicCast(*ppAVar3,0,&ARoot::RTTI_Type_Descriptor,\r\n                                              &AObject::RTTI_Type_Descriptor,0);\r\n            AObList::AddHead(local_54,pAVar6);\r\n            TOF_InputTwoGroup((TOF_ROOT *)local_fc,local_54);\r\n            TOF_CombineCommon::doAction(local_fc,(HTOProgressInfo *)0x0);\r\n            TOF_Output((TOF_ROOT *)local_fc,(APen *)0x0,(ABrush *)0x0,local_74,1,1,(AObject *)0x0);\r\n            AObList::RemoveHead(local_54);\r\n            HTOCollectable::deleteAll(local_f8);\r\n          }\r\n          (**(code **)(*(int *)pAVar4 + 0x60))();\r\n        }\r\n      }\r\n      TOF_CombineWeld::TOF_CombineWeld(local_b8);\r\n      local_8._0_1_ = 6;\r\n      TOF_Input((TOF_ROOT *)local_b8,local_74);\r\n      TOF_CombineWeld::doAction(local_b8,(HTOProgressInfo *)0x0);\r\n      TOF_Output((TOF_ROOT *)local_b8,(AObject *)pAVar5,(AObList *)local_18,1,1);\r\n      HTOCollectable::deleteAll(local_b4);\r\n      AObList::RemoveAll(local_74);\r\n      AObList::RemoveAll(local_54);\r\n      local_8._0_1_ = 5;\r\n      TOF_CombineWeld::~TOF_CombineWeld(local_b8);\r\n      local_8 = CONCAT31(local_8._1_3_,4);\r\n      TOF_CombineCommon::~TOF_CombineCommon(local_fc);\r\n      pAVar2 = (AResult *)local_1c;\r\n      pAVar4 = local_20;\r\n    }\r\n    (**(code **)(*(int *)pAVar4 + 0x60))();\r\n    this = local_18;\r\n  }\r\n  AResult::updateBoundingBox(this);\r\n  local_8._0_1_ = 3;\r\n  AObList::~AObList(local_74);\r\n  local_8 = CONCAT31(local_8._1_3_,1);\r\n  AObList::~AObList(local_54);\r\n  local_8 = 0xffffffff;\r\n  if (local_2c != (AProgressReporter *)0x0) {\r\n    (**(code **)(*(int *)local_2c + 4))(1);\r\n  }\r\n  ExceptionList = local_10;\r\n  return this;\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

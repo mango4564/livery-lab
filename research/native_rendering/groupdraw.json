@@ -1,0 +1,54 @@
+{
+  "evidence_id": "ev_94a1bbce6daa12d3d39f9489d1745a9af80579e4b3cf48b5087f072f665d75ec",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll",
+    "digest": {
+      "sha256": "bcddb4912f9b044f1ba6b0350d7145f85983ba0a376b9e4714558bf12197471d"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll"
+  },
+  "procedure": {
+    "address": "0x10027c80",
+    "name": "AGroup::draw",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x10027c80",
+          "end": "0x10027d12"
+        }
+      ],
+      "total_bytes": 147,
+      "span_bytes": 147,
+      "non_contiguous": false,
+      "contains_entry": true
+    },
+    "signature": "int __thiscall draw(AGroup * this, ADevice * param_1, ADrawInfo * param_2)",
+    "locals": [
+      {
+        "description": "undefined local_10 @ Stack[-0x10]:1",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_4 @ Stack[-0x4]:4",
+        "provenance": "ghidra-function-database"
+      }
+    ]
+  },
+  "pseudocode": "\r\n/* public: virtual int __thiscall AGroup::draw(class ADevice *,class ADrawInfo *) */\r\n\r\nint __thiscall AGroup::draw(AGroup *this,ADevice *param_1,ADrawInfo *param_2)\r\n\r\n{\r\n  int iVar1;\r\n  ARoot **ppAVar2;\r\n  int *piVar3;\r\n  AGroup *local_4;\r\n  \r\n  local_4 = this;\r\n                    /* 0x27c80  1600  ?draw@AGroup@@UAEHPAVADevice@@PAVADrawInfo@@@Z */\r\n  iVar1 = AObject::getObjectFlags((AObject *)this,0x8000000);\r\n  if (iVar1 != 0) {\r\n    return 1;\r\n  }\r\n  local_4 = (AGroup *)AObList::GetHeadPosition((AObList *)(this + 0x94));\r\n  do {\r\n    if (local_4 == (AGroup *)0x0) {\r\n      return 1;\r\n    }\r\n    ppAVar2 = AObList::GetNext((AObList *)(this + 0x94),(__POSITION **)&local_4);\r\n    piVar3 = (int *)__RTDynamicCast(*ppAVar2,0,&ARoot::RTTI_Type_Descriptor,\r\n                                    &AObject::RTTI_Type_Descriptor,0);\r\n    iVar1 = (**(code **)(*piVar3 + 0x100))(param_1,param_2);\r\n  } while (iVar1 != 0);\r\n  return 0;\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

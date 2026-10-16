@@ -1,0 +1,62 @@
+{
+  "evidence_id": "ev_42c5046b8dc2cf3f7c2500826900bad978fe48782906d8c43222f37fa89cc1cb",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll",
+    "digest": {
+      "sha256": "bcddb4912f9b044f1ba6b0350d7145f85983ba0a376b9e4714558bf12197471d"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll"
+  },
+  "procedure": {
+    "address": "0x10016a30",
+    "name": "ASpotColorItem::getColor",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x10016a30",
+          "end": "0x10016b4f"
+        }
+      ],
+      "total_bytes": 288,
+      "span_bytes": 288,
+      "non_contiguous": false,
+      "contains_entry": true
+    },
+    "signature": "AColor __thiscall getColor(ASpotColorItem * this)",
+    "locals": [
+      {
+        "description": "undefined4 local_10 @ Stack[-0x10]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_14 @ Stack[-0x14]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined local_8 @ Stack[-0x8]:1",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_c @ Stack[-0xc]:4",
+        "provenance": "ghidra-function-database"
+      }
+    ]
+  },
+  "pseudocode": "\r\n/* public: virtual class AColor __thiscall ASpotColorItem::getColor(void)const  */\r\n\r\nAColor * __thiscall ASpotColorItem::getColor(ASpotColorItem *this)\r\n\r\n{\r\n  int iVar1;\r\n  int iVar2;\r\n  int iVar3;\r\n  byte bVar4;\r\n  AColor *in_stack_00000004;\r\n  uchar local_14;\r\n  int local_10;\r\n  uchar local_c;\r\n  AColor local_8 [8];\r\n  \r\n                    /* 0x16a30  1976  ?getColor@ASpotColorItem@@UBE?AVAColor@@XZ */\r\n  AColorItem::getColor((AColorItem *)this);\r\n  bVar4 = AColor::Red(local_8);\r\n  iVar1 = (int)((bVar4 - 0xff) * (uint)(byte)this[0x40]) / 100 + 0xff;\r\n  bVar4 = AColor::Green(local_8);\r\n  iVar2 = (int)((bVar4 - 0xff) * (uint)(byte)this[0x40]) / 100 + 0xff;\r\n  bVar4 = AColor::Blue(local_8);\r\n  iVar3 = (int)((bVar4 - 0xff) * (uint)(byte)this[0x40]) / 100 + 0xff;\r\n  if (iVar1 < 0) {\r\n    local_c = '\\0';\r\n  }\r\n  else {\r\n    local_c = 0xff;\r\n    if (iVar1 < 0x100) {\r\n      local_c = (uchar)iVar1;\r\n    }\r\n  }\r\n  if (iVar2 < 0) {\r\n    local_10 = 0;\r\n  }\r\n  else {\r\n    local_10 = 0xff;\r\n    if (iVar2 < 0x100) {\r\n      local_10 = iVar2;\r\n    }\r\n  }\r\n  if (iVar3 < 0) {\r\n    local_14 = '\\0';\r\n  }\r\n  else {\r\n    local_14 = 0xff;\r\n    if (iVar3 < 0x100) {\r\n      local_14 = (uchar)iVar3;\r\n    }\r\n  }\r\n  AColor::AColor(in_stack_00000004,local_c,(uchar)local_10,local_14);\r\n  return in_stack_00000004;\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

@@ -24,6 +24,19 @@ def main():
         import tkinter as tk
         from ui import LiveryApp
         root=tk.Tk();root.withdraw();app=LiveryApp(root)
+        # Exercise the bundled vector renderer too, including native extensions
+        # and gradient support; importing empty widgets alone cannot test this.
+        from vector_preview import VectorDocument, VectorImage
+        vector=VectorImage('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">'
+            '<defs><linearGradient id="g"><stop offset="0" stop-color="white"/>'
+            '<stop offset="1" stop-color="blue"/></linearGradient></defs>'
+            '<path d="M0 0H100V100H0Z" fill="url(#g)"/></svg>')
+        image,_,_=vector.render(1,(0,0),(100,100))
+        assert image.getpixel((10,50)) != image.getpixel((90,50)), 'Vector gradients unavailable'
+        document=VectorDocument([{'label':'Page 1','image':vector},{'label':'Page 2','image':vector}])
+        _,second_y=document.positions[1]
+        image,_,_=document.render(1,(-24,-second_y),(100,100))
+        assert image.getpixel((10,50)) != image.getpixel((90,50)), 'Second page unavailable'
         root.update_idletasks();root.destroy()
         return 0
     from ui import main as launch

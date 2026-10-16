@@ -1,0 +1,45 @@
+{
+  "evidence_id": "ev_fad3f5de987f5229874af8b610523c57cf37fefaf68837df44d141179cec70e7",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll",
+    "digest": {
+      "sha256": "bcddb4912f9b044f1ba6b0350d7145f85983ba0a376b9e4714558bf12197471d"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll"
+  },
+  "procedure": {
+    "address": "0x10016170",
+    "name": "ASolidBrush::flexiSerialize",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x10016170",
+          "end": "0x100161fe"
+        }
+      ],
+      "total_bytes": 143,
+      "span_bytes": 143,
+      "non_contiguous": false,
+      "contains_entry": true
+    },
+    "signature": "int __thiscall flexiSerialize(ASolidBrush * this, AArchive * param_1)",
+    "locals": []
+  },
+  "pseudocode": "\r\n/* public: virtual int __thiscall ASolidBrush::flexiSerialize(class AArchive &) */\r\n\r\nint __thiscall ASolidBrush::flexiSerialize(ASolidBrush *this,AArchive *param_1)\r\n\r\n{\r\n  int iVar1;\r\n  AArchive *this_00;\r\n  undefined4 uVar2;\r\n  \r\n                    /* 0x16170  1769  ?flexiSerialize@ASolidBrush@@UAEHAAVAArchive@@@Z */\r\n  AArchive::TagStart(param_1);\r\n  AArchive::Tag(param_1,'\\0');\r\n  iVar1 = ABrush::flexiSerialize((ABrush *)this,param_1);\r\n  if (iVar1 == 0) {\r\n    return 0;\r\n  }\r\n  if ((~*(uint *)(param_1 + 0x18) & 1) != 0) {\r\n    uVar2 = *(undefined4 *)(this + 0x10);\r\n    this_00 = AArchive::Tag(param_1,'\\x01');\r\n    FUN_10015180(this_00,uVar2);\r\n    AArchive::TagEnd(param_1);\r\n    return 1;\r\n  }\r\n  *(undefined4 *)(this + 0x10) = 0;\r\n  iVar1 = AArchive::GetTag(param_1,'\\x01');\r\n  if (iVar1 != 0) {\r\n    AArchive::operator>>(param_1,(int *)(this + 0x10));\r\n  }\r\n  AArchive::TagEnd(param_1);\r\n  return 1;\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

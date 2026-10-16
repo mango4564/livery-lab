@@ -1,0 +1,54 @@
+{
+  "evidence_id": "ev_06b288eecf374e7ce3b0efdfca4658df482b686ca74756870e9dc3b4d380fb8f",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll",
+    "digest": {
+      "sha256": "bcddb4912f9b044f1ba6b0350d7145f85983ba0a376b9e4714558bf12197471d"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll"
+  },
+  "procedure": {
+    "address": "0x10016d10",
+    "name": "ASpotColorItem::flexiSerialize",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x10016d10",
+          "end": "0x10016e2f"
+        }
+      ],
+      "total_bytes": 288,
+      "span_bytes": 288,
+      "non_contiguous": false,
+      "contains_entry": true
+    },
+    "signature": "int __thiscall flexiSerialize(ASpotColorItem * this, AArchive * param_1)",
+    "locals": [
+      {
+        "description": "undefined local_10 @ Stack[-0x10]:1",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_c @ Stack[-0xc]:4",
+        "provenance": "ghidra-function-database"
+      }
+    ]
+  },
+  "pseudocode": "\r\n/* public: virtual int __thiscall ASpotColorItem::flexiSerialize(class AArchive &) */\r\n\r\nint __thiscall ASpotColorItem::flexiSerialize(ASpotColorItem *this,AArchive *param_1)\r\n\r\n{\r\n  AArchive *this_00;\r\n  int iVar1;\r\n  AArchive *pAVar2;\r\n  AString *this_01;\r\n  char *pcVar3;\r\n  ASpotColorItem *pAVar4;\r\n  ASpotColorItem AVar5;\r\n  ASpotColorItem *local_10;\r\n  void *local_c;\r\n  undefined1 *puStack_8;\r\n  undefined4 uStack_4;\r\n  \r\n  this_00 = param_1;\r\n                    /* 0x16d10  1771  ?flexiSerialize@ASpotColorItem@@UAEHAAVAArchive@@@Z */\r\n  uStack_4 = 0xffffffff;\r\n  puStack_8 = &LAB_100d5d32;\r\n  local_c = ExceptionList;\r\n  ExceptionList = &local_c;\r\n  local_10 = this;\r\n  AArchive::TagStart(param_1);\r\n  AArchive::Tag(this_00,'\\0');\r\n  iVar1 = AColorItem::flexiSerialize((AColorItem *)this,this_00);\r\n  if (iVar1 != 0) {\r\n    if ((~*(uint *)(this_00 + 0x18) & 1) == 0) {\r\n      pAVar4 = this + 0x40;\r\n      pAVar2 = AArchive::Tag(this_00,'\\x01');\r\n      AArchive::operator>>(pAVar2,(uchar *)pAVar4);\r\n      AColorItem::UpdateOutputColor((AColorItem *)this);\r\n      this_01 = (AString *)(**(code **)(*(int *)this + 0xb0))(&local_10);\r\n      uStack_4 = 0;\r\n      iVar1 = AString::IsEmpty(this_01);\r\n      uStack_4 = 0xffffffff;\r\n      AString::~AString((AString *)&local_10);\r\n      if (iVar1 != 0) {\r\n        pcVar3 = (char *)(**(code **)(*(int *)this + 0x58))();\r\n        AString::AString((AString *)&param_1,pcVar3);\r\n        uStack_4 = 1;\r\n        (**(code **)(*(int *)this + 0xac))(&param_1);\r\n        uStack_4 = 0xffffffff;\r\n        AString::~AString((AString *)&param_1);\r\n      }\r\n    }\r\n    else {\r\n      AVar5 = this[0x40];\r\n      pAVar2 = AArchive::Tag(this_00,'\\x01');\r\n      FUN_10005fd0(pAVar2,AVar5);\r\n    }\r\n    AArchive::TagEnd(this_00);\r\n    ExceptionList = local_c;\r\n    return 1;\r\n  }\r\n  ExceptionList = local_c;\r\n  return 0;\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

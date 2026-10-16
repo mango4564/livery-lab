@@ -6,7 +6,6 @@ import math
 from pathlib import Path
 import re
 
-import fitz
 from PIL import Image, ImageDraw, ImageFont
 
 IDENTITY = [1, 0, 0, 1, 0, 0]
@@ -29,7 +28,8 @@ def transform_bounds(bounds, matrix):
 
 
 def svg_document(objects, bounds=None, *, width=1600, margin=0.015,
-                 y_up=True, diagnostic=False):
+                 y_up=True, diagnostic=False, background=None):
+    objects = list(objects)
     bounds = list(bounds or union_bounds(objects))
     x0, y0, x1, y1 = bounds
     span = max(x1-x0, y1-y0, 1e-6)
@@ -39,6 +39,20 @@ def svg_document(objects, bounds=None, *, width=1600, margin=0.015,
     height = max(1, round(width*h/w))
     top = f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="{x0:.14g} {y0:.14g} {w:.14g} {h:.14g}">'
     body = [top, '<metadata>Original FS curves; physical scale has not been verified.</metadata>']
+    gradients, paints = [], {}
+    for i, obj in enumerate(objects):
+        if obj.get('gradient'):
+            from core.fs_gradients import gradient_svg
+            gradient = obj['gradient']
+            identifier = f'fs-gradient-{i}'
+            definition = gradient_svg(gradient['definition'], gradient['appearance'], identifier)
+            if definition:
+                gradients.append(definition)
+                paints[id(obj)] = f'url(#{identifier})'
+    if gradients:
+        body.append('<defs>' + ''.join(gradients) + '</defs>')
+    if background and re.fullmatch(r'#[0-9a-fA-F]{6}', background):
+        body.append(f'<rect x="{x0:.14g}" y="{y0:.14g}" width="{w:.14g}" height="{h:.14g}" fill="{background}"/>')
     if y_up:
         body.append(f'<g transform="translate(0 {y0+y1:.14g}) scale(1 -1)">')
     for obj in objects:
@@ -48,6 +62,7 @@ def svg_document(objects, bounds=None, *, width=1600, margin=0.015,
         # Importer only supplies hex colours and the SVG keyword 'none'.
         if not re.fullmatch(r'#[0-9a-fA-F]{6}|none', fill):
             fill = '#8b98a8'
+        fill = paints.get(id(obj), fill)
         matrix = obj.get('matrix', IDENTITY)
         if len(matrix) != 6 or not all(math.isfinite(v) for v in matrix):
             raise ValueError('Invalid source transform')
@@ -59,7 +74,10 @@ def svg_document(objects, bounds=None, *, width=1600, margin=0.015,
         if diagnostic and fill in ('none','#ffffff','#FFFFFF'):
             stroke = '#64748b'
         if re.fullmatch(r'#[0-9a-fA-F]{6}', stroke):
-            attributes.extend([f'stroke="{stroke}"', f'stroke-width="{span*0.0005:.14g}"'])
+            line_width = 1 if obj.get('stroke_hairline') else obj.get('stroke_width', span * 0.0005)
+            attributes.extend([f'stroke="{stroke}"', f'stroke-width="{line_width:.14g}"'])
+            if obj.get('stroke_hairline'):
+                attributes.extend(['vector-effect="non-scaling-stroke"', 'data-fs-hairline="true"'])
         body.append('<path '+' '.join(attributes)+'/>')
     if y_up:
         body.append('</g>')
@@ -68,12 +86,12 @@ def svg_document(objects, bounds=None, *, width=1600, margin=0.015,
 
 
 def rasterize(svg, path, max_width=1800):
-    doc = fitz.open(stream=svg.encode('utf-8'), filetype='svg')
-    page = doc[0]
-    scale = min(max_width / max(page.rect.width, 1), 4000/max(page.rect.height, 1))
-    pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=True)
-    pix.save(str(path))
-    doc.close()
+    from vector_preview import VectorImage
+    vector = VectorImage(svg)
+    scale = min(max_width / max(vector.width, 1), 4000 / max(vector.height, 1))
+    size = (max(1, math.ceil(vector.width * scale)), max(1, math.ceil(vector.height * scale)))
+    image, _, _ = vector.render(scale, (0, 0), size)
+    image.save(path)
 
 
 def candidate_image(objects, path, *, bounds=None, y_up=True, max_labels=150):
@@ -169,13 +187,12 @@ def candidate_sheet(objects, path, columns=5):
             if bounds[2] < bounds[0] or bounds[3] < bounds[1]:
                 raise ValueError('reversed bounds')
             # Preserve source shape proportions through viewBox's default meet;
-            # replace the intrinsic height BEFORE fitz ever opens the SVG.
+            # replace the intrinsic height before the renderer opens the SVG.
             svg = svg_document([obj], bounds=bounds, width=tile_width - 20, margin=0.025, diagnostic=False)
             svg = re.sub(r'(<svg\b[^>]*\bheight=")[^"]*', r'\g<1>' + str(image_height - 16), svg, count=1)
-            with fitz.open(stream=svg.encode('utf-8'), filetype='svg') as document:
-                page = document[0]
-                pix = page.get_pixmap(alpha=True)
-                rendered = Image.frombytes('RGBA', (pix.width, pix.height), pix.samples)
+            from vector_preview import VectorImage
+            vector = VectorImage(svg)
+            rendered, _, _ = vector.render(1, (0, 0), (tile_width - 20, image_height - 16))
             # Retain aspect ratio if a renderer rounds CSS dimensions.
             rendered.thumbnail((tile_width - 20, image_height - 16), Image.Resampling.LANCZOS)
             tile.alpha_composite(rendered, ((tile_width - rendered.width) // 2, (image_height - rendered.height) // 2))

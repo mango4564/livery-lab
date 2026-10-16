@@ -1,0 +1,45 @@
+{
+  "evidence_id": "ev_849c3f135f3379aeef919682f8d9e7360125298577abd2a9639fbbb974fa24e3",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll",
+    "digest": {
+      "sha256": "bcddb4912f9b044f1ba6b0350d7145f85983ba0a376b9e4714558bf12197471d"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll"
+  },
+  "procedure": {
+    "address": "0x10024910",
+    "name": "AComposite::flexiSerialize",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x10024910",
+          "end": "0x1002494c"
+        }
+      ],
+      "total_bytes": 61,
+      "span_bytes": 61,
+      "non_contiguous": false,
+      "contains_entry": true
+    },
+    "signature": "int __thiscall flexiSerialize(AComposite * this, AArchive * param_1)",
+    "locals": []
+  },
+  "pseudocode": "\r\n/* public: virtual int __thiscall AComposite::flexiSerialize(class AArchive &) */\r\n\r\nint __thiscall AComposite::flexiSerialize(AComposite *this,AArchive *param_1)\r\n\r\n{\r\n  int iVar1;\r\n  \r\n                    /* 0x24910  1726  ?flexiSerialize@AComposite@@UAEHAAVAArchive@@@Z\r\n                       0x24910  1731  ?flexiSerialize@ADrawEffect@@UAEHAAVAArchive@@@Z */\r\n  AArchive::TagStart(param_1);\r\n  AArchive::Tag(param_1,'\\0');\r\n  iVar1 = AEffect::flexiSerialize((AEffect *)this,param_1);\r\n  if (iVar1 == 0) {\r\n    return 0;\r\n  }\r\n  AArchive::TagEnd(param_1);\r\n  return 1;\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "evidence_id": "ev_ddc7652fb51ff562ec37e93d9b2b2364144fd74aed6033771e19517c1864077a",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll",
+    "digest": {
+      "sha256": "bcddb4912f9b044f1ba6b0350d7145f85983ba0a376b9e4714558bf12197471d"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll"
+  },
+  "procedure": {
+    "address": "0x10017280",
+    "name": "AAttrib::flexiSerialize",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x10017280",
+          "end": "0x100173c6"
+        }
+      ],
+      "total_bytes": 327,
+      "span_bytes": 327,
+      "non_contiguous": false,
+      "contains_entry": true
+    },
+    "signature": "int __thiscall flexiSerialize(AAttrib * this, AArchive * param_1)",
+    "locals": [
+      {
+        "description": "undefined4 local_4 @ Stack[-0x4]:4",
+        "provenance": "ghidra-function-database"
+      },
+      {
+        "description": "undefined4 local_c @ Stack[-0xc]:4",
+        "provenance": "ghidra-function-database"
+      }
+    ]
+  },
+  "pseudocode": "\r\n/* public: virtual int __thiscall AAttrib::flexiSerialize(class AArchive &) */\r\n\r\nint __thiscall AAttrib::flexiSerialize(AAttrib *this,AArchive *param_1)\r\n\r\n{\r\n  AArchive *this_00;\r\n  int iVar1;\r\n  AObList *pAVar2;\r\n  ARoot **ppAVar3;\r\n  int *piVar4;\r\n  void *local_c;\r\n  undefined1 *puStack_8;\r\n  undefined4 local_4;\r\n  \r\n                    /* 0x17280  1719  ?flexiSerialize@AAttrib@@UAEHAAVAArchive@@@Z */\r\n  this_00 = param_1;\r\n  local_4 = 0xffffffff;\r\n  puStack_8 = &LAB_100d5d8a;\r\n  local_c = ExceptionList;\r\n  ExceptionList = &local_c;\r\n  AArchive::TagStart(param_1);\r\n  AArchive::Tag(this_00,'\\0');\r\n  iVar1 = ARoot::flexiSerialize((ARoot *)this,this_00);\r\n  if (iVar1 != 0) {\r\n    AArchive::Tag(this_00,'\\x01');\r\n    if (*(int *)(this + 4) == 0) {\r\n      pAVar2 = operator_new(0x20);\r\n      local_4 = 0;\r\n      param_1 = (AArchive *)pAVar2;\r\n      if (pAVar2 == (AObList *)0x0) {\r\n        pAVar2 = (AObList *)0x0;\r\n      }\r\n      else {\r\n        AObList::AObList(pAVar2,0,10);\r\n        *(undefined ***)pAVar2 = &PTR_LAB_100e3254;\r\n      }\r\n      local_4 = 0xffffffff;\r\n      *(AObList **)(this + 4) = pAVar2;\r\n    }\r\n    iVar1 = (**(code **)(**(int **)(this + 4) + 0x2c))(this_00);\r\n    if (iVar1 != 0) {\r\n      AArchive::TagEnd(this_00);\r\n      iVar1 = AObList::IsEmpty(*(AObList **)(this + 4));\r\n      if (iVar1 != 0) {\r\n        if (*(int **)(this + 4) != (int *)0x0) {\r\n          (**(code **)(**(int **)(this + 4) + 4))(1);\r\n        }\r\n        *(undefined4 *)(this + 4) = 0;\r\n      }\r\n      if (((~*(uint *)(this_00 + 0x18) & 1) == 0) && (*(AObList **)(this + 4) != (AObList *)0x0)) {\r\n        param_1 = (AArchive *)AObList::GetHeadPosition(*(AObList **)(this + 4));\r\n        while (param_1 != (AArchive *)0x0) {\r\n          ppAVar3 = AObList::GetNext(*(AObList **)(this + 4),(__POSITION **)&param_1);\r\n          piVar4 = (int *)__RTDynamicCast(*ppAVar3,0,&ARoot::RTTI_Type_Descriptor,\r\n                                          &AReferItem::RTTI_Type_Descriptor,0);\r\n          if (piVar4 != (int *)0x0) {\r\n            (**(code **)(*piVar4 + 0x38))();\r\n          }\r\n        }\r\n      }\r\n      ExceptionList = local_c;\r\n      return 1;\r\n    }\r\n  }\r\n  ExceptionList = local_c;\r\n  return 0;\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

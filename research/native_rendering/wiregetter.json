@@ -1,0 +1,45 @@
+{
+  "evidence_id": "ev_c92535e2ebe6c9063c97ec87000c9068aa9d8bc438173c37c4f56dd1175a62c3",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll",
+    "digest": {
+      "sha256": "bcddb4912f9b044f1ba6b0350d7145f85983ba0a376b9e4714558bf12197471d"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll"
+  },
+  "procedure": {
+    "address": "0x10002650",
+    "name": "ASolidBrushItem::ColorItem",
+    "classification": {
+      "external": false,
+      "thunk": false,
+      "thunk_target": null,
+      "provenance": "ghidra-function-manager"
+    },
+    "body": {
+      "available": true,
+      "provenance": "ghidra-function-body-address-set",
+      "ranges": [
+        {
+          "start": "0x10002650",
+          "end": "0x10002653"
+        }
+      ],
+      "total_bytes": 4,
+      "span_bytes": 4,
+      "non_contiguous": false,
+      "contains_entry": true
+    },
+    "signature": "AColorItem * __thiscall ColorItem(ASolidBrushItem * this)",
+    "locals": []
+  },
+  "pseudocode": "\r\n/* public: class AColorItem * __thiscall ASolidBrushItem::ColorItem(void)const  */\r\n\r\nAColorItem * __thiscall ASolidBrushItem::ColorItem(ASolidBrushItem *this)\r\n\r\n{\r\n                    /* 0x2650  620  ?ColorItem@ASolidBrushItem@@QBEPAVAColorItem@@XZ\r\n                       0x2650  2218  ?getFileHeader@ADocument@@QAEPAVAFileHeader@@XZ\r\n                       0x2650  2358  ?getMatrix@ADrawInfo@@QBEPAVAQuickMatrix@@XZ\r\n                       0x2650  2698  ?hasPrefererences@AExportFilter@@QAEHXZ\r\n                       0x2650  2849  ?isShowWireFrameOnly@ASolidBrush@@QAEHXZ */\r\n  return *(AColorItem **)(this + 0x10);\r\n}\r\n\r\n",
+  "limitations": [
+    "Unresolved computed or indirect flows without target addresses are not represented as reference edges.",
+    "Thunk and external classifications are Ghidra FunctionManager observations; they do not resolve targetless calls.",
+    "Pseudocode and assembly are Ghidra-specific representations, not original source or Hopper-equivalent text.",
+    "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+  ]
+}

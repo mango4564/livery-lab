@@ -56,6 +56,9 @@ output/
 output-*/
 test_output*/
 validation/ai_independent/
+validation/native_display/*.png
+validation/native_compare_*.png
+validation/*_qa.png
 .cache/
 */.cache/
 *.cache/
