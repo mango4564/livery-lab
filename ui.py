@@ -14,6 +14,8 @@ from tkinter import filedialog, messagebox, ttk
 
 from PIL import Image
 from image_preview import ImagePreview
+from hover_choice import HoverChoice
+from source_locator import SourceLocator
 from vector_preview import VectorDocument, VectorImage
 from runtime import APP_DIR
 
@@ -21,7 +23,7 @@ from runtime import APP_DIR
 class LiveryApp:
     def __init__(self, root: tk.Tk):
         self.root = root
-        root.title("彩条提取工作台")
+        root.title("全车矢量提取工作台")
         root.geometry("1280x880")
         root.minsize(960, 680)
         self.events: queue.Queue = queue.Queue()
@@ -34,8 +36,9 @@ class LiveryApp:
         self.preview_images = {}
         self._source_preview_key = None
         self._source_vector = None
+        self._active_group = None
         self.output = tk.StringVar(value=str(APP_DIR / "output"))
-        self.force = tk.BooleanVar(value=False)
+        self.five_components = tk.BooleanVar(value=True)
         self.concurrency = tk.IntVar(value=min(os.cpu_count() or 4, 32))
         self.use_ai = tk.BooleanVar(value=False)
         self.ai_status = tk.StringVar(value="AI 未配置")
@@ -72,6 +75,7 @@ class LiveryApp:
         self.add_file_button.pack(side="left")
         self.add_folder_button = ttk.Button(toolbar, text="添加文件夹", command=self._add_folder)
         self.add_folder_button.pack(side="left", padx=6)
+        ttk.Button(toolbar, text='载入已提取任务', command=self._load_extracted_task).pack(side='left', padx=(0,6))
         self.remove_button = ttk.Button(toolbar, text="移除所选", command=self._remove)
         self.remove_button.pack(side="left")
         self.start_button = ttk.Button(toolbar, text="开始批量提取", command=self._start)
@@ -89,7 +93,8 @@ class LiveryApp:
         ttk.Entry(output_row, textvariable=self.output).pack(side="left", fill="x", expand=True, padx=8)
         ttk.Button(output_row, text="浏览…", command=self._browse_output).pack(side="left")
         ttk.Button(output_row, text="打开输出目录", command=self._open_output).pack(side="left", padx=(6, 0))
-        ttk.Checkbutton(outer, text="强制重新处理（默认复用引擎已完成任务缓存）", variable=self.force).pack(anchor="w")
+        ttk.Checkbutton(outer, text="五类提取：车身 / 彩条 / 文字 / logo / 门徽（AI 候选，需逐类复核；取消则仅提取彩条）",
+                        variable=self.five_components).pack(anchor="w")
         ai_row = ttk.Frame(outer)
         ai_row.pack(fill="x", pady=(4, 0))
         self.ai_config_button = ttk.Button(ai_row, text="AI 接口配置…", command=self._configure_ai)
@@ -137,12 +142,17 @@ class LiveryApp:
             self.canvases[key] = frame.canvas
             self.previews.add(frame, text=label)
 
+        self.source_locator = SourceLocator(self.preview_viewers['result_png'].canvas)
+        self.source_locator.place(x=8, y=8)
+
         group_bar=ttk.Frame(right)
         group_bar.pack(fill='x',pady=(6,0))
         ttk.Label(group_bar,text='切换候选组合').pack(side='left')
-        self.group_choice=ttk.Combobox(group_bar,state='readonly',width=36)
+        self.group_choice=HoverChoice(group_bar,state='readonly',width=36,
+                                      on_hover=self._choose_group)
         self.group_choice.pack(side='left',padx=8)
         self.group_choice.bind('<<ComboboxSelected>>',self._choose_group)
+        ttk.Label(group_bar, text='移入展开 · 悬浮切换预览', foreground='#666666').pack(side='left')
 
         ttk.Label(right, textvariable=self.method_status, foreground="#7a4d00", wraplength=850).pack(anchor="w", pady=(4, 0))
         object_bar = ttk.Frame(right)
@@ -189,10 +199,54 @@ class LiveryApp:
         ttk.Button(actions, text="排除对象", command=lambda: self._change_selection(False)).pack(side="left", padx=6)
         self.save_button = ttk.Button(actions, text="保存修正 SVG / PNG", command=self._save)
         self.save_button.pack(side="right")
+        self.review_button = ttk.Button(actions, text='五类图案复核 / 导出成品', command=self._open_review_gallery)
+        self.review_button.pack(side='right', padx=6)
         ttk.Label(right, text="双击对象切换保留状态；预览在保存修正后更新。", foreground="#666666").pack(anchor="w", pady=(5, 0))
         self.progress = ttk.Progressbar(outer, mode="determinate")
         self.progress.pack(fill="x")
         ttk.Label(outer, textvariable=self.status, wraplength=1100).pack(anchor="w", pady=(5, 0))
+
+    def _load_extracted_task(self):
+        if self.busy:
+            return
+        filename=filedialog.askopenfilename(title='选择提取任务的 manifest.json', filetypes=[('提取任务 manifest','*.json')])
+        if not filename:
+            return
+        try:
+            from engine import _load_version, _file_sha
+            path=Path(filename).resolve()
+            data=json.loads(path.read_text(encoding='utf8'))
+            pointer=data if 'manifest_sha256' in data else {'version_manifest':str(path),'manifest_sha256':_file_sha(path)}
+            result=_load_version(pointer)
+            source=Path(result['source'])
+            if hashlib.sha256(source.read_bytes()).hexdigest()!=result['source_sha256']:
+                raise ValueError('源 FS 已变化，请重新提取。')
+            item=self.tasks.insert('', 'end',values=(source.name,'已载入·待复核'))
+            self.sources[item]=source
+            self.results[item]=result
+            self.selections[item]=set(result['selected_ids'])
+            self.tasks.selection_set(item)
+            self.current=item
+            self._populate_objects(); self._load_previews(result); self._update_groups()
+            self._open_review_gallery()
+        except Exception as exc:
+            messagebox.showerror('无法载入任务',str(exc))
+
+    def _open_review_gallery(self):
+        if self.busy or self.current not in self.results:
+            messagebox.showinfo('选择提取任务', '请先选择一份已完成提取的 FS 任务。')
+            return
+        from review_gallery import ReviewGallery
+        result=self.results[self.current]
+        manual=None
+        if self._active_group and self._active_group[0]==self.current:
+            view=result['views'][self._active_group[1]]
+            category=view.get('category','彩条')
+            ids=sorted(self.selections.get(self.current,set()))
+            if ids:
+                manual={'id':'manual-current','label':'当前人工补选结果','selected_ids':ids,
+                        'category_hints':[category],'recommended_categories':[]}
+        ReviewGallery(self.root, result, Path(self.output.get())/'已复核成品', manual)
 
     def _add_files(self):
         paths = filedialog.askopenfilenames(title="选择 FS 文件", filetypes=[("FlexiSIGN 文件", "*.fs *.FS"), ("所有文件", "*.*")])
@@ -272,7 +326,7 @@ class LiveryApp:
             return
         self.reference_directory.set(directory)
         self.reference_status.set(directory or "自动查找：素材同目录 / 导出彩条参考")
-        self.status.set("参考库目录已保存。已处理任务需强制重新处理后使用新参考。")
+        self.status.set("参考库目录已保存；后续提取将使用新参考。")
 
     def _configure_ai(self):
         if self.busy:
@@ -402,6 +456,7 @@ class LiveryApp:
             button.configure(state="disabled" if busy else "normal")
         if hasattr(self, "concurrency_spin"):
             self.concurrency_spin.configure(state="disabled" if busy else "normal")
+        self.group_choice.configure(state="disabled" if busy else "readonly")
         self.stop_button.configure(state="normal" if busy else "disabled")
 
     def _start(self):
@@ -420,7 +475,6 @@ class LiveryApp:
             self.concurrency.set(concurrency)
         output = Path(self.output.get()).expanduser().resolve()
         jobs = list(self.sources.items())
-        force = self.force.get()
         self._refresh_ai()
         use_ai = self.use_ai.get()
         reference_directory = self.reference_directory.get()
@@ -428,9 +482,10 @@ class LiveryApp:
         self.progress.configure(value=0, maximum=len(jobs))
         self._set_busy(True)
         self.status.set(f"正在以 {concurrency} 线程并发启动提取引擎…")
-        threading.Thread(target=self._batch_worker, args=(jobs, output, force, use_ai, reference_directory, concurrency), daemon=True).start()
+        mode = 'components' if self.five_components.get() else 'stripes'
+        threading.Thread(target=self._batch_worker, args=(jobs, output, True, use_ai, reference_directory, concurrency, mode), daemon=True).start()
 
-    def _batch_worker(self, jobs, output, force, use_ai=False, reference_directory="", concurrency=1):
+    def _batch_worker(self, jobs, output, force=False, use_ai=False, reference_directory="", concurrency=1, extraction_mode='stripes'):
         try:
             from concurrent.futures import ThreadPoolExecutor, as_completed
             from engine import process_file
@@ -444,7 +499,8 @@ class LiveryApp:
                     result = process_file(
                         source,
                         output,
-                        options={"force": force, "use_ai": use_ai, "reference_directory": reference_directory},
+                        options={"force": force, "use_ai": use_ai, "reference_directory": reference_directory,
+                                 "extraction_mode": extraction_mode},
                         progress=lambda text: self.events.put(("log", f"[{source.name}] {text}"))
                     )
                     self.events.put(("result", item, result))
@@ -482,9 +538,11 @@ class LiveryApp:
         self._update_groups()
 
     def _update_groups(self):
+        self._active_group = None
         groups=self.results.get(self.current,{}).get('views',[])
         self.group_choice.configure(values=[f'{g["label"]} · {len(g["selected_ids"])} 条曲线' for g in groups])
-        self.group_choice.set('可切换左右侧及前后视图候选' if groups else '暂无候选组合')
+        is_components = self.results.get(self.current,{}).get('extraction_mode') == 'components'
+        self.group_choice.set(('切换车身 / 彩条 / 文字 / logo / 门徽候选' if is_components else '可切换左右侧及前后视图候选') if groups else '暂无候选组合')
 
     def _choose_group(self,_event=None):
         if self.busy or self.current not in self.results:
@@ -492,12 +550,16 @@ class LiveryApp:
         index=self.group_choice.current()
         groups=self.results[self.current].get('views',[])
         if index<0 or index>=len(groups):return
+        if self._active_group == (self.current, index):
+            return
+        self._active_group = (self.current, index)
         group=groups[index]
         self.selections[self.current]=set(group['selected_ids'])
         self._populate_objects()
         preview=dict(self.results[self.current],result_png=group['png'],result_svg=group['svg'],
                      selected_ids=group['selected_ids'])
-        self._load_previews(preview)
+        self._load_previews(preview, result_only=True)
+        self.previews.select(self.preview_viewers['result_png'])
         self.status.set('已切换候选组合，尚未保存。请核对后保存修正。')
 
     def _schedule_filter(self, *_):
@@ -638,6 +700,7 @@ class LiveryApp:
             "rules_candidates": "本地规则候选 · 识别尚未验证",
             "unresolved_review": "未匹配参考，等待 AI 或手动复核",
             "vision_selected_source_paths": "AI 判断原始对象 · 需复核",
+            "vision_five_components": "五类 AI 组合识别 · 请逐类核对",
             "ai_failed_no_selection": "AI 失败 · 未生成选择",
         }
         label = labels.get(method_text)
@@ -650,6 +713,9 @@ class LiveryApp:
                 label = "本地候选识别"
         reference = result.get("reference_match")
         detail = ""
+        if result.get('extraction_mode') == 'components':
+            missing=[name for name,ids in result.get('component_categories',{}).items() if not ids]
+            detail=' · 未识别：'+('、'.join(missing) if missing else '无空类别')
         if isinstance(reference, dict):
             name = reference.get("reference_name") or "未命名参考"
             matched, required = reference.get("matched_count", "?"), reference.get("required_count", "?")
@@ -685,14 +751,20 @@ class LiveryApp:
             messagebox.showinfo("没有保留对象", "请至少补选一个对象后再保存。")
             return
         result = self.results[item]
+        category_name = None
+        if result.get('extraction_mode') == 'components':
+            if not self._active_group or self._active_group[0] != item:
+                messagebox.showinfo('选择类别', '请先在候选下拉框切换到要修正的类别。')
+                return
+            category_name=result['views'][self._active_group[1]].get('category')
         self._set_busy(True)
         self.status.set("正在保存修正结果…")
-        threading.Thread(target=self._export_worker, args=(item, result, ids), daemon=True).start()
+        threading.Thread(target=self._export_worker, args=(item, result, ids, category_name), daemon=True).start()
 
-    def _export_worker(self, item, result, ids):
+    def _export_worker(self, item, result, ids, category_name=None):
         try:
             from engine import export_selection
-            updated = export_selection(result, ids)
+            updated = export_selection(result, ids, category_name=category_name)
             self.events.put(("result", item, updated))
             self.events.put(("log", f"修正结果已保存：{updated.get("result_svg")}"))
             self.events.put(("exported", item, updated))
@@ -701,14 +773,15 @@ class LiveryApp:
         finally:
             self.events.put(("done", "保存操作结束，请查看日志及结果预览。"))
 
-    def _load_previews(self, result):
+    def _load_previews(self, result, *, result_only=False):
         if not result and self.current in self.sources:
             source = self.sources[self.current]
             try:
                 result = {'source':str(source), 'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest()}
             except OSError as exc:
                 self._append_log(f"原文件无法读取：{exc}")
-        self.preview_images.clear()
+        if not result_only:
+            self.preview_images.clear()
         vectors = {}
         source_key = (result.get('source'), result.get('source_sha256'))
         if source_key != self._source_preview_key:
@@ -739,6 +812,8 @@ class LiveryApp:
             except Exception as exc:
                 self._append_log(f"结果矢量预览无法读取：{exc}")
         for key in self.canvases:
+            if result_only and key != 'result_png':
+                continue
             path = result.get(key)
             if path:
                 try:
@@ -753,6 +828,14 @@ class LiveryApp:
                 raster_label=("位图 · FS 内嵌原图，清晰度受文件内缩略图限制"
                               if key == 'preview_png' else "位图 · 候选编号预览" if key == 'candidate_png'
                               else "位图 · 提取结果预览"))
+
+        from geometry import union_bounds
+        ids = set(map(str, result.get('selected_ids', [])))
+        selected = [obj for obj in result.get('objects', [])
+                    if str(obj['id']) in ids and obj.get('bbox')]
+        page = next((page for page in self._source_vector.pages if page['name'] == 'Page 1'), None) \
+            if self._source_vector is not None else None
+        self.source_locator.set_source(page, union_bounds(selected) if selected else None)
 
     def _append_log(self, text):
         self.log.configure(state="normal")
