@@ -13,6 +13,11 @@ import engine
 
 
 class EngineTransactions(unittest.TestCase):
+    def test_legacy_reference_options_are_ignored_without_lookup(self):
+        with patch.object(engine, 'read_config', side_effect=AssertionError('reference config lookup')):
+            self.assertEqual(engine._resolve_reference_directory(self.source,
+                             {'reference_directory': 'must-not-be-opened'}), '')
+
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

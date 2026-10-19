@@ -52,6 +52,8 @@ native/*.exe
 # ==============================================================================
 # Runtime Outputs & Test Caches
 # ==============================================================================
+# Unified local-only task artifacts and configuration backups
+/.local/
 output/
 output-*/
 output_test/

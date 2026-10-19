@@ -56,8 +56,66 @@ def load_scene(source):
     return compose_scene(leaves, containers), containers + text_ranges(raw, refs['classes'], word)
 
 
+def loose_graphics(objects, native_candidates):
+    """Expose loose source curves, with optional same-paint spatial bundles.
+
+    Bundles are proposals for visual classification, never automatic labels.
+    Individual curves remain selectable so mixed-colour designs can be assembled
+    and a proposal containing structural details can be rejected.
+    """
+    bounds = union_bounds(objects)
+    dw, dh = bounds[2]-bounds[0], bounds[3]-bounds[1]
+    owned = {oid for c in native_candidates if len(c['member_ids']) <= 100
+             for oid in c['member_ids']}
+    paths = []
+    for obj in objects:
+        x0, y0, x1, y1 = obj['bbox']
+        w, h = x1-x0, y1-y0
+        if (obj['id'] in owned or 'C' not in obj.get('d', '')
+                or obj.get('fill') in (None, 'none')
+                or obj.get('details', {}).get('closed') is False
+                or w < dw*.05 or h <= 1e-5 or w/h < 1.8 or h > dh*.3):
+            continue
+        paths.append(obj)
+
+    def proposal(members, kind):
+        box = union_bounds(members)
+        w, h = box[2]-box[0], box[3]-box[1]
+        return {'members': members, 'bbox': box, 'native_type': kind,
+                'source_span': [min(o['source_offset'] for o in members),
+                                max(o['source_offset'] for o in members)],
+                'member_ids': [o['id'] for o in members], 'aspect': w/h, 'area': w*h}
+
+    remaining = list(paths)
+    bundles = []
+    while remaining:
+        cluster = [remaining.pop(0)]
+        changed = True
+        while changed:
+            changed = False
+            for obj in remaining[:]:
+                a = obj['bbox']
+                for other in cluster:
+                    b = other['bbox']
+                    overlap_x = min(a[2], b[2])-max(a[0], b[0])
+                    overlap_y = min(a[3], b[3])-max(a[1], b[1])
+                    if (obj['fill'] == other['fill']
+                            and overlap_x > min(a[2]-a[0], b[2]-b[0])*.15
+                            and overlap_y >= -max(a[3]-a[1], b[3]-b[1])*.1):
+                        cluster.append(obj)
+                        remaining.remove(obj)
+                        changed = True
+                        break
+        if len(cluster) > 1:
+            bundles.append(proposal(cluster, 'SpatialPaths'))
+    bundles.sort(key=lambda c: -c['area'])
+    return bundles + sorted((proposal([o], 'SourcePath') for o in paths),
+                            key=lambda c: -c['area'])
+
+
 def build_candidates(objects, containers, limit=120):
     """Keep native ownership, deduplicate nested copies and expose omissions."""
+    objects = sorted(objects, key=lambda o: o['source_offset'])
     offsets = [o['source_offset'] for o in objects]
     candidates, seen = [], set()
     for group in containers:
@@ -78,16 +136,19 @@ def build_candidates(objects, containers, limit=120):
         candidates.append({'members': members, 'bbox': bounds, 'native_type': group['class_name'],
                            'source_span': [group['source_offset'], group['end_offset']],
                            'member_ids': list(ids), 'aspect': w/h, 'area': w*h})
-    # Broad coverage: whole bodies, native text, and smaller graphic groups.
+    # Reserve coverage for ungrouped graphics as well as native ownership.
+    loose = loose_graphics(objects, candidates)
     max_area = max((c['area'] for c in candidates), default=1)
-    buckets = [[], [], []]
+    buckets = [[], [], [], loose]
     for c in candidates:
         body = 2.2 < c['aspect'] < 5.5 and c['area'] > max_area * .025 and len(c['members']) > 100
         bucket = 0 if body else 1 if c['native_type'] in ('AText','AArcText') else 2
         buckets[bucket].append(c)
     selected = []
-    for bucket, cap in zip(buckets, (limit//4, limit//4, limit//2)):
-        bucket.sort(key=lambda c: (-c['area'], len(c['members'])))
+    leftovers = []
+    for index, (bucket, cap) in enumerate(zip(buckets, (limit//4, limit//4, limit//4, limit//4))):
+        if index != 3:
+            bucket.sort(key=lambda c: (-c['area'], len(c['members'])))
         local = []
         for c in bucket:
             ids = set(c['member_ids'])
@@ -96,10 +157,14 @@ def build_candidates(objects, containers, limit=120):
                 continue
             local.append(c)
         selected.extend(local[:cap])
+        leftovers.extend(local[cap:])
+    selected.extend(leftovers[:max(0, limit-len(selected))])
     for i, c in enumerate(selected):
         c.update(id=f'G{i+1:03d}', score=1, fill='none')
-    return selected, {'native_candidates': len(candidates), 'provided_candidates': len(selected),
-                      'omitted_or_deduplicated_candidates': len(candidates)-len(selected), 'candidate_limit': limit}
+    return selected, {'native_candidates': len(candidates), 'loose_graphic_candidates': len(loose),
+                      'provided_candidates': len(selected),
+                      'omitted_or_deduplicated_candidates': len(candidates)+len(loose)-len(selected),
+                      'candidate_limit': limit, 'reference_library_used': False}
 
 
 def candidate_atlas(candidates, path):

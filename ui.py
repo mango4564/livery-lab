@@ -43,7 +43,7 @@ class LiveryApp:
         self.use_ai = tk.BooleanVar(value=False)
         self.ai_status = tk.StringVar(value="AI 未配置")
         self.reference_directory = tk.StringVar()
-        self.reference_status = tk.StringVar(value="自动查找：素材同目录 / 导出彩条参考")
+        self.reference_status = tk.StringVar(value="独立识别：直接分析源曲线，不使用参考库")
         self.show_all = tk.BooleanVar(value=False)
         self.object_filter = tk.StringVar()
         self.locate_id = tk.StringVar()
@@ -84,7 +84,7 @@ class LiveryApp:
         self.stop_button.pack(side="right", padx=6)
         self.concurrency_spin = ttk.Spinbox(toolbar, from_=1, to=max(64, (os.cpu_count() or 4) * 2), textvariable=self.concurrency, width=4)
         self.concurrency_spin.pack(side="right", padx=(2, 6))
-        self.concurrency_label = ttk.Label(toolbar, text="并发核心数:")
+        self.concurrency_label = ttk.Label(toolbar, text="并发任务数:")
         self.concurrency_label.pack(side="right")
 
         output_row = ttk.Frame(outer)
@@ -103,9 +103,7 @@ class LiveryApp:
         reference_row = ttk.Frame(outer)
         reference_row.pack(fill="x", pady=(4, 0))
         self.reference_button = ttk.Button(reference_row, text="参考库文件夹…", command=self._configure_reference)
-        self.reference_button.pack(side="left")
         self.reference_reset_button = ttk.Button(reference_row, text="恢复自动查找", command=lambda: self._save_reference_directory(""))
-        self.reference_reset_button.pack(side="left", padx=6)
         ttk.Label(reference_row, textvariable=self.reference_status).pack(side="left", padx=2)
 
         split = ttk.Panedwindow(outer, orient="horizontal")
@@ -132,8 +130,13 @@ class LiveryApp:
         log_scroll.pack(side="right", fill="y")
         self.log.pack(fill="both", expand=True)
 
+        # Only the preview and object list absorb height changes. Fixed controls
+        # must keep their requested height, including on high-DPI displays.
+        right.columnconfigure(0, weight=1)
+        right.rowconfigure(0, weight=3)
+        right.rowconfigure(4, weight=1)
         self.previews = ttk.Notebook(right)
-        self.previews.pack(fill="both", expand=True)
+        self.previews.grid(row=0, column=0, sticky="nsew")
         self.canvases = {}
         self.preview_viewers = {}
         for key, label in (("preview_png", "整车原图"), ("candidate_png", "候选对象"), ("result_png", "提取结果")):
@@ -146,7 +149,7 @@ class LiveryApp:
         self.source_locator.place(x=8, y=8)
 
         group_bar=ttk.Frame(right)
-        group_bar.pack(fill='x',pady=(6,0))
+        group_bar.grid(row=1, column=0, sticky="ew", pady=(6, 0))
         ttk.Label(group_bar,text='切换候选组合').pack(side='left')
         self.group_choice=HoverChoice(group_bar,state='readonly',width=36,
                                       on_hover=self._choose_group)
@@ -154,9 +157,9 @@ class LiveryApp:
         self.group_choice.bind('<<ComboboxSelected>>',self._choose_group)
         ttk.Label(group_bar, text='移入展开 · 悬浮切换预览', foreground='#666666').pack(side='left')
 
-        ttk.Label(right, textvariable=self.method_status, foreground="#7a4d00", wraplength=850).pack(anchor="w", pady=(4, 0))
+        ttk.Label(right, textvariable=self.method_status, foreground="#7a4d00", wraplength=850).grid(row=2, column=0, sticky="w", pady=(4, 0))
         object_bar = ttk.Frame(right)
-        object_bar.pack(fill="x", pady=(8, 4))
+        object_bar.grid(row=3, column=0, sticky="ew", pady=(8, 4))
         ttk.Label(object_bar, text="矢量对象").pack(side="left")
         ttk.Checkbutton(object_bar, text="显示全部", variable=self.show_all, command=self._populate_objects).pack(side="left", padx=8)
         ttk.Label(object_bar, text="筛选 ID / 颜色").pack(side="left")
@@ -165,7 +168,7 @@ class LiveryApp:
         self.selection_label = ttk.Label(object_bar, text="已选 0")
         self.selection_label.pack(side="right")
         object_frame = ttk.Frame(right)
-        object_frame.pack(fill="both", expand=False)
+        object_frame.grid(row=4, column=0, sticky="nsew")
         self.objects = ttk.Treeview(object_frame, columns=("chosen", "id", "fill", "score", "bbox"), show="headings", selectmode="extended", height=7)
         for key, label, width in (("chosen", "保留", 45), ("id", "对象 ID", 130), ("fill", "填充", 85), ("score", "评分", 65), ("bbox", "边界", 230)):
             self.objects.heading(key, text=label)
@@ -177,7 +180,7 @@ class LiveryApp:
         self.objects.bind("<Double-1>", self._toggle_object)
         self.objects.bind("<<TreeviewSelect>>", self._show_object_warnings)
         page_bar = ttk.Frame(right)
-        page_bar.pack(fill="x", pady=(4, 0))
+        page_bar.grid(row=5, column=0, sticky="ew", pady=(4, 0))
         self.prev_page_button = ttk.Button(page_bar, text="上一页", command=lambda: self._change_page(-1))
         self.prev_page_button.pack(side="left")
         self.next_page_button = ttk.Button(page_bar, text="下一页", command=lambda: self._change_page(1))
@@ -185,26 +188,39 @@ class LiveryApp:
         self.page_label = ttk.Label(page_bar, text="匹配 0 个 · 第 0 / 0 页")
         self.page_label.pack(side="left", padx=6)
         locate_bar = ttk.Frame(right)
-        locate_bar.pack(fill="x", pady=(4, 0))
+        locate_bar.grid(row=6, column=0, sticky="ew", pady=(4, 0))
         ttk.Label(locate_bar, text="对象 ID").pack(side="left", padx=(0, 3))
         locate_entry = ttk.Entry(locate_bar, textvariable=self.locate_id, width=16)
         locate_entry.pack(side="left")
         locate_entry.bind("<Return>", lambda _: self._locate_object())
         ttk.Button(locate_bar, text="定位", command=self._locate_object).pack(side="left", padx=4)
         ttk.Button(locate_bar, text="按 ID 补选", command=lambda: self._locate_object(include=True)).pack(side="left")
-        ttk.Label(right, textvariable=self.object_warning, foreground="#8a4b00", wraplength=850).pack(anchor="w", pady=(3, 0))
+        ttk.Label(right, textvariable=self.object_warning, foreground="#8a4b00", wraplength=850).grid(row=7, column=0, sticky="w", pady=(3, 0))
         actions = ttk.Frame(right)
-        actions.pack(fill="x", pady=(6, 0))
-        ttk.Button(actions, text="补选对象", command=lambda: self._change_selection(True)).pack(side="left")
-        ttk.Button(actions, text="排除对象", command=lambda: self._change_selection(False)).pack(side="left", padx=6)
-        self.save_button = ttk.Button(actions, text="保存修正 SVG / PNG", command=self._save)
+        actions.grid(row=8, column=0, sticky="ew", pady=(6, 0))
+        actions.columnconfigure(0, weight=1)
+        selection_actions = ttk.Frame(actions)
+        selection_actions.grid(row=0, column=0, sticky="w")
+        ttk.Button(selection_actions, text="补选对象", command=lambda: self._change_selection(True)).pack(side="left")
+        ttk.Button(selection_actions, text="排除对象", command=lambda: self._change_selection(False)).pack(side="left", padx=(6, 0))
+        export_actions = ttk.Frame(actions)
+        export_actions.grid(row=0, column=1, sticky="e")
+        self.save_button = ttk.Button(export_actions, text="保存修正 SVG / PNG", command=self._save)
         self.save_button.pack(side="right")
-        self.review_button = ttk.Button(actions, text='五类图案复核 / 导出成品', command=self._open_review_gallery)
-        self.review_button.pack(side='right', padx=6)
-        ttk.Label(right, text="双击对象切换保留状态；预览在保存修正后更新。", foreground="#666666").pack(anchor="w", pady=(5, 0))
+        self.review_button = ttk.Button(export_actions, text='五类图案复核 / 导出成品', command=self._open_review_gallery)
+        self.review_button.pack(side='right', padx=(0, 6))
+
+        def arrange_actions(event):
+            stacked = event.width < selection_actions.winfo_reqwidth() + export_actions.winfo_reqwidth() + 12
+            export_actions.grid_configure(row=1 if stacked else 0,
+                                          column=0 if stacked else 1,
+                                          pady=(6, 0) if stacked else 0)
+
+        actions.bind("<Configure>", arrange_actions)
+        ttk.Label(right, text="双击对象切换保留状态；预览在保存修正后更新。", foreground="#666666").grid(row=9, column=0, sticky="w", pady=(5, 0))
         self.progress = ttk.Progressbar(outer, mode="determinate")
-        self.progress.pack(fill="x")
-        ttk.Label(outer, textvariable=self.status, wraplength=1100).pack(anchor="w", pady=(5, 0))
+        self.progress.pack(side="bottom", fill="x", before=split)
+        ttk.Label(outer, textvariable=self.status, wraplength=1100).pack(side="bottom", anchor="w", pady=(5, 0), before=split)
 
     def _load_extracted_task(self):
         if self.busy:
@@ -294,8 +310,8 @@ class LiveryApp:
             config = read_config()
             self.use_ai.set(config.get("enabled") is True)
             self.ai_status.set("AI：" + configuration_status(config))
-            self.reference_directory.set(str(config.get("reference_directory") or ""))
-            self.reference_status.set(self.reference_directory.get() or "自动查找：素材同目录 / 导出彩条参考")
+            self.reference_directory.set("")
+            self.reference_status.set("独立识别：直接分析源曲线，不使用参考库")
         except Exception as exc:
             self.use_ai.set(False)
             self.ai_status.set("AI 配置无效：" + str(exc))
@@ -350,16 +366,19 @@ class LiveryApp:
             ttk.Entry(frame, textvariable=value, width=54).grid(row=index, column=1, sticky="ew", padx=(12, 0))
             fields[name] = value
         enabled = tk.BooleanVar(value=config.get("enabled", False))
+        use_system_proxy = tk.BooleanVar(value=config.get("use_system_proxy", True))
         secret_value=tk.StringVar()
         ttk.Label(frame,text='更新本机密钥（留空保留）').grid(row=3,column=0,sticky='w',pady=6)
         ttk.Entry(frame,textvariable=secret_value,show='•',width=54).grid(row=3,column=1,sticky='ew',padx=(12,0))
         ttk.Checkbutton(frame, text="启用 AI 视觉识别", variable=enabled).grid(row=4, column=0, columnspan=2, sticky="w", pady=8)
-        ttk.Label(frame, text="启用后，没有完整参考匹配的任务会把整车图、候选图和对象信息发往上方接口。\n本机密钥使用 Windows 当前用户加密保存；环境变量优先。\n保存配置不会测试连接或发送图片。", wraplength=540, foreground="#666666").grid(row=5, column=0, columnspan=2, sticky="w", pady=8)
+        ttk.Checkbutton(frame, text="使用系统代理（关闭后仅本工具直连接口）", variable=use_system_proxy).grid(row=5, column=0, columnspan=2, sticky="w", pady=4)
+        ttk.Label(frame, text="启用后，任务会把整车图、候选图和源对象信息发往上方接口，独立识别，不使用参考库。\n本机密钥使用 Windows 当前用户加密保存；环境变量优先。\n保存配置不会测试连接或发送图片。", wraplength=540, foreground="#666666").grid(row=6, column=0, columnspan=2, sticky="w", pady=8)
 
         def save():
             updated = {name: config.get(name, default) for name, default in DEFAULTS.items()}
             updated.update({name: value.get().strip() for name, value in fields.items()})
             updated["enabled"] = enabled.get()
+            updated["use_system_proxy"] = use_system_proxy.get()
             try:
                 # Validate locally before writing; no credential or endpoint requests.
                 if updated["enabled"]:
@@ -387,7 +406,7 @@ class LiveryApp:
             dialog.destroy()
 
         test_status = tk.StringVar(value="")
-        ttk.Label(frame, textvariable=test_status, foreground="#0066cc", wraplength=540).grid(row=6, column=0, columnspan=2, sticky="w", pady=(0, 6))
+        ttk.Label(frame, textvariable=test_status, foreground="#0066cc", wraplength=540).grid(row=7, column=0, columnspan=2, sticky="w", pady=(0, 6))
 
         def test_conn():
             test_button.configure(state="disabled", text="正在测试连接…")
@@ -395,6 +414,7 @@ class LiveryApp:
             test_config = {name: config.get(name, default) for name, default in DEFAULTS.items()}
             test_config.update({name: value.get().strip() for name, value in fields.items()})
             test_config["enabled"] = True
+            test_config["use_system_proxy"] = use_system_proxy.get()
             if secret_value.get().strip():
                 test_config["api_key"] = secret_value.get().strip()
 
@@ -403,7 +423,7 @@ class LiveryApp:
                     res = test_connection(test_config)
                     dialog.after(0, lambda: on_finish(True, res.get("message", "连接成功！")))
                 except Exception as err:
-                    dialog.after(0, lambda: on_finish(False, str(err)))
+                    dialog.after(0, lambda msg=str(err): on_finish(False, msg))
 
             def on_finish(ok, msg):
                 test_button.configure(state="normal", text="测试连接")
@@ -417,7 +437,7 @@ class LiveryApp:
             threading.Thread(target=worker, daemon=True).start()
 
         actions = ttk.Frame(frame)
-        actions.grid(row=7, column=0, columnspan=2, sticky="e")
+        actions.grid(row=8, column=0, columnspan=2, sticky="e")
         test_button = ttk.Button(actions, text="测试连接", command=test_conn)
         test_button.pack(side="left", padx=(0, 16))
         ttk.Button(actions, text="取消", command=dialog.destroy).pack(side="left", padx=6)
@@ -481,7 +501,7 @@ class LiveryApp:
         self.stop_event.clear()
         self.progress.configure(value=0, maximum=len(jobs))
         self._set_busy(True)
-        self.status.set(f"正在以 {concurrency} 线程并发启动提取引擎…")
+        self.status.set(f"正在启动 {min(concurrency, len(jobs))} 个并发任务…")
         mode = 'components' if self.five_components.get() else 'stripes'
         threading.Thread(target=self._batch_worker, args=(jobs, output, True, use_ai, reference_directory, concurrency, mode), daemon=True).start()
 
@@ -491,6 +511,7 @@ class LiveryApp:
             from engine import process_file
             output.mkdir(parents=True, exist_ok=True)
             worker_count = max(1, min(int(concurrency), len(jobs)))
+            self.events.put(("log", f"本批次同时处理 {worker_count} 个文件，共 {len(jobs)} 个文件。"))
             def _worker_task(item, source):
                 if self.stop_event.is_set():
                     return
@@ -698,7 +719,7 @@ class LiveryApp:
             "reference_motif_matched": "参考辅助匹配 · 参考图形组合已匹配",
             "reference_partial_review": "参考辅助匹配 · 参考组合未齐，必须复核",
             "rules_candidates": "本地规则候选 · 识别尚未验证",
-            "unresolved_review": "未匹配参考，等待 AI 或手动复核",
+            "unresolved_review": "等待 AI 独立识别或手动复核",
             "vision_selected_source_paths": "AI 判断原始对象 · 需复核",
             "vision_five_components": "五类 AI 组合识别 · 请逐类核对",
             "ai_failed_no_selection": "AI 失败 · 未生成选择",

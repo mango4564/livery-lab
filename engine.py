@@ -24,8 +24,6 @@ def _code_digest():
     inputs=([Path(sys.executable)] if getattr(sys,'frozen',False) else
             [ROOT/'engine.py',ROOT/'components.py',ROOT/'reviewed_exports.py',ROOT/'geometry.py',ROOT/'vector_preview.py',ROOT/'recognition.py',ROOT/'vision.py',ROOT/'credentials.py',ROOT/'runtime.py',
              *list((ROOT/'core').glob('*.py'))])
-    if not getattr(sys,'frozen',False) and (ROOT/'reference_match.py').is_file():
-        inputs.append(ROOT/'reference_match.py')
     for path in sorted(inputs):
         digest.update(path.name.encode('utf8'))
         digest.update(path.read_bytes())
@@ -42,9 +40,8 @@ from geometry import IDENTITY, candidate_image, candidate_sheet, rasterize, svg_
 from recognition import rank_candidates, candidate_groups
 from vision import read_config, recognize, VisionError
 from runtime import APP_DIR, FROZEN
-from reference_match import match_motifs
 
-VERSION='0.2.0-reference-motifs'
+VERSION='0.3.0-independent-source-paths'
 if _code_digest()!=_IMPORT_CODE_DIGEST:
     raise RuntimeError('加载提取引擎期间程序代码发生变化，请重新启动工具。')
 
@@ -65,29 +62,15 @@ def _fingerprint(options):
         raise RuntimeError('运行中的引擎代码已发生变化，请重新启动工具后处理，避免混用版本。')
     config=read_config()
     # Never persist secrets, even hashed credentials, in manifests or cache keys.
-    selected={k:config.get(k) for k in ('enabled','base_url','model','max_candidates')}
-    reference_directory=options.get('reference_directory') or ''
-    library=hashlib.sha256()
-    for directory in _reference_directories(reference_directory):
-        if directory.is_dir():
-            for path in sorted(directory.glob('*.svg')):
-                library.update(path.name.encode('utf8'));library.update(path.read_bytes())
+    selected={k:config.get(k) for k in ('enabled','base_url','model','max_candidates','use_system_proxy')}
     return hashlib.sha256((code+json.dumps({'use_ai':bool(options.get('use_ai')), 'config':selected,
         'extraction_mode':options.get('extraction_mode','stripes'),
-        'reference_directory':str(reference_directory),'library_sha256':library.hexdigest()},sort_keys=True)).encode()).hexdigest()
-
-
-def _reference_directories(reference_directory=''):
-    directories=[Path(reference_directory).resolve()] if reference_directory else []
-    directories.append(ROOT/'reference_library')
-    return directories
+        'recognition_policy':'independent_no_references'},sort_keys=True)).encode()).hexdigest()
 
 
 def _resolve_reference_directory(source,options):
-    configured=options.get('reference_directory') or read_config().get('reference_directory')
-    if configured:return str(Path(configured).expanduser().resolve())
-    adjacent=Path(source).parent/'导出彩条参考'
-    return str(adjacent.resolve()) if adjacent.is_dir() else ''
+    # Legacy options remain readable, but extraction never opens a library.
+    return ''
 
 
 def _check_pipeline(fingerprint,use_ai,reference_directory='',extraction_mode='stripes'):
@@ -396,6 +379,7 @@ def _run_components_worker(source,directory,digest,fingerprint,use_ai,reference_
             'cache_index':str(run_dir.parent/'.cache'/(key+'.json')),
             'output_dir':str(directory),'status':'review','method':'vision_five_components',
             'extraction_mode':'components','physical_scale_verified':False,'human_confirmed':False,
+            'reference_library_used':False,
             'objects':objects,'selected_ids':[o['id'] for o in objects if o['id'] in chosen],
             'suggested_ids':[],'candidate_count':len(chosen),
             'preview_png':str(directory/'source_scene.png'),
@@ -483,20 +467,14 @@ def _run_worker(source,directory,digest,fingerprint,use_ai):
             obj.pop(attr_key,None)
     bounds=rank_candidates(objects,containers)
     groups=candidate_groups(objects,containers)
-    reference=match_motifs(objects,_reference_directories(reference_directory),digest)
-    related=set(reference.get('candidate_ids',[]))
-    matched=set(reference.get('selected_ids',[]))
-    for obj in objects:
-        if obj['id'] in related:obj['score']=max(obj['score'],.85)
-        if obj['id'] in matched:obj['score']=1.0
-    native_top_match = bool(not matched and groups and groups[0].get('is_native_group') and groups[0].get('mean_score', 0) >= 0.8)
-    auto_selected = list(matched) if matched else (list(groups[0]['selected_ids']) if native_top_match else [])
-    method_name = 'reference_motif_matched' if matched else ('native_group_matched' if native_top_match else 'unresolved_review')
+    native_top_match = bool(groups and groups[0].get('is_native_group') and groups[0].get('mean_score', 0) >= 0.8)
+    auto_selected = list(groups[0]['selected_ids']) if native_top_match else []
+    method_name = 'native_group_matched' if native_top_match else 'unresolved_review'
     result={'version':VERSION,'pipeline_fingerprint':fingerprint,'source':str(source),
             'run_dir':str(run),'cache_index':str(run.parent/'.cache'/(key+'.json')),
             'source_sha256':digest,'output_dir':str(directory),'status':'review',
             'method':method_name,'physical_scale_verified':False,
-            'reference_match':reference,
+            'reference_library_used':False,
             'human_confirmed':False,'objects':objects,'selected_ids':auto_selected,
             'suggested_ids':groups[0]['selected_ids'] if groups else [],
             'geometry_stats':doc['geometry_stats'],'preview_info':preview_info,
@@ -518,13 +496,11 @@ def _run_worker(source,directory,digest,fingerprint,use_ai):
     else:
         _placeholder(directory/'candidates.png','No strong colour candidates. Use Show all objects to review.')
         warnings.append('规则未找到明显彩条候选，请显示全部对象后手动选择。')
-    if matched:
-        warnings.append('参考辅助结果已通过整组曲线形状及相对布局匹配；该样例验收不代表未见图稿的识别准确率。')
-    elif native_top_match:
+    if native_top_match:
         warnings.append('已自动匹配到 FlexiSIGN 原生高置信度组合 (' + groups[0].get('label', '') + ')；可在下拉菜单切换其他候选。')
     else:
-        warnings.append('未匹配到完整参考组合或高置信原生组合；没有采用最高规则分组作为自动提取结果，请使用 AI 或手动复核。')
-    if use_ai and not matched:
+        warnings.append('未找到高置信原生组合；请使用 AI 或手动复核独立源曲线。')
+    if use_ai:
         try:
             model_result=recognize({'objects':candidates,'candidate_sheet_png':result.get('candidate_sheet_png')},directory/'preview.png',directory/'candidates.png',config)
             result['selected_ids']=model_result['selected_ids']
