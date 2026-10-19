@@ -19,6 +19,8 @@ class ImagePreview(ttk.Frame):
         self.fitting = True
         self._drag = None
         self._size = None
+        self._draw_after = None
+        self._draw_key = None
         self.vector_image = None
         self.raster_image = None
         self.vector_label = "矢量"
@@ -52,6 +54,7 @@ class ImagePreview(ttk.Frame):
                                 height=240, cursor="hand2")
         self.canvas.pack(fill="both", expand=True)
         self.canvas.bind("<Configure>", self._resize)
+        self.canvas.bind("<Map>", lambda e: self.fit() if self.fitting else self.request_draw())
         self.canvas.bind("<MouseWheel>", self._wheel)
         self.canvas.bind("<Button-4>", lambda e: self._wheel(e, 1))
         self.canvas.bind("<Button-5>", lambda e: self._wheel(e, -1))
@@ -65,6 +68,7 @@ class ImagePreview(ttk.Frame):
         self.set_image(None)
 
     def set_image(self, image, vector=None, *, vector_label="矢量", raster_label="位图"):
+        self._draw_key = None
         self.vector_image, self.raster_image = vector, image
         self.vector_label, self.raster_label = vector_label, raster_label
         self.image = vector if vector is not None else image
@@ -119,7 +123,7 @@ class ImagePreview(ttk.Frame):
                              max(1, h - 24) / self.image.height)
             self.offset = ((w - self.image.width * self.scale) / 2,
                            (h - self.image.height * self.scale) / 2)
-        self.draw()
+        self.request_draw()
 
     def zoom(self, factor, anchor=None):
         self.set_scale(self.scale * factor, anchor)
@@ -138,7 +142,7 @@ class ImagePreview(ttk.Frame):
         self.offset = (ax - (ax - ox) * ratio, ay - (ay - oy) * ratio)
         self.scale = scale
         self.fitting = False
-        self.draw()
+        self.request_draw()
 
     def _wheel(self, event, direction=None):
         steps = direction if direction is not None else max(-3, min(3, event.delta / 120))
@@ -155,7 +159,7 @@ class ImagePreview(ttk.Frame):
         x, y, (ox, oy) = self._drag
         self.offset = (ox + event.x - x, oy + event.y - y)
         self.fitting = False
-        self.draw()
+        self.request_draw()
 
     def _end_drag(self, event):
         self._drag = None
@@ -164,6 +168,8 @@ class ImagePreview(ttk.Frame):
     def _resize(self, event):
         previous = self._size
         self._size = (event.width, event.height)
+        if previous == self._size:
+            return
         if self.fitting:
             self.fit()
         else:
@@ -171,13 +177,33 @@ class ImagePreview(ttk.Frame):
                 ox, oy = self.offset
                 self.offset = (ox + (event.width - previous[0]) / 2,
                                oy + (event.height - previous[1]) / 2)
+            self.request_draw()
+
+    def request_draw(self):
+        # One render per frame, including a burst of resize/wheel/motion events.
+        if self._draw_after is None:
+            self._draw_after = self.after(16, self._flush_draw)
+
+    def _flush_draw(self):
+        self._draw_after = None
+        if self.canvas.winfo_ismapped():
             self.draw()
+
+    def destroy(self):
+        if self._draw_after is not None:
+            self.after_cancel(self._draw_after)
+            self._draw_after = None
+        super().destroy()
 
     def draw(self):
         canvas = self.canvas
+        w, h = max(1, canvas.winfo_width()), max(1, canvas.winfo_height())
+        key = (id(self.image), self.scale, self.offset, w, h)
+        if key == self._draw_key:
+            return
+        self._draw_key = key
         canvas.delete("all")
         self.photo = None
-        w, h = max(1, canvas.winfo_width()), max(1, canvas.winfo_height())
         if self.image is None:
             self.percent.configure(text="")
             canvas.create_text(w / 2, h / 2, text="暂无预览", fill="#777777")

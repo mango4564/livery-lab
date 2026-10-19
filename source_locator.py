@@ -79,28 +79,20 @@ def visible_source_bounds(vector, viewbox):
             x + (box[2]+1-left) / unit, y+height - (box[1]-1-top) / unit)
 
 
-class SourceLocator(ttk.Frame):
-    def __init__(self, parent):
-        super().__init__(parent, padding=3, relief='solid', borderwidth=1)
-        ttk.Label(self, text='原稿位置 · 第 1 页（自动裁白）').pack(anchor='w')
-        self.canvas = tk.Canvas(self, width=216, height=124,
-                                background='white', highlightthickness=0)
-        self.canvas.pack()
+class SourceLocatorRenderer:
+    """Pure image preparation; usable by the preview worker without Tk calls."""
+    def __init__(self):
         self._key = None
         self._base = None
         self._viewbox = None
         self._content_bounds = None
         self._crop_bounds = None
         self._viewport = None
-        self.photo = None
 
-    def set_source(self, page, bounds):
-        self.canvas.delete('all')
+    def prepare(self, page, bounds):
         size = (216, 124)
         if page is None or page.get('error') or not page.get('objects'):
-            self.photo = None
-            self.canvas.create_text(108, 62, text='原稿定位预览不可用', fill='#777777')
-            return
+            return None
         key = page['image']
         if key != self._key:
             svg = svg_document(page['objects'], background='#ffffff')
@@ -135,7 +127,33 @@ class SourceLocator(ttk.Frame):
             clipped = (max(1, cx-hw), max(1, cy-hh), min(214, cx+hw), min(122, cy+hh))
             if clipped[2] >= clipped[0] and clipped[3] >= clipped[1]:
                 ImageDraw.Draw(image).rectangle(clipped, outline='#ef3038', width=2)
+        return image
+
+
+class SourceLocator(ttk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent, padding=3, relief='solid', borderwidth=1)
+        ttk.Label(self, text='原稿位置 · 第 1 页（自动裁白）').pack(anchor='w')
+        self.canvas = tk.Canvas(self, width=216, height=124,
+                                background='white', highlightthickness=0)
+        self.canvas.pack()
+        self._renderer = SourceLocatorRenderer()
+        self.photo = None
+        self._viewbox = None
+        self._viewport = None
+
+    def set_source(self, page, bounds):
+        image = self._renderer.prepare(page, bounds)
+        self.show_prepared(image, self._renderer._viewbox, self._renderer._viewport, bounds is None)
+
+    def show_prepared(self, image, viewbox, viewport, empty=False):
+        self.canvas.delete('all')
+        self._viewbox, self._viewport = viewbox, viewport
+        if image is None:
+            self.photo = None
+            self.canvas.create_text(108, 62, text='原稿定位预览不可用', fill='#777777')
+            return
         self.photo = ImageTk.PhotoImage(image, master=self.canvas)
         self.canvas.create_image(0, 0, image=self.photo, anchor='nw')
-        if bounds is None:
+        if empty:
             self.canvas.create_text(108, 114, text='当前没有提取对象', fill='#777777')

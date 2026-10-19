@@ -2,6 +2,7 @@
 import tempfile
 from pathlib import Path
 import tkinter as tk
+import time
 import unittest
 from unittest.mock import patch
 
@@ -24,7 +25,11 @@ class ReviewPreviewTests(unittest.TestCase):
             script = self.root.tk.call('after', 'info', timer)[0]
             if script in (self.root._tclCommands or []):
                 self.root.after_cancel(timer)
-        self.root.destroy()
+        if hasattr(self, 'app'):
+            self.app._close()
+            self.app._preview_thread.join(timeout=3)
+        else:
+            self.root.destroy()
         self.assertEqual(self.errors, [])
 
     def test_hover_opens_and_switches_native_list_without_clicking(self):
@@ -87,6 +92,7 @@ class ReviewPreviewTests(unittest.TestCase):
     def test_candidate_switch_updates_selection_result_and_locator_only(self):
         with patch.object(LiveryApp, '_refresh_ai'):
             app = LiveryApp(self.root)
+        self.app = app
         objects = [dict(id='1', bbox=[100, 200, 300, 300], fill='#167adf',
                         d='M100 200H300V300H100Z', score=1),
                    dict(id='2', bbox=[500, 500, 600, 600], fill='#167adf',
@@ -110,7 +116,12 @@ class ReviewPreviewTests(unittest.TestCase):
             with patch.object(app.preview_viewers['preview_png'], 'set_image') as source_update:
                 app.group_choice.current(1)
                 app._choose_group()
-                self.root.update()
+                deadline = time.monotonic() + 3
+                while app.preview_viewers['result_png'].vector_image is None:
+                    self.root.update()
+                    if time.monotonic() > deadline:
+                        self.fail('Candidate preview did not finish loading')
+                    time.sleep(0.005)
                 self.assertEqual(app.selections['task'], {'2'})
                 self.assertEqual(app.results['task']['selected_ids'], ['1'])
                 self.assertEqual(app.previews.select(), str(app.preview_viewers['result_png']))

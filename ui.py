@@ -9,13 +9,15 @@ from pathlib import Path
 import queue
 import threading
 import traceback
+import time
+from collections import OrderedDict
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from PIL import Image
 from image_preview import ImagePreview
 from hover_choice import HoverChoice
-from source_locator import SourceLocator
+from source_locator import SourceLocator, SourceLocatorRenderer
 from vector_preview import VectorDocument, VectorImage
 from runtime import APP_DIR
 
@@ -37,6 +39,10 @@ class LiveryApp:
         self._source_preview_key = None
         self._source_vector = None
         self._active_group = None
+        self._preview_generation = 0
+        self._preview_requests = queue.Queue(maxsize=1)
+        self._preview_thread = None
+        self._displayed_task = None
         self.output = tk.StringVar(value=str(APP_DIR / "output"))
         self.five_components = tk.BooleanVar(value=True)
         self.concurrency = tk.IntVar(value=min(os.cpu_count() or 4, 32))
@@ -60,7 +66,7 @@ class LiveryApp:
         self.status = tk.StringVar(value="添加 FS 文件后开始。识别结果可在右侧补选、排除。")
         self._build()
         self._refresh_ai()
-        self.root.after(100, self._drain)
+        self._drain_after = self.root.after(100, self._drain)
         self.root.protocol("WM_DELETE_WINDOW", self._close)
 
     def _build(self):
@@ -243,13 +249,15 @@ class LiveryApp:
             self.selections[item]=set(result['selected_ids'])
             self.tasks.selection_set(item)
             self.current=item
-            self._populate_objects(); self._load_previews(result); self._update_groups()
+            self._task_selected()
             self._open_review_gallery()
         except Exception as exc:
             messagebox.showerror('无法载入任务',str(exc))
 
     def _open_review_gallery(self):
-        if self.busy or self.current not in self.results:
+        # Review/export belongs to the selected FS result, independently of
+        # extraction workers still processing other files in the batch.
+        if self.current not in self.results:
             messagebox.showinfo('选择提取任务', '请先选择一份已完成提取的 FS 任务。')
             return
         from review_gallery import ReviewGallery
@@ -297,7 +305,7 @@ class LiveryApp:
             self.selections.pop(item, None)
         self.current = None
         self._populate_objects()
-        self._load_previews({})
+        self._request_previews({})
 
     def _browse_output(self):
         folder = filedialog.askdirectory(title="选择输出目录")
@@ -554,8 +562,12 @@ class LiveryApp:
     def _task_selected(self, _event=None):
         items = self.tasks.selection()
         self.current = items[0] if items else None
+        display_key = (self.current, id(self.results.get(self.current)))
+        if display_key == self._displayed_task:
+            return
+        self._displayed_task = display_key
         self._populate_objects()
-        self._load_previews(self.results.get(self.current, {}))
+        self._request_previews(self.results.get(self.current, {}))
         self._update_groups()
 
     def _update_groups(self):
@@ -579,7 +591,7 @@ class LiveryApp:
         self._populate_objects()
         preview=dict(self.results[self.current],result_png=group['png'],result_svg=group['svg'],
                      selected_ids=group['selected_ids'])
-        self._load_previews(preview, result_only=True)
+        self._request_previews(preview, result_only=True)
         self.previews.select(self.preview_viewers['result_png'])
         self.status.set('已切换候选组合，尚未保存。请核对后保存修正。')
 
@@ -796,24 +808,80 @@ class LiveryApp:
         finally:
             self.events.put(("done", "保存操作结束，请查看日志及结果预览。"))
 
-    def _load_previews(self, result, *, result_only=False):
-        if not result and self.current in self.sources:
-            source = self.sources[self.current]
-            try:
-                result = {'source':str(source), 'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest()}
-            except OSError as exc:
-                self._append_log(f"原文件无法读取：{exc}")
+    def _request_previews(self, result, *, result_only=False):
+        """Load preview assets off-thread, keeping only the newest request."""
+        self._preview_generation += 1
+        source_key = (result.get('source'), result.get('source_sha256'))
+        source_vector = self._source_vector if source_key == self._source_preview_key else None
+        result_only = result_only and source_vector is not None
+        request = (self._preview_generation, self.current, dict(result), result_only,
+                   self.sources.get(self.current), source_vector)
         if not result_only:
             self.preview_images.clear()
-        vectors = {}
-        source_key = (result.get('source'), result.get('source_sha256'))
-        if source_key != self._source_preview_key:
-            self._source_preview_key = source_key
+            self._source_preview_key = None
             self._source_vector = None
+            for viewer in self.preview_viewers.values():
+                viewer.set_image(None)
+            self.source_locator.set_source(None, None)
+        try:
+            self._preview_requests.get_nowait()
+        except queue.Empty:
+            pass
+        self._preview_requests.put_nowait(request)
+        if self._preview_thread is None:
+            self._preview_thread = threading.Thread(target=self._preview_worker, daemon=True)
+            self._preview_thread.start()
+
+    def _preview_worker(self):
+        # Bounded by document count; do not retain every task's parsed geometry.
+        cache = OrderedDict()
+        locators = OrderedDict()
+        while True:
+            request = self._preview_requests.get()
+            if request is None:
+                return
+            generation, item, result, result_only, source, source_vector = request
+            try:
+                key = (result.get('source'), result.get('source_sha256'))
+                vector = cache.get(key, source_vector)
+                assets = self._prepare_previews(result, source, vector, result_only=result_only)
+                key = assets[0]
+                if assets[1] is not None:
+                    cache[key] = assets[1]
+                    cache.move_to_end(key)
+                    while len(cache) > 3:
+                        cache.popitem(last=False)
+                page, bounds = self._locator_source(result, assets[1])
+                page_key = page['image'] if page is not None else None
+                locator = locators.get(page_key)
+                if locator is None:
+                    locator = SourceLocatorRenderer()
+                image = locator.prepare(page, bounds)
+                if page_key is not None:
+                    locators[page_key] = locator
+                    locators.move_to_end(page_key)
+                    while len(locators) > 3:
+                        locators.popitem(last=False)
+                assets += ((image, locator._viewbox, locator._viewport, bounds is None),)
+                self.events.put(('previews', generation, item, result, result_only, assets))
+            except Exception as exc:
+                self.events.put(('preview_error', generation, str(exc)))
+
+    @staticmethod
+    def _prepare_previews(result, source=None, source_vector=None, *, result_only=False):
+        result = dict(result)
+        messages = []
+        if not result and source is not None:
+            try:
+                result = {'source': str(source), 'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest()}
+            except OSError as exc:
+                messages.append(f"原文件无法读取：{exc}")
+        source_key = (result.get('source'), result.get('source_sha256'))
+        vectors, images = {}, {}
         if result.get('source') and result.get('source_sha256'):
             try:
-                from geometry import svg_document
-                if self._source_vector is None:
+                if source_vector is None:
+                    from geometry import svg_document
                     from core.fs_scene import source_preview_pages
                     pages = []
                     for page in source_preview_pages(result):
@@ -823,27 +891,46 @@ class LiveryApp:
                         pages.append(dict(page, label=label, image=VectorImage(
                             svg_document(page['objects'], background='#ffffff'))))
                         if page['error']:
-                            self._append_log(f"{label}：{page['error']}")
-                    self._source_vector = VectorDocument(pages)
-                vectors['preview_png'] = self._source_vector
+                            messages.append(f"{label}：{page['error']}")
+                    source_vector = VectorDocument(pages)
+                vectors['preview_png'] = source_vector
             except Exception as exc:
-                self._append_log(f"整车矢量预览无法生成：{exc}")
+                messages.append(f"整车矢量预览无法生成：{exc}")
         svg_path = result.get('result_svg')
         if svg_path and result.get('selected_ids'):
             try:
                 vectors['result_png'] = VectorImage(Path(svg_path).read_text(encoding='utf8'))
             except Exception as exc:
-                self._append_log(f"结果矢量预览无法读取：{exc}")
-        for key in self.canvases:
+                messages.append(f"结果矢量预览无法读取：{exc}")
+        for key in ('preview_png', 'candidate_png', 'result_png'):
             if result_only and key != 'result_png':
                 continue
             path = result.get(key)
             if path:
                 try:
                     with Image.open(path) as img:
-                        self.preview_images[key] = img.convert("RGBA")
+                        images[key] = img.convert('RGBA')
                 except (OSError, ValueError) as exc:
-                    self._append_log(f"预览无法读取：{path}（{exc}）")
+                    messages.append(f"预览无法读取：{path}（{exc}）")
+        return source_key, source_vector, vectors, images, messages
+
+    def _load_previews(self, result, *, result_only=False, assets=None):
+        if assets is None:
+            assets = self._prepare_previews(result, self.sources.get(self.current),
+                self._source_vector if self._source_preview_key ==
+                (result.get('source'), result.get('source_sha256')) else None,
+                result_only=result_only)
+        self._source_preview_key, self._source_vector, vectors, images, messages = assets[:5]
+        for message in messages:
+            self._append_log(message)
+        if not result_only:
+            self.preview_images.clear()
+        for key in self.canvases:
+            if result_only and key != 'result_png':
+                continue
+            self.preview_images.pop(key, None)
+            if key in images:
+                self.preview_images[key] = images[key]
             self.preview_viewers[key].set_image(
                 self.preview_images.get(key), vectors.get(key),
                 vector_label=("矢量 · 全部文档页面；可选单页放大、切换内嵌原图对照（特殊效果仍需核对）"
@@ -852,13 +939,20 @@ class LiveryApp:
                               if key == 'preview_png' else "位图 · 候选编号预览" if key == 'candidate_png'
                               else "位图 · 提取结果预览"))
 
+        if len(assets) > 5:
+            self.source_locator.show_prepared(*assets[5])
+        else:
+            self.source_locator.set_source(*self._locator_source(result, self._source_vector))
+
+    @staticmethod
+    def _locator_source(result, source_vector):
         from geometry import union_bounds
         ids = set(map(str, result.get('selected_ids', [])))
         selected = [obj for obj in result.get('objects', [])
                     if str(obj['id']) in ids and obj.get('bbox')]
-        page = next((page for page in self._source_vector.pages if page['name'] == 'Page 1'), None) \
-            if self._source_vector is not None else None
-        self.source_locator.set_source(page, union_bounds(selected) if selected else None)
+        page = next((page for page in source_vector.pages if page['name'] == 'Page 1'), None) \
+            if source_vector is not None else None
+        return page, union_bounds(selected) if selected else None
 
     def _append_log(self, text):
         self.log.configure(state="normal")
@@ -869,13 +963,23 @@ class LiveryApp:
         self.log.configure(state="disabled")
 
     def _drain(self):
+        deadline = time.perf_counter() + 0.012
         for _ in range(100):
+            if time.perf_counter() >= deadline:
+                break
             try:
                 event = self.events.get_nowait()
             except queue.Empty:
                 break
             kind, *args = event
-            if kind == "log":
+            if kind == 'previews':
+                generation, item, result, result_only, assets = args
+                if generation == self._preview_generation and item == self.current:
+                    self._load_previews(result, result_only=result_only, assets=assets)
+            elif kind == 'preview_error':
+                if args[0] == self._preview_generation:
+                    self._append_log(f'预览加载失败：{args[1]}')
+            elif kind == "log":
                 self._append_log(args[0])
             elif kind == "running":
                 item, name = args
@@ -896,7 +1000,8 @@ class LiveryApp:
                     self.current = item
                 if self.current == item:
                     self._populate_objects()
-                    self._load_previews(result)
+                    self._displayed_task = (self.current, id(result))
+                    self._request_previews(result)
                     self._update_groups()
             elif kind == "failed":
                 item, error = args
@@ -910,7 +1015,7 @@ class LiveryApp:
             elif kind == "done":
                 self._set_busy(False)
                 self.status.set(args[0])
-        self.root.after(100, self._drain)
+        self._drain_after = self.root.after(10 if not self.events.empty() else 100, self._drain)
 
     def _close(self):
         if self.busy:
@@ -919,6 +1024,13 @@ class LiveryApp:
             return
         if self._filter_after is not None:
             self.root.after_cancel(self._filter_after)
+        self.root.after_cancel(self._drain_after)
+        self._preview_generation += 1
+        try:
+            self._preview_requests.get_nowait()
+        except queue.Empty:
+            pass
+        self._preview_requests.put_nowait(None)
         self.root.destroy()
 
 
