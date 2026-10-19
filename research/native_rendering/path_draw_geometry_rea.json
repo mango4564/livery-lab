@@ -1,0 +1,138 @@
+{
+  "evidence_id": "ev_9029060fd4320e34c1713dc36bcf17bc04d0bed6ca2a78ce1dfd24b664e9c144",
+  "subject": {
+    "name": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll",
+    "digest": {
+      "sha256": "bcddb4912f9b044f1ba6b0350d7145f85983ba0a376b9e4714558bf12197471d"
+    },
+    "format": "pe",
+    "architecture": "x86",
+    "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Program\\fscore.dll"
+  },
+  "provider": {
+    "id": "rea-workflow",
+    "name": "REA composed investigation workflow",
+    "version": "1"
+  },
+  "analysis_profile": {
+    "provider": {
+      "id": "rea-workflow",
+      "name": "REA composed investigation workflow",
+      "version": "1"
+    },
+    "parameters": {
+      "upstream_analysis_profile": {
+        "provider": {
+          "id": "ghidra",
+          "name": "Ghidra",
+          "version": "12.1.4"
+        },
+        "parameters": {
+          "target_kind": "executable",
+          "target_format": "pe",
+          "executable_role": "shared-library",
+          "managed": false,
+          "native_aot_metadata": {
+            "contract_revision": "rtr-9.1-x64-pe-read-only-v3",
+            "source_bytes": 134217728,
+            "work_units": 67108864,
+            "working_memory_bytes": 67108864,
+            "report_bytes": 4194304
+          },
+          "architecture": "x86",
+          "available_architectures": [
+            "x86"
+          ],
+          "import_mode": "ephemeral-source-immutable",
+          "annotation_policy": "atomic-function-entry-metadata-v1",
+          "load_image_observations": "source-mappings-entry-context-v2",
+          "function_body_evidence": "complete-inclusive-ranges-v1",
+          "function_references": "complete-body-and-entry-reference-manager-v2",
+          "string_inventory_evidence": "defined-data-coverage-v1",
+          "location_resolution": "explicit-address-exact-entry-symbol-first-v3",
+          "instruction_flow_evidence": "decoded-return-pcode-v1",
+          "function_boundary_observations": "ghidra-terminal-call-limitations-v1",
+          "no_return_repair": "disabled-windows-p0",
+          "process_launch": "official-headless-script-v1",
+          "jump_table_evidence": "typed-case-default-blocks-v1",
+          "decompiler_jump_loads": true,
+          "loader": "auto-from-header",
+          "language_id": "auto-from-header",
+          "compiler_spec_id": "auto-default",
+          "analyzer_preset": "ghidra-default"
+        },
+        "digest": "48af9b505d5ea9a04ce9216b5d3ada530b610ea384c7d99a3f0762b4843ba216"
+      },
+      "workflow_revision": 2
+    },
+    "digest": "c6f00e46275b6f736618c29ffa436b17d31fa5bbaa40558b7b39ac9be69eeade"
+  },
+  "predicate_type": "rea.analysis",
+  "operation": "batch_decompile",
+  "parameters": {
+    "addresses": [
+      "0x1003a550",
+      "0x100074a0",
+      "0x10038b60"
+    ]
+  },
+  "raw_result": null,
+  "normalized_result": {
+    "items": [
+      {
+        "address": "0x1003a550",
+        "procedure": {
+          "status": "resolved",
+          "address": "0x1003a550",
+          "name": "APath::draw"
+        },
+        "status": "ok",
+        "pseudocode": "\r\n/* public: virtual int __thiscall APath::draw(class ADevice *,class ADrawInfo *) */\r\n\r\nint __thiscall APath::draw(APath *this,ADevice *param_1,ADrawInfo *param_2)\r\n\r\n{\r\n  int iVar1;\r\n  int iVar2;\r\n  ABrushItem *pAVar3;\r\n  ARoot *pAVar4;\r\n  ARoot **ppAVar5;\r\n  APath *pAVar6;\r\n  AObList *pAVar7;\r\n  AQuickMatrix *this_00;\r\n  float unaff_EDI;\r\n  undefined4 uVar8;\r\n  APen *pAVar9;\r\n  ABrush *pAVar10;\r\n  TypeDescriptor *pTVar11;\r\n  AColor *pAVar12;\r\n  TypeDescriptor *pTVar13;\r\n  AColor *pAVar14;\r\n  undefined4 uVar15;\r\n  int *piStack_12c;\r\n  APen *local_128;\r\n  ABrush *local_124;\r\n  AColor *local_120;\r\n  AObList *local_11c;\r\n  __POSITION *p_Stack_118;\r\n  AResult *pAStack_114;\r\n  AColor *local_110;\r\n  AQuickMatrix *local_10c;\r\n  int local_108;\r\n  int local_104;\r\n  int local_100;\r\n  int local_fc;\r\n  uint local_f8 [6];\r\n  AColor aAStack_e0 [8];\r\n  int iStack_d8;\r\n  int iStack_d4;\r\n  AColor local_d0 [8];\r\n  undefined8 local_c8;\r\n  undefined8 local_c0;\r\n  ASolidBrush aAStack_b8 [20];\r\n  AFRect local_a4 [16];\r\n  uint auStack_94 [3];\r\n  undefined1 auStack_88 [4];\r\n  AQuickMatrix aAStack_84 [48];\r\n  APen aAStack_54 [64];\r\n  void *local_14;\r\n  undefined1 *puStack_10;\r\n  undefined4 local_c;\r\n  \r\n                    /* 0x3a550  1608  ?draw@APath@@UAEHPAVADevice@@PAVADrawInfo@@@Z */\r\n  local_c = 0xffffffff;\r\n  puStack_10 = &LAB_100d7561;\r\n  local_14 = ExceptionList;\r\n  local_c8 = 0;\r\n  local_10c = *(AQuickMatrix **)(param_2 + 0x10);\r\n  local_c0 = 0;\r\n  ExceptionList = &local_14;\r\n  iVar1 = AObject::getObjectFlags((AObject *)this,0x10000000);\r\n  if ((iVar1 == 0) && (((byte)this[0xa0] & 1) != 0)) {\r\n    local_124 = (ABrush *)0x0;\r\n  }\r\n  else {\r\n    local_124 = *(ABrush **)(this + 0x20);\r\n  }\r\n  AFRect::AFRect(local_a4);\r\n  AColor::AColor(local_d0);\r\n  iVar1 = AObject::getObjectFlags((AObject *)this,0x8000000);\r\n  if (iVar1 != 0) {\r\n    ExceptionList = local_14;\r\n    return 1;\r\n  }\r\n  if (((*(uint *)param_2 & 0x400000) == 0) &&\r\n     (iVar1 = AObject::isHiddenByViewFilter((AObject *)this), iVar1 != 0)) {\r\n    ExceptionList = local_14;\r\n    return 1;\r\n  }\r\n  if (DAT_10140a54 == 0xffffffff) {\r\n    AString::AString((AString *)&local_11c,\"AContourCutTool\");\r\n    local_c = 0;\r\n    iVar1 = FUN_100a7330(&DAT_10147c10,&local_11c);\r\n    DAT_10140a54 = (uint)(iVar1 != 0);\r\n    local_c = 0xffffffff;\r\n    AString::~AString((AString *)&local_11c);\r\n  }\r\n  if (((DAT_10140a54 != 0) &&\r\n      (iVar1 = AObject::getObjectFlags((AObject *)this,0x100000), iVar1 != 0)) &&\r\n     (*(int *)(*(int *)(param_1 + 8) + 0xc) != 0)) {\r\n    ExceptionList = local_14;\r\n    return 1;\r\n  }\r\n  iVar1 = AObject::getBoundingBox((AObject *)this,local_a4,*(AQuickMatrix **)(param_2 + 0x10));\r\n  if (iVar1 == 0) {\r\n    ExceptionList = local_14;\r\n    return 1;\r\n  }\r\n  if ((*(ABaseRect<double> **)(param_2 + 0xc) != (ABaseRect<double> *)0x0) &&\r\n     (iVar1 = ABaseRect<double>::IntersectRect\r\n                        ((ABaseRect<double> *)local_a4,(ABaseRect<double> *)local_a4,\r\n                         *(ABaseRect<double> **)(param_2 + 0xc)), iVar1 == 0)) {\r\n    ExceptionList = local_14;\r\n    return 1;\r\n  }\r\n  if ((*(uint *)param_2 & 0x3f) == 0) {\r\n    ExceptionList = local_14;\r\n    return 1;\r\n  }\r\n  if ((*(uint *)param_2 & 0x3f) == 8) {\r\n    local_fc = 0;\r\n    local_104 = 0;\r\n    local_100 = 0;\r\n    local_108 = 0;\r\n    AScreenInfo::drawingToScreen(*(AScreenInfo **)(param_1 + 0x20),local_a4,(ARect *)&local_108);\r\n    if ((local_100 - local_108 < 0xc) && (local_fc - local_104 < 0xc)) {\r\n      ExceptionList = local_14;\r\n      return 1;\r\n    }\r\n    HTOPath::getStartPoint(*(HTOPath **)(this + 0x9c),(AFPoint *)&local_c8);\r\n    if (local_10c != (AQuickMatrix *)0x0) {\r\n      AQuickMatrix::transform(local_10c,(AFPoint *)&local_c8,(AFPoint *)&local_c8);\r\n    }\r\n    iVar1 = (**(code **)(*(int *)this + 0x58))();\r\n    if (iVar1 != 0) {\r\n      (**(code **)(*(int *)param_1 + 8))(0,0,0,1);\r\n      ADevice::DrawIcon(param_1,(AFPoint *)&iStack_d8,0x3f0,0);\r\n      (**(code **)(*(int *)param_1 + 0xc))(0);\r\n      ExceptionList = local_14;\r\n      return 1;\r\n    }\r\n    iVar1 = FUN_1000ee90();\r\n    if (*(int *)(iVar1 + 0x120) != 0) {\r\n      drawDirectionArrow(this,param_1,2,7);\r\n      ExceptionList = local_14;\r\n      return 1;\r\n    }\r\n    ADevice::DrawToolHandle(param_1,(AFPoint *)&local_c8,2,1,3);\r\n    ExceptionList = local_14;\r\n    return 1;\r\n  }\r\n  ADrawInfo::ADrawInfo((ADrawInfo *)local_f8,param_2);\r\n  local_128 = *(APen **)(this + 0x1c);\r\n  local_110 = (AColor *)0x0;\r\n  local_120 = (AColor *)0x0;\r\n  iVar1 = (**(code **)(*(int *)param_1 + 100))();\r\n  if ((iVar1 == 0) || ((local_f8[0] & 0x80000) == 0)) {\r\n    (**(code **)(*(int *)this + 0x104))(local_f8,&local_128,&local_124,&local_110,&local_120);\r\n  }\r\n  else {\r\n    (**(code **)(*(int *)param_1 + 0x68))(&local_128,&local_124,&local_110,&local_120);\r\n  }\r\n  if (((byte)this[0xa0] & 1) == 0) {\r\n    if (local_128 == (APen *)0x0) {\r\n      if (local_124 != (ABrush *)0x0) {\r\n        iVar1 = (**(code **)(*(int *)local_124 + 0x40))();\r\n        if (iVar1 == 0) {\r\n          if (local_124 != (ABrush *)0x0) {\r\n            pAVar12 = (AColor *)AColor::AColor((AColor *)&local_108,0x80,0x80,0x80);\r\n            AColor::operator=(local_d0,pAVar12);\r\n            local_120 = local_d0;\r\n          }\r\n        }\r\n        else {\r\n          pAVar12 = (AColor *)(**(code **)(*(int *)local_124 + 0x3c))(&local_108,0);\r\n          AColor::operator=(local_d0,pAVar12);\r\n          local_120 = local_d0;\r\n        }\r\n      }\r\n    }\r\n    else {\r\n      local_120 = (AColor *)0x0;\r\n    }\r\n  }\r\n  this_00 = local_10c;\r\n  if (local_10c == (AQuickMatrix *)0x0) {\r\nLAB_1003a8cf:\r\n    if ((local_128 != (APen *)0x0) && (iVar1 = *(int *)(*(int *)(local_128 + 4) + 0x18), iVar1 < 5))\r\n    {\r\n      if ((((int)local_f8[0] < 0) && (iVar1 < 1)) || ((local_f8[0] & 0x40000000) != 0)) {\r\n        if ((4 < iVar1) || (iVar1 < 1)) goto LAB_1003afb1;\r\n        if (((byte)this[0xa0] & 1) == 0) {\r\n          pAVar14 = (AColor *)0x0;\r\n          pAVar10 = (ABrush *)0x0;\r\n          pAVar12 = local_120;\r\n        }\r\n        else {\r\n          pAVar10 = local_124;\r\n          pAVar12 = (AColor *)0x0;\r\n          pAVar14 = local_120;\r\n        }\r\n        drawPath(this,param_1,(ADrawInfo *)local_f8,this,(APen *)0x0,pAVar10,pAVar12,pAVar14);\r\n        if (*(int *)(this + 0x94) == 0) {\r\nLAB_1003ae42:\r\n          pAStack_114 = operator_new(0x68);\r\n          local_c = 4;\r\n          if (pAStack_114 == (AResult *)0x0) {\r\n            pAVar7 = (AObList *)0x0;\r\n          }\r\n          else {\r\n            pAVar7 = (AObList *)AResult::AResult(pAStack_114,(AObject *)0x0,1);\r\n          }\r\n          local_c = 0xffffffff;\r\n          *(AObList **)(this + 0x94) = pAVar7;\r\n          generateStrokeResult(this,pAVar7,local_128,1e-05,1);\r\n          uVar15 = 0;\r\n          pTVar13 = &APenItem::RTTI_Type_Descriptor;\r\n          pTVar11 = &ARoot::RTTI_Type_Descriptor;\r\n          uVar8 = 0;\r\n          pAVar3 = ABrush::BrushItem((ABrush *)local_128);\r\n          pAVar4 = ARoot::duplicate((ARoot *)pAVar3);\r\n          uVar8 = __RTDynamicCast(pAVar4,uVar8,pTVar11,pTVar13,uVar15);\r\n          *(undefined4 *)(this + 0x98) = uVar8;\r\n          pAVar3 = ABrush::BrushItem((ABrush *)local_128);\r\n          pAVar4 = ARoot::duplicate(*(ARoot **)(pAVar3 + 0xc));\r\n          APenItem::setColorItem(*(APenItem **)(this + 0x98),(AColorItem *)pAVar4);\r\n        }\r\n        else {\r\n          iVar1 = **(int **)(this + 0x98);\r\n          pAVar3 = ABrush::BrushItem((ABrush *)local_128);\r\n          iVar1 = (**(code **)(iVar1 + 100))(pAVar3);\r\n          if (iVar1 == 0) {\r\n            invalidateStrokeResult(this);\r\n          }\r\n          if (*(int *)(this + 0x94) == 0) goto LAB_1003ae42;\r\n        }\r\n        APenItem::Color(*(APenItem **)(local_128 + 4));\r\n        APen::APen(aAStack_54,(AColor *)&local_108,0.0,2,1,0x40800000,unaff_EDI);\r\n        local_c = 5;\r\n        p_Stack_118 = AObList::GetHeadPosition(*(AObList **)(this + 0x94));\r\n        while (p_Stack_118 != (__POSITION *)0x0) {\r\n          ppAVar5 = AObList::GetNext(*(AObList **)(this + 0x94),&p_Stack_118);\r\n          pAVar6 = (APath *)__RTDynamicCast(*ppAVar5,0,&ARoot::RTTI_Type_Descriptor,\r\n                                            &RTTI_Type_Descriptor,0);\r\n          drawPath(this,param_1,(ADrawInfo *)local_f8,pAVar6,aAStack_54,local_124,(AColor *)0x0,\r\n                   local_120);\r\n        }\r\n        local_c = 0xffffffff;\r\n        APen::~APen(aAStack_54);\r\n        this_00 = local_10c;\r\n        goto LAB_1003b02b;\r\n      }\r\n      iStack_d8 = AScreenInfo::drawingToScreen\r\n                            (*(AScreenInfo **)(param_1 + 0x20),\r\n                             *(double *)(*(int *)(local_128 + 4) + 0x10));\r\n      if (((byte)local_f8[0] & 0x3f) == 2) {\r\n        iVar1 = *(int *)(local_128 + 4);\r\n        iVar2 = FUN_100010f0(*(double *)(iVar1 + 0x10),0.0,1e-05);\r\n        if (((iVar2 == 0) || (*(int *)(iVar1 + 0x18) != 0)) || ((local_f8[0] & 0x20100000) != 0))\r\n        goto LAB_1003a976;\r\n        iStack_d4 = 1;\r\n      }\r\n      else {\r\nLAB_1003a976:\r\n        iStack_d4 = 0;\r\n      }\r\n      if (((byte)this[0xa0] & 1) == 0) {\r\n        pAVar14 = (AColor *)0x0;\r\n        pAVar10 = (ABrush *)0x0;\r\n        pAVar12 = local_120;\r\nLAB_1003a9d1:\r\n        drawPath(this,param_1,(ADrawInfo *)local_f8,this,(APen *)0x0,pAVar10,pAVar12,pAVar14);\r\n      }\r\n      else {\r\n        pAVar10 = local_124;\r\n        pAVar12 = local_110;\r\n        pAVar14 = local_120;\r\n        if ((1 < (short)iStack_d8) || (iStack_d4 != 0)) goto LAB_1003a9d1;\r\n        if ((local_124 != (ABrush *)0x0) || (local_120 != (AColor *)0x0)) {\r\n          pAVar12 = (AColor *)0x0;\r\n          goto LAB_1003a9d1;\r\n        }\r\n      }\r\n      if (*(int *)(this + 0x94) == 0) {\r\nLAB_1003aa17:\r\n        pAStack_114 = operator_new(0x68);\r\n        local_c = 1;\r\n        if (pAStack_114 == (AResult *)0x0) {\r\n          local_11c = (AObList *)0x0;\r\n        }\r\n        else {\r\n          local_11c = (AObList *)AResult::AResult(pAStack_114,(AObject *)0x0,1);\r\n        }\r\n        *(AObList **)(this + 0x94) = local_11c;\r\n        local_c = 0xffffffff;\r\n        iVar1 = FUN_100010f0(*(double *)(*(int *)(local_128 + 4) + 0x10),0.0,1e-05);\r\n        if ((iVar1 == 0) || (*(int *)(*(int *)(local_128 + 4) + 0x18) != 0)) {\r\n          generateStrokeResult(this,local_11c,local_128,1e-05,0);\r\n        }\r\n        else {\r\n          local_11c = *(AObList **)local_11c;\r\n          pAVar4 = ARoot::duplicate((ARoot *)this);\r\n          (**(code **)(local_11c + 0x4c))(pAVar4);\r\n        }\r\n        uVar15 = 0;\r\n        pTVar13 = &APenItem::RTTI_Type_Descriptor;\r\n        pTVar11 = &ARoot::RTTI_Type_Descriptor;\r\n        uVar8 = 0;\r\n        pAVar3 = ABrush::BrushItem((ABrush *)local_128);\r\n        pAVar4 = ARoot::duplicate((ARoot *)pAVar3);\r\n        uVar8 = __RTDynamicCast(pAVar4,uVar8,pTVar11,pTVar13,uVar15);\r\n        *(undefined4 *)(this + 0x98) = uVar8;\r\n        pAVar3 = ABrush::BrushItem((ABrush *)local_128);\r\n        pAVar4 = ARoot::duplicate(*(ARoot **)(pAVar3 + 0xc));\r\n        APenItem::setColorItem(*(APenItem **)(this + 0x98),(AColorItem *)pAVar4);\r\n      }\r\n      else {\r\n        iVar1 = **(int **)(this + 0x98);\r\n        pAVar3 = ABrush::BrushItem((ABrush *)local_128);\r\n        iVar1 = (**(code **)(iVar1 + 100))(pAVar3);\r\n        if (iVar1 == 0) {\r\n          invalidateStrokeResult(this);\r\n        }\r\n        if (*(int *)(this + 0x94) == 0) goto LAB_1003aa17;\r\n      }\r\n      ASolidBrush::ASolidBrush(aAStack_b8,*(AColorItem **)(*(int *)(local_128 + 4) + 0xc),1);\r\n      local_c = 2;\r\n      (**(code **)(**(int **)(*(int *)(local_128 + 4) + 0xc) + 0x90))(aAStack_e0,0);\r\n      pAStack_114 = (AResult *)ADevice::setPathFillMode(param_1,1);\r\n      p_Stack_118 = AObList::GetHeadPosition(*(AObList **)(this + 0x94));\r\n      while (p_Stack_118 != (__POSITION *)0x0) {\r\n        ppAVar5 = AObList::GetNext(*(AObList **)(this + 0x94),&p_Stack_118);\r\n        local_11c = (AObList *)\r\n                    __RTDynamicCast(*ppAVar5,0,&ARoot::RTTI_Type_Descriptor,\r\n                                    &AObject::RTTI_Type_Descriptor,0);\r\n        pAVar6 = (APath *)__RTDynamicCast(local_11c,0,&AObject::RTTI_Type_Descriptor,\r\n                                          &RTTI_Type_Descriptor,0);\r\n        local_11c = (AObList *)\r\n                    __RTDynamicCast(local_11c,0,&AObject::RTTI_Type_Descriptor,\r\n                                    &AComposite::RTTI_Type_Descriptor,0);\r\n        if (pAVar6 == (APath *)0x0) {\r\n          (**(code **)(*(int *)param_1 + 8))(0,aAStack_b8,aAStack_e0,1);\r\n          ADrawInfo::ADrawInfo((ADrawInfo *)auStack_94,(ADrawInfo *)&local_108);\r\n          auStack_94[0] = auStack_94[0] & 0xffffffc1 | 0x80001;\r\n          (**(code **)(*piStack_12c + 0x100))((short)param_1,auStack_94);\r\n          (**(code **)(*(int *)param_1 + 0xc))(0);\r\n        }\r\n        else {\r\n          iVar1 = (**(code **)(*(int *)param_1 + 100))();\r\n          if ((iVar1 == 0) && (((byte)local_f8[0] & 0x3f) == 2)) {\r\n            if ((((byte)this[0xa0] & 1) == 0) || (iStack_d4 == 0)) {\r\n              APenItem::Color(*(APenItem **)(local_128 + 4));\r\n              APen::APen(aAStack_54,(AColor *)&local_108,0.0,2,1,0x40800000,unaff_EDI);\r\n              local_c._0_1_ = 3;\r\n              drawPath(this,param_1,(ADrawInfo *)local_f8,pAVar6,aAStack_54,(ABrush *)0x0,\r\n                       (AColor *)0x0,(AColor *)0x0);\r\n              local_c = CONCAT31(local_c._1_3_,2);\r\n              APen::~APen(aAStack_54);\r\n            }\r\n          }\r\n          else {\r\n            local_11c = *(AObList **)(local_128 + 4);\r\n            iVar1 = FUN_100010f0(*(double *)(local_11c + 0x10),0.0,1e-05);\r\n            if ((iVar1 == 0) || (*(int *)(local_11c + 0x18) != 0)) {\r\n              pAVar12 = aAStack_e0;\r\n              if (1 < (short)iStack_d8) {\r\n                pAVar12 = (AColor *)0x0;\r\n              }\r\n              drawPath(this,param_1,(ADrawInfo *)local_f8,pAVar6,(APen *)0x0,(ABrush *)aAStack_b8,\r\n                       pAVar12,aAStack_e0);\r\n            }\r\n            else {\r\n              drawPath(this,param_1,(ADrawInfo *)local_f8,pAVar6,(APen *)0x0,(ABrush *)0x0,\r\n                       aAStack_e0,(AColor *)0x0);\r\n            }\r\n          }\r\n        }\r\n      }\r\n      ADevice::setPathFillMode(param_1,(int)pAStack_114);\r\n      local_c = 0xffffffff;\r\n      ABrush::~ABrush((ABrush *)aAStack_b8);\r\n      this_00 = local_10c;\r\n      goto LAB_1003b02b;\r\n    }\r\n  }\r\n  else {\r\n    if (local_124 != (ABrush *)0x0) {\r\n      p_Stack_118 = (__POSITION *)&DAT_00000001;\r\n      (**(code **)(*(int *)local_124 + 100))(local_10c,&p_Stack_118);\r\n    }\r\n    if (local_128 != (APen *)0x0) {\r\n      APen::applyMatrix(local_128,this_00);\r\n      goto LAB_1003a8cf;\r\n    }\r\n  }\r\nLAB_1003afb1:\r\n  if ((((byte)this[0xa0] & 1) != 0) &&\r\n     ((local_124 != (ABrush *)0x0 || (local_120 != (AColor *)0x0)))) {\r\n    drawPath(this,param_1,(ADrawInfo *)local_f8,this,(APen *)0x0,local_124,(AColor *)0x0,local_120);\r\n  }\r\n  if (local_110 == (AColor *)0x0) {\r\n    if (local_128 == (APen *)0x0) {\r\n      if (local_120 == (AColor *)0x0) goto LAB_1003b02b;\r\n      pAVar9 = (APen *)0x0;\r\n      pAVar12 = local_120;\r\n    }\r\n    else {\r\n      pAVar12 = (AColor *)0x0;\r\n      pAVar9 = local_128;\r\n    }\r\n  }\r\n  else {\r\n    pAVar9 = (APen *)0x0;\r\n    pAVar12 = local_110;\r\n  }\r\n  drawPath(this,param_1,(ADrawInfo *)local_f8,this,pAVar9,(ABrush *)0x0,pAVar12,(AColor *)0x0);\r\nLAB_1003b02b:\r\n  if (this_00 != (AQuickMatrix *)0x0) {\r\n    AQuickMatrix::getInverse(this_00);\r\n    if (local_128 != (APen *)0x0) {\r\n      p_Stack_118 = (__POSITION *)&DAT_00000001;\r\n      (**(code **)(*(int *)local_128 + 100))(auStack_88,&p_Stack_118);\r\n    }\r\n    if (local_128 != (APen *)0x0) {\r\n      APen::applyMatrix(local_128,aAStack_84);\r\n    }\r\n  }\r\n  iVar1 = AObject::getObjectFlags((AObject *)this,0x10000000);\r\n  if (iVar1 == 0) {\r\n    (**(code **)(*(int *)param_1 + 0x5c))(1);\r\n  }\r\n  ExceptionList = local_14;\r\n  return 1;\r\n}\r\n\r\n"
+      },
+      {
+        "address": "0x100074a0",
+        "procedure": {
+          "status": "resolved",
+          "address": "0x100074a0",
+          "name": "AEditPath::convertToPath"
+        },
+        "status": "ok",
+        "pseudocode": "\r\n/* public: virtual class APath * __thiscall AEditPath::convertToPath(void)const  */\r\n\r\nAPath * __thiscall AEditPath::convertToPath(AEditPath *this)\r\n\r\n{\r\n  AObList *this_00;\r\n  double dVar1;\r\n  int iVar2;\r\n  ARoot *pAVar3;\r\n  APath *this_01;\r\n  ARoot *pAVar4;\r\n  undefined4 uVar5;\r\n  __POSITION *p_Stack_68;\r\n  AEditPath *pAStack_64;\r\n  AEditPath *local_60;\r\n  int local_5c;\r\n  undefined8 local_58;\r\n  undefined4 local_50;\r\n  undefined4 uStack_4c;\r\n  undefined4 uStack_48;\r\n  undefined8 uStack_44;\r\n  double dStack_3c;\r\n  double dStack_34;\r\n  double dStack_2c;\r\n  double dStack_24;\r\n  double dStack_1c;\r\n  double dStack_14;\r\n  \r\n                    /* 0x74a0  1449  ?convertToPath@AEditPath@@UBEPAVAPath@@XZ */\r\n  this_00 = (AObList *)(this + 0x94);\r\n  local_60 = this;\r\n  local_5c = AObList::GetCount(this_00);\r\n  if ((0 < local_5c) && ((local_5c != 1 || (this[0xbc] != (AEditPath)0x0)))) {\r\n    pAVar3 = AObList::GetHead(this_00);\r\n    local_58 = *(undefined8 *)(pAVar3 + 0x24);\r\n    local_50 = (undefined4)*(undefined8 *)(pAVar3 + 0x2c);\r\n    uStack_4c = (undefined4)((ulonglong)*(undefined8 *)(pAVar3 + 0x2c) >> 0x20);\r\n    this_01 = (APath *)(**(code **)(*(int *)this + 0x1c4))(&local_58);\r\n    p_Stack_68 = AObList::GetHeadPosition(this_00);\r\n    AObList::GetNext(this_00,&p_Stack_68);\r\n    while (p_Stack_68 != (__POSITION *)0x0) {\r\n      pAVar4 = AObList::GetNext(this_00,&p_Stack_68);\r\n      dVar1 = *(double *)(pAVar4 + 0x24);\r\n      if (*(int *)(pAVar4 + 0x54) == 0) {\r\n        uStack_4c = SUB84(dVar1,0);\r\n        uStack_48 = (undefined4)((ulonglong)dVar1 >> 0x20);\r\n        uStack_44 = *(undefined8 *)(pAVar4 + 0x2c);\r\n        APath::appendLine(this_01,(AFPoint *)&uStack_4c,0);\r\n        this = pAStack_64;\r\n        pAVar3 = pAVar4;\r\n      }\r\n      else {\r\n        dStack_34 = *(double *)(pAVar4 + 0x2c);\r\n        dStack_2c = *(double *)(pAVar4 + 0x34) + *(double *)(pAVar4 + 0x24);\r\n        dStack_24 = *(double *)(pAVar4 + 0x2c) + *(double *)(pAVar4 + 0x3c);\r\n        dStack_1c = *(double *)(pAVar3 + 0x44) + *(double *)(pAVar3 + 0x24);\r\n        dStack_14 = *(double *)(pAVar3 + 0x4c) + *(double *)(pAVar3 + 0x2c);\r\n        dStack_3c = dVar1;\r\n        APath::appendCurve(this_01,(AFPoint *)&dStack_1c,(AFPoint *)&dStack_2c,(AFPoint *)&dStack_3c\r\n                           ,0);\r\n        this = pAStack_64;\r\n        pAVar3 = pAVar4;\r\n      }\r\n    }\r\n    if (this[0xbc] != (AEditPath)0x0) {\r\n      pAVar4 = AObList::GetHead(this_00);\r\n      if (((int)local_60 < 2) || (*(int *)(pAVar4 + 0x54) != 0)) {\r\n        dStack_1c = *(double *)(pAVar4 + 0x24);\r\n        dStack_14 = *(double *)(pAVar4 + 0x2c);\r\n        dStack_2c = *(double *)(pAVar4 + 0x24) + *(double *)(pAVar4 + 0x34);\r\n        dStack_24 = *(double *)(pAVar4 + 0x2c) + *(double *)(pAVar4 + 0x3c);\r\n        dStack_3c = *(double *)(pAVar3 + 0x44) + *(double *)(pAVar3 + 0x24);\r\n        dStack_34 = *(double *)(pAVar3 + 0x4c) + *(double *)(pAVar3 + 0x2c);\r\n        APath::appendCurve(this_01,(AFPoint *)&dStack_3c,(AFPoint *)&dStack_2c,(AFPoint *)&dStack_1c\r\n                           ,0);\r\n      }\r\n      else {\r\n        dStack_1c = *(double *)(pAVar4 + 0x24);\r\n        dStack_14 = *(double *)(pAVar4 + 0x2c);\r\n        APath::appendLine(this_01,(AFPoint *)&dStack_1c,0);\r\n      }\r\n    }\r\n    (**(code **)(*(int *)this_01 + 0x170))();\r\n    APath::setClosure(this_01,(int)(char)this[0xbc]);\r\n    iVar2 = *(int *)this_01;\r\n    uVar5 = (**(code **)(*(int *)this + 100))();\r\n    (**(code **)(iVar2 + 0x118))(uVar5);\r\n    iVar2 = *(int *)this_01;\r\n    uVar5 = (**(code **)(*(int *)this + 0x6c))();\r\n    (**(code **)(iVar2 + 0x11c))(uVar5);\r\n    return this_01;\r\n  }\r\n  return (APath *)0x0;\r\n}\r\n\r\n"
+      },
+      {
+        "address": "0x10038b60",
+        "procedure": {
+          "status": "resolved",
+          "address": "0x10038b60",
+          "name": "APath::appendCurve"
+        },
+        "status": "ok",
+        "pseudocode": "\r\n/* public: unsigned int __thiscall APath::appendCurve(class AFPoint const &,class AFPoint const\r\n   &,class AFPoint const &,int) */\r\n\r\nuint __thiscall\r\nAPath::appendCurve(APath *this,AFPoint *param_1,AFPoint *param_2,AFPoint *param_3,int param_4)\r\n\r\n{\r\n  uint uVar1;\r\n  int iVar2;\r\n  void *this_00;\r\n  undefined4 uVar3;\r\n  undefined4 local_3c;\r\n  undefined8 local_38;\r\n  undefined8 local_30;\r\n  undefined8 local_28;\r\n  undefined8 local_20;\r\n  undefined8 local_18;\r\n  undefined8 local_10;\r\n  \r\n                    /* 0x38b60  1349  ?appendCurve@APath@@QAEIABVAFPoint@@00H@Z */\r\n  local_38 = 0;\r\n  local_30 = 0;\r\n  local_28 = 0;\r\n  local_20 = 0;\r\n  local_18 = 0;\r\n  local_10 = 0;\r\n  AObject::setObjectFlags((AObject *)this,0x20000000,0);\r\n  local_38 = *(undefined8 *)param_3;\r\n  local_30 = *(undefined8 *)(param_3 + 8);\r\n  local_3c = 4;\r\n  local_28 = *(undefined8 *)param_1;\r\n  local_20 = *(undefined8 *)(param_1 + 8);\r\n  local_18 = *(undefined8 *)param_2;\r\n  local_10 = *(undefined8 *)(param_2 + 8);\r\n  uVar1 = HTOPath::getNumSegments(*(HTOPath **)(this + 0x9c));\r\n  iVar2 = HTOPath::getNumPoints(*(HTOPath **)(this + 0x9c));\r\n  iVar2 = HTOPath::resize(*(HTOPath **)(this + 0x9c),uVar1 + 1,iVar2 + 3);\r\n  if (-1 < iVar2) {\r\n    iVar2 = HTOPath::appendSegmentData\r\n                      (*(HTOPath **)(this + 0x9c),uVar1,(tagPathSegment *)&local_3c,param_4);\r\n    if (-1 < iVar2) {\r\n      this_00 = (void *)getStartPoint(this);\r\n      uVar3 = FUN_10001110(this_00,(double *)param_3);\r\n      this[0xa0] = (APath)((byte)this[0xa0] ^ ((byte)this[0xa0] ^ (byte)uVar3) & 1);\r\n      setCurrentOrient(this);\r\n      return uVar1 + 1;\r\n    }\r\n  }\r\n  return uVar1;\r\n}\r\n\r\n"
+      }
+    ],
+    "total": 3,
+    "succeeded": 3,
+    "failed": 0
+  },
+  "confidence": "derived",
+  "authority": "shipped-artifact",
+  "environment": null,
+  "limitations": [
+    "Derived by an REA composed workflow."
+  ],
+  "locations": [
+    {
+      "kind": "address",
+      "address": "0x1003a550"
+    },
+    {
+      "kind": "address",
+      "address": "0x100074a0"
+    },
+    {
+      "kind": "address",
+      "address": "0x10038b60"
+    }
+  ],
+  "evidence_links": []
+}

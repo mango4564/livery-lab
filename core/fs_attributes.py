@@ -318,6 +318,14 @@ def load_appearances(ole,objects,word=8):
                 obj.update(resolve_pen(bytes.fromhex(obj.get('pen_hex','')), refs, word))
             except (ValueError, KeyError, struct.error) as exc:
                 obj['stroke_error'] = str(exc)
+        if obj.get('details', {}).get('closed') is False:
+            # Native APath::draw supplies no brush for open paths. If there is
+            # no explicit pen, its solid brush colour becomes the line colour.
+            # Evidence: research/native_rendering/open_path_capstone.json.
+            if not obj.get('stroke') and obj.get('fill') not in (None, 'none'):
+                obj.update(stroke=obj['fill'], stroke_hairline=True)
+            obj['fill'] = 'none'
+            obj.pop('gradient', None)
         out.append(obj)
     return out,refs
 

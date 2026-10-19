@@ -69,31 +69,39 @@ def decode_simple(payload, word):
     vertices, count = struct.unpack("<II", f[1])
     if count<1 or count>1_000_000:
         raise ValueError('unsupported path segment count')
-    raw, pos, parts, points, point_count = f[2], 0, [], [], 1
-    for i in range(count):
-        x, y, kind = struct.unpack_from("<ddI", raw, pos)
-        pos += 20
+    raw, pos, point_count = f[2], 16, 1
+    x, y = struct.unpack_from('<dd', raw)
+    first = (x, y)
+    parts, points = [f'M{x:.17g},{y:.17g}'], [first]
+    for _ in range(count):
+        kind, = struct.unpack_from('<I', raw, pos)
+        pos += 4
         if kind not in (2, 4):
             raise ValueError("unsupported segment kind")
-        if not i:
-            parts.append(f"M{x:.17g},{y:.17g}")
-        points.append((x, y))
         if kind == 4:
-            c1x, c1y, c2x, c2y = struct.unpack_from("<dddd", raw, pos)
-            pos += 32
+            # HTOPath::appendCurve stores endpoint, control1, control2.
+            # Native evidence: research/native_rendering/path_draw_geometry_rea.json.
+            nx, ny, c1x, c1y, c2x, c2y = struct.unpack_from('<6d', raw, pos)
+            pos += 48
             points.extend([(c1x, c1y), (c2x, c2y)])
             point_count += 3
         else:
+            nx, ny = struct.unpack_from('<dd', raw, pos)
+            pos += 16
             point_count += 1
-        nx, ny = struct.unpack_from("<dd", raw, pos)
+        points.append((nx, ny))
         parts.append((f"C{c1x:.17g},{c1y:.17g} {c2x:.17g},{c2y:.17g} " if kind == 4 else "L") + f"{nx:.17g},{ny:.17g}")
-    points.append((nx, ny))
-    if pos + 16 != len(raw) or point_count != vertices:
+    if pos != len(raw) or point_count != vertices:
         raise ValueError("APath geometry length/count mismatch")
     if any(not all(math.isfinite(v) and abs(v)<1e12 for v in point) for point in points):
         raise ValueError('nonfinite or unreasonable path coordinate')
+    closed = abs(first[0] - nx) < 1e-5 and abs(first[1] - ny) < 1e-5
+    if closed:
+        parts.append('Z')
     return " ".join(parts), points, fields(f[0], word=word), {
-        "segments": count, "vertices": vertices, "closure_flags_unresolved": list(f.get(3, b""))}
+        "segments": count, "vertices": vertices, 'closed': closed,
+        'closure_evidence': 'native serializer endpoint tolerance 1e-5',
+        "extra_flags": list(f.get(3, b""))}
 
 
 def class_names(data):
@@ -111,6 +119,40 @@ def class_names(data):
     return names
 
 
+def decode_oval(payload, word):
+    """AOval's parametric width/height in its own AFigure coordinate system.
+
+    Unlike baked APath nodes, these parameters require the stored matrix.
+    Emit exact SVG elliptical arcs, including shear/reflection, in page space.
+    """
+    top = fields(payload, word=word)
+    base = fields(top[0], word=word)
+    params = fields(top[1], word=word)
+    width, height = struct.unpack('<2d', params[1])
+    a, b, c, d, e, f = struct.unpack('<6d', base[1])
+    if not all(math.isfinite(v) and abs(v) < 1e12
+               for v in (width, height, a, b, c, d, e, f)) or min(width, height) <= 0:
+        raise ValueError('invalid oval dimensions/matrix')
+    rx, ry = width / 2, height / 2
+    cx, cy = a * rx + c * ry + e, b * rx + d * ry + f
+    ux, uy, vx, vy = a * rx, b * rx, c * ry, d * ry
+    xx, xy, yy = ux * ux + vx * vx, ux * uy + vx * vy, uy * uy + vy * vy
+    delta = math.hypot(xx - yy, 2 * xy)
+    major, minor = math.sqrt(max(0, (xx + yy + delta) / 2)), math.sqrt(max(0, (xx + yy - delta) / 2))
+    if minor <= 1e-12:
+        raise ValueError('degenerate oval')
+    angle = math.degrees(math.atan2(2 * xy, xx - yy) / 2)
+    sweep = int(a * d - b * c > 0)
+    start, end = (cx + ux, cy + uy), (cx - ux, cy - uy)
+    arc = f'A{major:.17g},{minor:.17g} {angle:.17g} 0,{sweep} '
+    path = (f'M{start[0]:.17g},{start[1]:.17g} ' + arc + f'{end[0]:.17g},{end[1]:.17g} '
+            + arc + f'{start[0]:.17g},{start[1]:.17g} Z')
+    dx, dy = math.hypot(ux, vx), math.hypot(uy, vy)
+    return path, [(cx - dx, cy - dy), (cx + dx, cy + dy)], base, {
+        'closed': True, 'primitive': 'ellipse', 'width': width, 'height': height,
+        'geometry_evidence': 'AOval field1/field1 dimensions; AFigure matrix applied once'}
+
+
 def extract_geometry(source, page='Page 1'):
     source = Path(source)
     with olefile.OleFileIO(source) as ole:
@@ -118,7 +160,8 @@ def extract_geometry(source, page='Page 1'):
         raw, compression = unpack_objects(ole.openstream(f"FlexiSIGN Contents/{page}/Objects").read())
     word = compression["tlv_word_bytes"]
     objects, rejected = [], 0
-    for class_name, decoder in [("APath", decode_simple), ("AEditPath", decode_edit)]:
+    for class_name, decoder in [("APath", decode_simple), ("AEditPath", decode_edit),
+                                ('AOval', decode_oval)]:
         if class_name not in names:
             continue
         class_index = names.index(class_name)
@@ -163,6 +206,7 @@ def extract_geometry(source, page='Page 1'):
                                "AEditPath": sum(o["class_name"] == "AEditPath" for o in objects),
                                "rejected_marker_candidates": rejected, "tlv_word_bytes": word},
             "warnings": ["Object discovery uses validated wrappers; hierarchy is not resolved.",
-                         "bbox is the local control-point envelope, not the exact Bezier extrema.",
+                         "Path bbox is the control-point envelope; ellipse bbox uses exact projected radii.",
                          "Parent transforms, colors, visibility, compound operations and clipping are unresolved.",
-                         "APath closure flags remain unresolved; AEditPath closure uses field 1 presence."]}
+                         "APath closure uses endpoint tolerance; AEditPath closure uses field 1 presence.",
+                         "Only APath, AEditPath and AOval geometry is decoded."]}
