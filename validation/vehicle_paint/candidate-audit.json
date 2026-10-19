@@ -1,0 +1,47 @@
+[
+  {
+    "sample": "3261042",
+    "objects": 2548,
+    "native_candidates": 440,
+    "loose_graphic_candidates": 11,
+    "paint_surface_candidates": 125,
+    "provided_paint_surfaces": 24,
+    "provided_candidates": 120,
+    "omitted_or_deduplicated_candidates": 456,
+    "candidate_limit": 120,
+    "reference_library_used": false,
+    "missing_known_paint": [],
+    "source_sha256": "5ce61537b35c56a5a0ac02b749776f7e76c5e2f6bdf9fbd0d11eecd692b44561",
+    "source_hash_matches_history": true
+  },
+  {
+    "sample": "3261074",
+    "objects": 7824,
+    "native_candidates": 970,
+    "loose_graphic_candidates": 36,
+    "paint_surface_candidates": 192,
+    "provided_paint_surfaces": 24,
+    "provided_candidates": 120,
+    "omitted_or_deduplicated_candidates": 1078,
+    "candidate_limit": 120,
+    "reference_library_used": false,
+    "missing_known_paint": [],
+    "source_sha256": "4c2c815cc4dffa5a4b351fff3819070a9a3bf609e46f24407248e54c5c702555",
+    "source_hash_matches_history": true
+  },
+  {
+    "sample": "3261129",
+    "objects": 20550,
+    "native_candidates": 129,
+    "loose_graphic_candidates": 5,
+    "paint_surface_candidates": 92,
+    "provided_paint_surfaces": 24,
+    "provided_candidates": 120,
+    "omitted_or_deduplicated_candidates": 106,
+    "candidate_limit": 120,
+    "reference_library_used": false,
+    "missing_known_paint": [],
+    "source_sha256": "1df9c03ee0c665284f24969cbd3268f15a7a49dd156ccfa6b345fb2105d749bc",
+    "source_hash_matches_history": true
+  }
+]

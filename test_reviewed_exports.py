@@ -17,7 +17,7 @@ def fixture(root):
     objects = [{'id':str(i), 'd':f'M{i*20} 0 L{i*20+10} 0 L{i*20+10} 8 Z',
                 'bbox':[i*20,0,i*20+10,8], 'fill':'#167ce2'} for i in range(6)]
     return {'source':str(source), 'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
-            'objects':objects,'component_categories':{name:[str(i)] for i,name in enumerate(LABELS)}}
+            'objects':objects,'component_categories':{name:([str(i)] if name != '车漆' else None) for i,name in enumerate(LABELS)}}
 
 
 class ReviewedExportTests(unittest.TestCase):
@@ -33,7 +33,7 @@ class ReviewedExportTests(unittest.TestCase):
         folder=Path(published['output_dir'])
         stem=Path(self.result['source']).stem
         self.assertEqual(folder,self.output/stem)
-        names={label+'_'+stem+suffix for label in LABELS.values() for suffix in ('.svg','.png')}
+        names={label+'_'+stem+suffix for name,label in LABELS.items() if self.choices[name] for suffix in ('.svg','.png')}
         self.assertEqual({p.name for p in folder.iterdir()},names|{'复核记录.json'})
         for p in folder.glob('*.png'):
             with Image.open(p) as im:

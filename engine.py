@@ -41,7 +41,7 @@ from recognition import rank_candidates, candidate_groups
 from vision import read_config, recognize, VisionError
 from runtime import APP_DIR, FROZEN
 
-VERSION='0.3.0-independent-source-paths'
+VERSION='0.4.0-paint-layers'
 if _code_digest()!=_IMPORT_CODE_DIGEST:
     raise RuntimeError('加载提取引擎期间程序代码发生变化，请重新启动工具。')
 
@@ -99,6 +99,7 @@ def _artifact_paths(result):
         paths.append(result['candidate_sheet_png'])
     for view in result.get('views',[]):
         paths.extend(view[k] for k in ('svg','png'))
+    paths.extend(result.get('layer_artifacts', {}).values())
     return [Path(p).resolve() for p in paths]
 
 
@@ -268,18 +269,25 @@ def _render_selection(result, ids, directory):
         consumed.discard(ordered[0]['id'])
     selected=[replacements.get(o['id'],o) for o in selected if o['id'] not in consumed]
     svg_path=directory/'result.svg';png_path=directory/'result.png'
-    svg=svg_document(selected)
+    layer_info = {}
+    if result.get('extraction_mode') == 'components':
+        from core.svg_layers import layered_svg
+        local_categories = {name: [i for i in members if i in chosen]
+                            for name, members in result.get('component_categories', {}).items()}
+        svg, layer_info = layered_svg(selected, local_categories, strict=False)
+    else:
+        svg=svg_document(selected)
     # Machine-readable source association is separate from dimensions: no mm or
     # physical-size claim is introduced by a pixel-width SVG preview.
     import xml.etree.ElementTree as ET
     root=ET.fromstring(svg)
     metadata=root.find('{http://www.w3.org/2000/svg}metadata')
-    metadata.text=json.dumps({'source_sha256':result['source_sha256'],
+    metadata.text=json.dumps(dict(layer_info, **{'source_sha256':result['source_sha256'],
         'selected_ids':ids,'method':result['method'],
         'geometry':'FS APath/AEditPath source coordinates',
         'transform_semantics':'source coordinate export; stored authoring matrix not applied',
         'physical_scale_verified':False,
-        'unknown_fill_ids':[o['id'] for o in selected if not o.get('fill')]},ensure_ascii=False)
+        'unknown_fill_ids':[o['id'] for o in selected if not o.get('fill')]}),ensure_ascii=False)
     # Keep default namespace without ns0 prefixes for broad vector-tool support.
     ET.register_namespace('','http://www.w3.org/2000/svg')
     svg=ET.tostring(root,encoding='unicode')
@@ -291,6 +299,31 @@ def _render_selection(result, ids, directory):
     return str(svg_path),str(png_path)
 
 
+def _render_component_artifacts(result, directory):
+    from core.svg_layers import layered_svg
+    categories = result['component_categories']
+    ids = {i for members in categories.values() for i in members}
+    bounds = union_bounds([o for o in result['objects'] if o['id'] in ids])
+    result['layer_artifacts'] = {}
+    selected = {n: members if n in ('车身', '车漆') else [] for n, members in categories.items()}
+    svg, info = layered_svg(result['objects'], selected, bounds=bounds, strict=False,
+        metadata={'source_sha256': result['source_sha256'], 'human_reviewed': False},
+        layer_names=('车漆', '车身'))
+    for suffix in ('svg', 'png'):
+        path = directory/('vehicle-base.'+suffix)
+        if suffix == 'svg':
+            path.write_text(svg, encoding='utf8')
+        else:
+            rasterize(svg, path)
+        result['layer_artifacts']['vehicle-base_'+suffix] = str(path.resolve())
+    result['layer_status'] = info['layer_status']
+    result['schema_version'] = 2
+    if result['layer_status'] != 'verified':
+        warning = 'SVG 语义分层改变源遮挡关系，当前保留原序诊断图；请调整分类后再导出成品。'
+        if warning not in result.setdefault('warnings', []):
+            result['warnings'].append(warning)
+
+
 def export_selection(result, selected_ids, output_dir=None, *, category_name=None):
     """Explicit user review: only choose existing source paths, never redraw."""
     result=dict(result)
@@ -300,7 +333,8 @@ def export_selection(result, selected_ids, output_dir=None, *, category_name=Non
     if result.get('extraction_mode') == 'components':
         if category_name not in result['component_categories']:
             raise ValueError('请先在候选下拉框切换到要修正的类别，再保存该类。')
-        categories={name:list(ids) for name,ids in result['component_categories'].items()}
+        from components import CATEGORIES
+        categories={name:list(result['component_categories'].get(name, [])) for name in CATEGORIES}
         others={oid for name,ids in categories.items() if name not in (category_name,'车身') for oid in ids}
         if set(selected_ids) & others:
             raise ValueError('所选对象已属于其他非车身类别，请先排除重叠对象。')
@@ -347,6 +381,8 @@ def export_selection(result, selected_ids, output_dir=None, *, category_name=Non
             view['selected_ids']=list(ids)
             view['bbox']=union_bounds([o for o in result['objects'] if o['id'] in set(ids)])
     result['result_svg'],result['result_png']=_render_selection(result,result['selected_ids'],directory)
+    if result.get('extraction_mode') == 'components':
+        _render_component_artifacts(result, directory)
     result.update(output_dir=str(directory),human_confirmed=True,status='ready',
                   review_note='用户已确认对象选择；尺寸、裁剪及复合操作仍按报告限制。')
     if result.get('extraction_mode') == 'components':
@@ -364,10 +400,8 @@ def export_selection(result, selected_ids, output_dir=None, *, category_name=Non
 
 def _run_components_worker(source,directory,digest,fingerprint,use_ai,reference_directory):
     from components import run
-    if not use_ai:
-        raise ValueError('五类识别需要在 AI 接口配置中启用视觉模型；也可切回彩条模式。')
     started=time.monotonic()
-    objects, components_report=run(source,directory,read_config())
+    objects, components_report=run(source,directory,read_config(),use_ai=use_ai)
     categories=components_report['categories']
     chosen={oid for ids in categories.values() for oid in ids}
     for obj in objects:
@@ -377,7 +411,7 @@ def _run_components_worker(source,directory,digest,fingerprint,use_ai,reference_
     result={'version':VERSION,'pipeline_fingerprint':fingerprint,'source':str(source),
             'source_sha256':digest,'run_dir':str(run_dir),
             'cache_index':str(run_dir.parent/'.cache'/(key+'.json')),
-            'output_dir':str(directory),'status':'review','method':'vision_five_components',
+            'output_dir':str(directory),'status':'review','method':'vision_six_components' if use_ai else 'manual_six_components',
             'extraction_mode':'components','physical_scale_verified':False,'human_confirmed':False,
             'reference_library_used':False,
             'objects':objects,'selected_ids':[o['id'] for o in objects if o['id'] in chosen],
@@ -388,13 +422,14 @@ def _run_components_worker(source,directory,digest,fingerprint,use_ai,reference_
             'component_candidates':components_report.get('candidates',[]),
             'component_coverage':components_report['coverage'],
             'ai_result':components_report['decision'],
-            'warnings':['五类为 AI 组合识别候选，须逐类核对；模型自报置信度不是准确率。',
+            'warnings':['六类为待复核候选，须逐类核对；模型自报置信度不是准确率。',
                         '未识别的类别保持为空；候选有数量上限，可能漏掉拆散、转曲或未解码对象。',
                         '车身只扣除已分类的重叠子对象，未识别的运营元素仍可能混入。',
                         '当前解码 APath、AEditPath、AOval；其他原语、纹理及部分字体/裁剪效果可能缺失。',
                         '当前仅提取第1页。物理比例未验证。'],
             'elapsed_seconds':round(time.monotonic()-started,3)}
     result['result_svg'],result['result_png']=_render_selection(result,result['selected_ids'],directory)
+    _render_component_artifacts(result, directory)
     if _file_sha(source)!=digest:
         raise RuntimeError('处理过程中源文件发生变化。')
     _check_pipeline(fingerprint,use_ai,reference_directory,'components')

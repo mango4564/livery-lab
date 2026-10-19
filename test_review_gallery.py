@@ -45,7 +45,7 @@ class ReviewGalleryTests(unittest.TestCase):
         g=self.gallery
         for category in g.category_buttons:
             g._switch_category(category)
-            if category=='logo':
+            if category in ('logo', '车漆'):
                 g._absent()
             else:
                 if category=='彩条':g.tree.selection_set('1');g._preview()

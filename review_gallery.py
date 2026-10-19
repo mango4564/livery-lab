@@ -12,6 +12,175 @@ from geometry import svg_document
 from image_preview import ImagePreview
 from reviewed_exports import LABELS, export_reviewed
 from vector_preview import VectorImage
+from source_locator import source_rectangle
+import xml.etree.ElementTree as ET
+
+
+class SelectionPreview(ImagePreview):
+    def draw(self):
+        super().draw()
+        callback = getattr(self, 'draw_selection', None)
+        if callback:
+            callback()
+
+
+class ObjectSelectionEditor(tk.Toplevel):
+    """Edit source IDs only; a draft has no effect until explicitly confirmed."""
+    def __init__(self, parent, objects, selected_ids, category, on_confirm):
+        super().__init__(parent)
+        self.title('手动指定'+category+' · 原稿对象选择')
+        self.geometry('1250x850')
+        self.minsize(950, 650)
+        self.objects = list(objects)
+        self.by_id = {o['id']: o for o in self.objects}
+        self.selected = set(selected_ids) & set(self.by_id)
+        self.history = []
+        self.on_confirm = on_confirm
+        self.gesture = None
+        self.boxes = {}
+        self.mode = tk.StringVar(value='add')
+        self.status = tk.StringVar()
+        outer = ttk.Frame(self, padding=10); outer.pack(fill='both', expand=True)
+        ttk.Label(outer, text='在提取原稿中指定'+category+'：点选最小对象边界；拖出框完整包含要选的对象。').pack(anchor='w')
+        ttk.Label(outer, text='重叠对象可在右侧列表多选后添加 / 移除。蓝框表示已选；取消关闭不会修改本类。', foreground='#666666').pack(anchor='w')
+        bar = ttk.Frame(outer); bar.pack(fill='x', pady=6)
+        for text, mode in [('添加对象', 'add'), ('移除对象', 'remove'), ('平移查看', 'pan')]:
+            ttk.Radiobutton(bar, text=text, value=mode, variable=self.mode).pack(side='left', padx=6)
+        ttk.Button(bar, text='撤销', command=self._undo).pack(side='left', padx=6)
+        ttk.Button(bar, text='清空本次选择', command=lambda: self._change(set(), replace=True)).pack(side='left')
+        split = ttk.Panedwindow(outer, orient='horizontal'); split.pack(fill='both', expand=True)
+        left, right = ttk.Frame(split), ttk.Frame(split)
+        split.add(left, weight=4); split.add(right, weight=2)
+        self.viewer = SelectionPreview(left, allow_expand=False)
+        self.viewer.pack(fill='both', expand=True)
+        self.viewer.draw_selection = self._draw_selection
+        canvas = self.viewer.canvas
+        canvas.bind('<ButtonPress-1>', self._press)
+        canvas.bind('<B1-Motion>', self._motion)
+        canvas.bind('<ButtonRelease-1>', self._release)
+        canvas.bind('<Double-Button-1>', lambda e: 'break')
+        ttk.Label(right, text='所有可导出对象（不受 AI 候选限制）').pack(anchor='w')
+        rows = ttk.Frame(right); rows.pack(fill='both', expand=True)
+        self.tree = ttk.Treeview(rows, columns=('chosen',), show='tree headings', selectmode='extended')
+        self.tree.heading('#0', text='源对象 ID'); self.tree.column('#0', width=165)
+        self.tree.heading('chosen', text='已选'); self.tree.column('chosen', width=50, stretch=False)
+        scrollbar = ttk.Scrollbar(rows, orient='vertical', command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side='right', fill='y'); self.tree.pack(fill='both', expand=True)
+        for obj in self.objects:
+            self.tree.insert('', 'end', iid=obj['id'], text=obj['id'], values=('',))
+        self.tree.bind('<<TreeviewSelect>>', lambda e: self._show_draft())
+        actions = ttk.Frame(right); actions.pack(fill='x')
+        ttk.Button(actions, text='添加列表所选', command=lambda: self._change(set(self.tree.selection()))).pack(side='left')
+        ttk.Button(actions, text='移除列表所选', command=lambda: self._change(set(self.tree.selection()), remove=True)).pack(side='left', padx=5)
+        self.draft = ImagePreview(right, allow_expand=False)
+        self.draft.pack(fill='both', expand=True, pady=8)
+        ttk.Label(outer, textvariable=self.status).pack(anchor='w', pady=6)
+        footer = ttk.Frame(outer); footer.pack(fill='x')
+        ttk.Button(footer, text='取消', command=self.destroy).pack(side='right')
+        self.apply_button = ttk.Button(footer, text='确认所选对象为'+category, command=self._apply)
+        self.apply_button.pack(side='right', padx=8)
+        svg = svg_document(self.objects, diagnostic=True)
+        self.viewbox = tuple(map(float, ET.fromstring(svg).get('viewBox').split()))
+        self.viewer.set_image(None, VectorImage(svg), vector_label='提取原稿矢量 · 浅色对象辅助描边 · 滚轮缩放')
+        self._refresh()
+        self.transient(parent)
+        self.grab_set()
+        self.bind('<Escape>', lambda e: self.destroy())
+
+    def _draw_selection(self):
+        if not hasattr(self, 'viewbox') or not self.viewer.image:
+            return
+        v = self.viewer
+        size = (v.image.width, v.image.height)
+        self.boxes = {}
+        for obj in self.objects:
+            bounds = obj.get('bbox')
+            if not bounds:
+                continue
+            rectangle = source_rectangle(self.viewbox, bounds, size)
+            box = tuple(value * v.scale + v.offset[i % 2] for i, value in enumerate(rectangle))
+            self.boxes[obj['id']] = box
+            if obj['id'] in self.selected:
+                v.canvas.create_rectangle(*box, outline='#0284c7', width=2, tags='selection')
+        for oid in self.tree.selection():
+            if oid in self.boxes:
+                v.canvas.create_rectangle(*self.boxes[oid], outline='#f97316', width=2, dash=(4, 3))
+
+    def _press(self, event):
+        if self.mode.get() == 'pan':
+            self.viewer._start_drag(event)
+        else:
+            self.gesture = (event.x, event.y)
+        return 'break'
+
+    def _motion(self, event):
+        if self.mode.get() == 'pan':
+            self.viewer._pan(event)
+        elif self.gesture:
+            c = self.viewer.canvas
+            c.delete('rubberband')
+            c.create_rectangle(*self.gesture, event.x, event.y, outline='#f97316', dash=(4, 3), tags='rubberband')
+        return 'break'
+
+    def _release(self, event):
+        if self.mode.get() == 'pan':
+            self.viewer._end_drag(event)
+        elif self.gesture:
+            x, y = self.gesture
+            self.gesture = None
+            self.viewer.canvas.delete('rubberband')
+            if max(abs(event.x-x), abs(event.y-y)) < 4:
+                hits = [oid for oid, (x0, y0, x1, y1) in self.boxes.items()
+                        if x0 <= event.x <= x1 and y0 <= event.y <= y1]
+                if not hits:
+                    hits = [oid for oid, (x0, y0, x1, y1) in self.boxes.items()
+                            if x0-3 <= event.x <= x1+3 and y0-3 <= event.y <= y1+3]
+                # Small details remain reachable inside a larger body outline.
+                hits.sort(key=lambda oid: (self.boxes[oid][2]-self.boxes[oid][0]) *
+                                         (self.boxes[oid][3]-self.boxes[oid][1]))
+                ids = set(hits[:1])
+                if hits:
+                    self.tree.selection_set(hits[0]); self.tree.see(hits[0])
+            else:
+                left, right = sorted((x, event.x)); top, bottom = sorted((y, event.y))
+                ids = {oid for oid, (x0, y0, x1, y1) in self.boxes.items()
+                       if left <= x0 and x1 <= right and top <= y0 and y1 <= bottom}
+            self._change(ids, remove=self.mode.get() == 'remove')
+        return 'break'
+
+    def _change(self, ids, *, remove=False, replace=False):
+        ids = set(ids) & set(self.by_id)
+        changed = ids if replace else self.selected - ids if remove else self.selected | ids
+        if changed != self.selected:
+            self.history.append(set(self.selected))
+            self.selected = changed
+        self._refresh()
+
+    def _undo(self):
+        if self.history:
+            self.selected = self.history.pop()
+            self._refresh()
+
+    def _refresh(self):
+        for oid in self.by_id:
+            self.tree.set(oid, 'chosen', '✓' if oid in self.selected else '')
+        self.status.set(f'本类已选 {len(self.selected)} / {len(self.objects)} 个源对象；右下预览为当前选择，橙框为列表定位。')
+        self.apply_button.configure(state='normal' if self.selected else 'disabled')
+        self.viewer.draw()
+        self._show_draft()
+
+    def _show_draft(self):
+        self.viewer.draw()
+        objects = [o for o in self.objects if o['id'] in self.selected]
+        self.draft.set_image(None, VectorImage(svg_document(objects)) if objects else None,
+                             vector_label='本类所选对象预览 · 保留源路径')
+
+    def _apply(self):
+        ids = [o['id'] for o in self.objects if o['id'] in self.selected]
+        if ids:
+            self.on_confirm(ids)
+            self.destroy()
 
 
 class ReviewGallery(tk.Toplevel):
@@ -42,7 +211,7 @@ class ReviewGallery(tk.Toplevel):
                                             recommended_categories=[]))
         if manual_candidate and manual_candidate.get('selected_ids'):
             self.candidates.insert(0, manual_candidate)
-        self.title('五类图案复核与成品导出 · '+Path(result['source']).stem)
+        self.title('六类图案复核与成品导出 · '+Path(result['source']).stem)
         self.geometry('1380x900')
         self.minsize(1100, 720)
         self.output_root = tk.StringVar(value=str(Path(output_root).resolve()))
@@ -102,15 +271,17 @@ class ReviewGallery(tk.Toplevel):
         self.confirm_button.pack(fill='x', pady=4)
         self.absent_button = ttk.Button(right, text='该类没有图案（确认不导出）', command=self._absent)
         self.absent_button.pack(fill='x', pady=4)
+        self.edit_button = ttk.Button(right, text='识别不正确？在原稿上点选 / 框选本类对象…', command=self._edit_objects)
+        self.edit_button.pack(fill='x', pady=8)
         row = ttk.Frame(outer); row.pack(fill='x', pady=(12,4))
         ttk.Label(row, text='成品保存位置').pack(side='left')
         self.output_entry = ttk.Entry(row, textvariable=self.output_root)
         self.output_entry.pack(side='left', fill='x', expand=True, padx=8)
         self.browse_button = ttk.Button(row, text='浏览…', command=self._browse)
         self.browse_button.pack(side='left')
-        self.export_button = ttk.Button(row, text='导出五类已确认成品', command=self._export)
+        self.export_button = ttk.Button(row, text='导出六类已确认成品', command=self._export)
         self.export_button.pack(side='left', padx=(8,0))
-        ttk.Label(outer, text='成品目录：保存位置 / FS文件名；文件：车身、彩条、文字、logo、徽章 + FS文件名.svg / .png', foreground='#666666').pack(anchor='w')
+        ttk.Label(outer, text='成品目录：保存位置 / FS文件名；车身、车漆、彩条、文字、logo、徽章 SVG/PNG；另含车漆/车身分层 SVG/PNG', foreground='#666666').pack(anchor='w')
         ttk.Label(outer, textvariable=self.status, wraplength=1250).pack(anchor='w', pady=6)
 
     def _restore(self):
@@ -120,7 +291,9 @@ class ReviewGallery(tk.Toplevel):
             if saved['source_sha256'] != self.result['source_sha256'] or Path(saved['source']).resolve()!=Path(self.result['source']).resolve():
                 return
             for name, label in LABELS.items():
-                record = saved['categories'][label]
+                record = saved['categories'].get(label)
+                if record is None:
+                    continue  # Old five-category reviews keep their confirmed choices.
                 ids = record['selected_ids']
                 if record['status']=='confirmed_absent':
                     self.choices[name] = None
@@ -210,6 +383,28 @@ class ReviewGallery(tk.Toplevel):
         self.choice_labels[self.category] = self.current_candidate.get('label', self.current_candidate['id'])
         self._refresh_status()
 
+    def _edit_objects(self):
+        if self.busy:
+            return
+        category = self.category
+        initial = self.choices.get(category)
+        if initial is None and category not in self.choices:
+            initial = (self.current_candidate or {}).get('selected_ids', [])
+        ObjectSelectionEditor(self, self.result['objects'], initial or [],
+                              LABELS[category], lambda ids: self._accept_manual(category, ids))
+
+    def _accept_manual(self, category, ids):
+        if self.busy or not ids or not set(ids) <= set(self.by_id):
+            return
+        candidate = {'id': 'manual-'+category, 'label': '手动指定的'+LABELS[category],
+                     'selected_ids': list(ids), 'category_hints': [category],
+                     'recommended_categories': []}
+        self.candidates = [c for c in self.candidates if c['id'] != candidate['id']]
+        self.candidates.insert(0, candidate)
+        self.choices[category] = list(ids)
+        self.choice_labels[category] = candidate['label']
+        self._switch_category(category)
+
     def _absent(self):
         if self.busy:
             return
@@ -222,7 +417,7 @@ class ReviewGallery(tk.Toplevel):
             status = '无图案' if name in self.choices and self.choices[name] is None else '已确认' if name in self.choices else '未确认'
             button.configure(text=('▶ ' if name==self.category else '')+LABELS[name]+' · '+status)
         self.best_label.configure(text='本类最佳：'+self.choice_labels.get(self.category,'尚未确认'))
-        self.status.set(f'已确认 {len(self.choices)}/5 类。浏览其他候选不会改变已确认图案。')
+        self.status.set(f'已确认 {len(self.choices)}/{len(LABELS)} 类。浏览其他候选不会改变已确认图案。')
 
     def _browse(self):
         folder=filedialog.askdirectory(parent=self, title='选择已复核成品保存位置')
@@ -240,7 +435,7 @@ class ReviewGallery(tk.Toplevel):
         choices = {name:list(ids) if ids is not None else None for name,ids in self.choices.items()}
         output = self.output_root.get()
         self.busy = True
-        for widget in (self.export_button,self.confirm_button,self.absent_button,self.browse_button,self.output_entry):
+        for widget in (self.export_button,self.confirm_button,self.absent_button,self.edit_button,self.browse_button,self.output_entry):
             widget.configure(state='disabled')
         self.status.set('正在生成已确认的 SVG / PNG 成品…')
         def work():
@@ -263,7 +458,7 @@ class ReviewGallery(tk.Toplevel):
                 self._poll_id=self.after(100,self._drain)
                 return
             self.busy = False
-            for widget in (self.export_button,self.confirm_button,self.absent_button,self.browse_button,self.output_entry):
+            for widget in (self.export_button,self.confirm_button,self.absent_button,self.edit_button,self.browse_button,self.output_entry):
                 widget.configure(state='normal')
             if kind=='ok':
                 self.status.set('已导出复核成品：'+value['output_dir'])

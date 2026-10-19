@@ -1,4 +1,4 @@
-"""Group-first five-category recognition. AI selects source IDs, never draws."""
+"""Six-category recognition with separate coverage for source paint surfaces."""
 import bisect
 import hashlib
 import json
@@ -17,7 +17,26 @@ from core.fs_scene import compose_scene
 from geometry import svg_document, rasterize, union_bounds
 from vector_preview import VectorImage
 
-CATEGORIES = ('车身', '彩条', '文字', 'logo', '门徽')
+CATEGORIES = ('车身', '彩条', '文字', 'logo', '门徽', '车漆')
+
+
+def paint_candidates(objects):
+    """Large filled source surfaces are proposals, never automatic paint labels."""
+    from core.paint import style_capability
+    bounds = union_bounds(objects)
+    page_area = max((bounds[2]-bounds[0])*(bounds[3]-bounds[1]), 1e-6)
+    result = []
+    for obj in objects:
+        box = obj['bbox']
+        w, h = box[2]-box[0], box[3]-box[1]
+        if (min(w, h) <= 1e-5 or w*h < page_area*.001
+                or obj.get('details', {}).get('closed') is False
+                or style_capability(obj) == 'unsupported'):
+            continue
+        result.append({'members': [obj], 'bbox': box, 'native_type': 'PaintSurface',
+                       'source_span': [obj['source_offset'], obj['source_offset']],
+                       'member_ids': [obj['id']], 'aspect': w/h, 'area': w*h})
+    return sorted(result, key=lambda c: -c['area'])
 
 
 def text_ranges(raw, classes, word):
@@ -139,14 +158,15 @@ def build_candidates(objects, containers, limit=120):
     # Reserve coverage for ungrouped graphics as well as native ownership.
     loose = loose_graphics(objects, candidates)
     max_area = max((c['area'] for c in candidates), default=1)
-    buckets = [[], [], [], loose]
+    paint = paint_candidates(objects)
+    buckets = [[], [], [], loose, paint]
     for c in candidates:
         body = 2.2 < c['aspect'] < 5.5 and c['area'] > max_area * .025 and len(c['members']) > 100
         bucket = 0 if body else 1 if c['native_type'] in ('AText','AArcText') else 2
         buckets[bucket].append(c)
     selected = []
     leftovers = []
-    for index, (bucket, cap) in enumerate(zip(buckets, (limit//4, limit//4, limit//4, limit//4))):
+    for index, (bucket, cap) in enumerate(zip(buckets, [limit//5]*5)):
         if index != 3:
             bucket.sort(key=lambda c: (-c['area'], len(c['members'])))
         local = []
@@ -162,8 +182,10 @@ def build_candidates(objects, containers, limit=120):
     for i, c in enumerate(selected):
         c.update(id=f'G{i+1:03d}', score=1, fill='none')
     return selected, {'native_candidates': len(candidates), 'loose_graphic_candidates': len(loose),
+                      'paint_surface_candidates': len(paint),
+                      'provided_paint_surfaces': sum(c['native_type']=='PaintSurface' for c in selected),
                       'provided_candidates': len(selected),
-                      'omitted_or_deduplicated_candidates': len(candidates)+len(loose)-len(selected),
+                      'omitted_or_deduplicated_candidates': len(candidates)+len(loose)+len(paint)-len(selected),
                       'candidate_limit': limit, 'reference_library_used': False}
 
 
@@ -227,18 +249,23 @@ def resolve_categories(objects, candidates, decision):
     return {name: [o['id'] for o in objects if o['id'] in ids] for name, ids in categories.items()}
 
 
-def run(source, directory, config):
+def run(source, directory, config, *, use_ai=True):
     source, directory = Path(source), Path(directory)
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     objects, candidates, coverage = prepare(source, directory, min(config['max_candidates'], 120))
-    decision = recognize_groups(candidates, directory, config)
+    decision = (recognize_groups(candidates, directory, config) if use_ai else
+                {'categories': {name: [] for name in CATEGORIES},
+                 'reason': '手工复核模式，尚未分类；未调用 AI。', 'confidence': 0.0})
     categories = resolve_categories(objects, candidates, decision)
     report = {'source': str(source.resolve()), 'source_sha256': digest, 'coverage': coverage,
               'decision': decision, 'categories': categories, 'status': 'review', 'views': []}
     report['candidates'] = review_candidates(candidates, decision)
     for name, ids in categories.items():
         selected = set(ids)
-        svg = svg_document([o for o in objects if o['id'] in selected], width=2000)
+        from core.svg_layers import layered_svg
+        svg, _ = layered_svg([o for o in objects if o['id'] in selected], {name: ids},
+                             width=2000, layer_names=(name,),
+                             metadata={'source_sha256': digest, 'human_reviewed': False})
         svg_path, png_path = directory/(name+'.svg'), directory/(name+'.png')
         svg_path.write_text(svg, encoding='utf8')
         rasterize(svg, png_path, max_width=2000)
@@ -261,7 +288,9 @@ def review_candidates(candidates, decision):
         recommended = [name for name, groups in decision['categories'].items() if c['id'] in groups]
         hints = list(recommended)
         if not hints:
-            if c['native_type'] == 'AArcText':
+            if c['native_type'] == 'PaintSurface':
+                hints = ['车漆']
+            elif c['native_type'] == 'AArcText':
                 hints = ['门徽']
             elif c['native_type'] == 'AText':
                 hints = ['文字']

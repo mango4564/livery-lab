@@ -15,7 +15,7 @@ def main():
     parser.add_argument('--output',type=Path,default=Path(__file__).resolve().parent/'output')
     parser.add_argument('--ai',action='store_true',help='使用本机 settings.json 和密钥环境变量配置的视觉接口')
     parser.add_argument('--force',action='store_true',help='兼容参数；每次提取都会创建新的处理目录')
-    parser.add_argument('--components',action='store_true',help='识别车身、彩条、文字、logo、门徽，需同时启用 --ai')
+    parser.add_argument('--components',action='store_true',help='六类提取（含车漆）；--ai 自动分类，未启用则准备手工复核候选')
     parser.add_argument('--reference-directory',type=Path,help='旧版兼容参数；当前独立识别不读取或匹配参考库')
     parser.add_argument('--ids',help='单文件手动确认的对象 ID，以逗号分隔')
     parser.add_argument('-j','--jobs',type=int,default=os.cpu_count() or 4,help='并发处理任务数（默认使用 CPU 逻辑核心数，AI 模式同样生效）')

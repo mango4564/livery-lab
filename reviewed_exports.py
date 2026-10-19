@@ -6,9 +6,10 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from geometry import rasterize, svg_document
+from geometry import rasterize
+from core.svg_layers import layered_svg
 
-LABELS = {'车身': '车身', '彩条': '彩条', '文字': '文字', 'logo': 'logo', '门徽': '徽章'}
+LABELS = {'车身': '车身', '彩条': '彩条', '文字': '文字', 'logo': 'logo', '门徽': '徽章', '车漆': '车漆'}
 
 
 def export_reviewed(result, choices, output_root):
@@ -36,13 +37,16 @@ def export_reviewed(result, choices, output_root):
         if name == '车身':
             continue
         if other & set(selected[name]):
-            raise ValueError('彩条、文字、logo、徽章之间有重叠对象，请调整最佳图案后再导出。')
+            raise ValueError('车漆、彩条、文字、logo、徽章之间有重叠对象，请调整最佳图案后再导出。')
         other.update(selected[name])
     selected['车身'] = [i for i in selected['车身'] if i not in other]
     if choices['车身'] is not None and not selected['车身']:
         raise ValueError('车身扣除其他类别后为空，请重新选择。')
     if not any(selected.values()):
         raise ValueError('所有类别均无图案，没有可导出的文件。')
+    from core.paint import style_capability
+    if any(style_capability(by_id[i]) == 'unsupported' for i in selected['车漆']):
+        raise ValueError('车漆包含未知或未支持的填充，无法保留原色或渐变，请重新复核。')
     root = Path(output_root).resolve()
     root.mkdir(parents=True, exist_ok=True)
     destination = root / source.stem
@@ -60,21 +64,26 @@ def export_reviewed(result, choices, output_root):
     manifest = {'source': str(source), 'source_sha256': digest, 'reviewed_at': datetime.now().astimezone().isoformat(),
                 'status': 'human_reviewed', 'categories': {}, 'physical_scale_verified': False}
     try:
+        if selected['车漆']:
+            from geometry import union_bounds
+            bounds = union_bounds([by_id[i] for ids in selected.values() for i in ids])
+            categories = {n: ids if n in ('车身', '车漆') else [] for n, ids in selected.items()}
+            svg, info = layered_svg(result['objects'], categories, bounds=bounds, width=2400,
+                metadata={'source_sha256': digest, 'human_reviewed': True},
+                layer_names=('车漆', '车身'))
+            (staging/'vehicle-base.svg').write_text(svg, encoding='utf8')
+            rasterize(svg, staging/'vehicle-base.png', max_width=2400)
+            manifest['layer_status'] = info['layer_status']
+            manifest['schema_version'] = 2
         for name, label in LABELS.items():
             ids = selected[name]
             files = []
             if ids:
                 id_set = set(ids)
                 objects = [o for o in result['objects'] if o['id'] in id_set]
-                svg = svg_document(objects, width=2400)
-                # Keep the provenance inside SVG as well as the review record.
-                import xml.etree.ElementTree as ET
-                node = ET.fromstring(svg)
-                node.find('{http://www.w3.org/2000/svg}metadata').text = json.dumps(
-                    {'source_sha256': digest, 'category': label, 'selected_ids': ids,
-                     'human_reviewed': True, 'physical_scale_verified': False}, ensure_ascii=False)
-                ET.register_namespace('', 'http://www.w3.org/2000/svg')
-                svg = ET.tostring(node, encoding='unicode')
+                svg, _ = layered_svg(objects, {name: ids}, width=2400, layer_names=(name,),
+                    metadata={'source_sha256': digest, 'category': label, 'selected_ids': ids,
+                              'human_reviewed': True})
                 stem = label + '_' + source.stem
                 (staging/(stem+'.svg')).write_text(svg, encoding='utf8')
                 rasterize(svg, staging/(stem+'.png'), max_width=2400)

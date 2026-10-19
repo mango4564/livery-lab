@@ -93,7 +93,7 @@ class LiveryApp:
         ttk.Entry(output_row, textvariable=self.output).pack(side="left", fill="x", expand=True, padx=8)
         ttk.Button(output_row, text="浏览…", command=self._browse_output).pack(side="left")
         ttk.Button(output_row, text="打开输出目录", command=self._open_output).pack(side="left", padx=(6, 0))
-        ttk.Checkbutton(outer, text="五类提取：车身 / 彩条 / 文字 / logo / 门徽（AI 候选，需逐类复核；取消则仅提取彩条）",
+        ttk.Checkbutton(outer, text="六类提取：车身 / 车漆 / 彩条 / 文字 / logo / 门徽（候选需逐类复核；取消则仅提取彩条）",
                         variable=self.five_components).pack(anchor="w")
         ai_row = ttk.Frame(outer)
         ai_row.pack(fill="x", pady=(4, 0))
@@ -207,7 +207,7 @@ class LiveryApp:
         export_actions.grid(row=0, column=1, sticky="e")
         self.save_button = ttk.Button(export_actions, text="保存修正 SVG / PNG", command=self._save)
         self.save_button.pack(side="right")
-        self.review_button = ttk.Button(export_actions, text='五类图案复核 / 导出成品', command=self._open_review_gallery)
+        self.review_button = ttk.Button(export_actions, text='六类图案复核 / 导出成品', command=self._open_review_gallery)
         self.review_button.pack(side='right', padx=(0, 6))
 
         def arrange_actions(event):
@@ -563,7 +563,7 @@ class LiveryApp:
         groups=self.results.get(self.current,{}).get('views',[])
         self.group_choice.configure(values=[f'{g["label"]} · {len(g["selected_ids"])} 条曲线' for g in groups])
         is_components = self.results.get(self.current,{}).get('extraction_mode') == 'components'
-        self.group_choice.set(('切换车身 / 彩条 / 文字 / logo / 门徽候选' if is_components else '可切换左右侧及前后视图候选') if groups else '暂无候选组合')
+        self.group_choice.set(('切换车身 / 车漆 / 彩条 / 文字 / logo / 门徽候选' if is_components else '可切换左右侧及前后视图候选') if groups else '暂无候选组合')
 
     def _choose_group(self,_event=None):
         if self.busy or self.current not in self.results:
@@ -722,6 +722,8 @@ class LiveryApp:
             "unresolved_review": "等待 AI 独立识别或手动复核",
             "vision_selected_source_paths": "AI 判断原始对象 · 需复核",
             "vision_five_components": "五类 AI 组合识别 · 请逐类核对",
+            "vision_six_components": "六类 AI 组合识别 · 请逐类核对",
+            "manual_six_components": "六类手工复核 · 尚未自动分类",
             "ai_failed_no_selection": "AI 失败 · 未生成选择",
         }
         label = labels.get(method_text)

@@ -49,6 +49,13 @@ def main():
         gallery.withdraw();gallery._switch_category('彩条');root.update_idletasks()
         assert len(gallery.photos)==1, 'Review thumbnails unavailable'
         gallery._confirm();assert gallery.choices['彩条']==['a'], 'Review selection unavailable'
+        from review_gallery import ObjectSelectionEditor
+        gallery._switch_category('logo');gallery._edit_objects()
+        editor=next(w for w in gallery.winfo_children() if isinstance(w,ObjectSelectionEditor))
+        editor._change({'a'},replace=True);root.update_idletasks()
+        assert editor.boxes and editor.draft.vector_image, 'Manual selection preview unavailable'
+        editor._apply()
+        assert gallery.choices['logo']==['a'], 'Manual category confirmation unavailable'
         gallery.destroy();root.destroy()
         return 0
     from ui import main as launch
