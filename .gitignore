@@ -54,8 +54,14 @@ native/*.exe
 # ==============================================================================
 output/
 output-*/
+output_test/
+exports_components/
 test_output*/
 validation/ai_independent/
+validation/components_replay/
+validation/components_workbench/
+validation/components_research/*.json
+!validation/components_research/replay_checks.json
 validation/native_display/*.png
 validation/native_compare_*.png
 validation/*_qa.png
