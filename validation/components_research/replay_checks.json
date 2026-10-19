@@ -1,0 +1,26 @@
+[
+  {
+    "sample": "3261042",
+    "kind": "recorded real-model response replay; no new inference",
+    "source_ids_valid": true,
+    "five_views_sealed": true,
+    "cache_reused": true,
+    "output_dir": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\livery-lab\\validation\\components_replay\\乾途单挡3.5米车高（车长11米） 3261042--_5ce61537_85e8301e_run_20261019_101642_091828_0cf810\\versions\\initial_0a4d87884358"
+  },
+  {
+    "sample": "3261074",
+    "kind": "recorded real-model response replay; no new inference",
+    "source_ids_valid": true,
+    "five_views_sealed": true,
+    "cache_reused": true,
+    "output_dir": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\livery-lab\\validation\\components_replay\\乾途单挡3.6米车高（车长12米）3261074_4c2c815c_8acc2104_run_20261019_101643_136844_2ae482\\versions\\initial_00ca8b75927e"
+  },
+  {
+    "sample": "3261129",
+    "kind": "recorded real-model response replay; no new inference",
+    "source_ids_valid": true,
+    "five_views_sealed": true,
+    "cache_reused": true,
+    "output_dir": "C:\\Users\\admin\\Desktop\\彩条AI智能体\\livery-lab\\validation\\components_replay\\乾途双挡 3.8米车高（12米车长）3261129_1df9c03e_7a236702_run_20261019_101645_817070_127dad\\versions\\initial_1bb7429fdd97"
+  }
+]

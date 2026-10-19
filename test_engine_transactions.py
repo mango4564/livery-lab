@@ -107,6 +107,23 @@ class EngineTransactions(unittest.TestCase):
             self.assertEqual(Path(path).read_bytes(),content)
         self.assertTrue(Path(revised['preview_png']).is_relative_to(Path(revised['output_dir'])))
 
+    def test_component_review_keeps_other_categories_and_version_integrity(self):
+        original=self.process()
+        original.update(extraction_mode='components', component_categories={'车身':['a','b'],'彩条':[],
+                        '文字':[],'logo':[],'门徽':[]})
+        original['views']=[{'category':'车身','label':'body','selected_ids':['a','b'],
+                            'bbox':[0,0,10,4],'svg':original['result_svg'],'png':original['result_png']},
+                           {'category':'彩条','label':'stripe','selected_ids':[],
+                            'bbox':[0,0,0,0],'svg':original['result_svg'],'png':original['result_png']}]
+        with patch.object(engine,'rasterize',side_effect=lambda svg,path,**kwargs:self.png(path,'red')):
+            revised=engine.export_selection(original,['b'],category_name='彩条')
+        self.assertEqual(revised['component_categories']['车身'],['a'])
+        self.assertEqual(revised['component_categories']['彩条'],['b'])
+        self.assertEqual(set(revised['selected_ids']),{'a','b'})
+        self.assertEqual(revised['status'],'review')
+        self.assertEqual(revised['confirmed_categories'],['彩条'])
+        self.assertEqual(self.process()['component_categories'],revised['component_categories'])
+
     def test_invalid_ids_do_not_create_a_version_or_change_manifest(self):
         original=self.process()
         before=self.snapshot(original)

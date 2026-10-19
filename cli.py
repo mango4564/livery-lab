@@ -14,7 +14,8 @@ def main():
     parser.add_argument('source',type=Path,help='FS 文件或素材文件夹')
     parser.add_argument('--output',type=Path,default=Path(__file__).resolve().parent/'output')
     parser.add_argument('--ai',action='store_true',help='使用本机 settings.json 和密钥环境变量配置的视觉接口')
-    parser.add_argument('--force',action='store_true',help='创建新的处理目录，保留旧结果')
+    parser.add_argument('--force',action='store_true',help='兼容参数；每次提取都会创建新的处理目录')
+    parser.add_argument('--components',action='store_true',help='识别车身、彩条、文字、logo、门徽，需同时启用 --ai')
     parser.add_argument('--reference-directory',type=Path,help='用户参考 SVG 库；默认查源目录旁的导出彩条参考及内置示例')
     parser.add_argument('--ids',help='单文件手动确认的对象 ID，以逗号分隔')
     parser.add_argument('-j','--jobs',type=int,default=os.cpu_count() or 4,help='并发处理任务数（默认榨干所有CPU核心）')
@@ -39,7 +40,7 @@ def main():
                     result = process_file(
                         source,
                         args.output,
-                        {'use_ai': args.ai, 'force': args.force, 'reference_directory': str(args.reference_directory) if args.reference_directory else ''},
+                        {'use_ai': args.ai, 'force': args.force, 'extraction_mode': 'components' if args.components else 'stripes', 'reference_directory': str(args.reference_directory) if args.reference_directory else ''},
                         progress=lambda s: print(f'  [{source.name}] {s}', flush=True)
                     )
                     row = {k: result[k] for k in ('source', 'status', 'output_dir', 'selected_ids', 'method', 'elapsed_seconds')}
@@ -62,6 +63,7 @@ def main():
             print(f'[{n}/{len(sources)}] {source.name}',flush=True)
             try:
                 result=process_file(source,args.output,{'use_ai':args.ai,'force':args.force,
+                    'extraction_mode':'components' if args.components else 'stripes',
                     'reference_directory':str(args.reference_directory) if args.reference_directory else ''},progress=lambda s:print('  '+s,flush=True))
                 if args.ids:
                     result=export_selection(result,[s.strip() for s in args.ids.split(',') if s.strip()])

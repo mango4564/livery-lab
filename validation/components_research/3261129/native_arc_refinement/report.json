@@ -1,0 +1,37 @@
+{
+  "method": "native arc child of saved AI parent",
+  "before_ids": [
+    "compound-26354@23352698",
+    "compound-26360@23355659",
+    "compound-26368@23360009",
+    "compound-26374@23362118",
+    "compound-26386@23365910",
+    "compound-26398@23370094",
+    "compound-26408@23373453",
+    "compound-26424@23378775",
+    "compound-26432@23381229",
+    "compound-26442@23384448",
+    "compound-26452@23387771",
+    "compound-26458@23390068",
+    "compound-26466@23392570",
+    "compound-26481@23396208",
+    "compound-26518@23411838",
+    "compound-26524@23412911"
+  ],
+  "after_ids": [
+    "compound-26354@23352698",
+    "compound-26360@23355659",
+    "compound-26368@23360009",
+    "compound-26374@23362118",
+    "compound-26386@23365910",
+    "compound-26398@23370094",
+    "compound-26408@23373453",
+    "compound-26424@23378775",
+    "compound-26432@23381229",
+    "compound-26442@23384448",
+    "compound-26452@23387771",
+    "compound-26458@23390068",
+    "compound-26466@23392570"
+  ],
+  "technical_paths_removed": 3
+}

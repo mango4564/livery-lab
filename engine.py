@@ -22,7 +22,7 @@ ROOT=Path(__file__).resolve().parent
 def _code_digest():
     digest=hashlib.sha256()
     inputs=([Path(sys.executable)] if getattr(sys,'frozen',False) else
-            [ROOT/'engine.py',ROOT/'geometry.py',ROOT/'vector_preview.py',ROOT/'recognition.py',ROOT/'vision.py',ROOT/'credentials.py',ROOT/'runtime.py',
+            [ROOT/'engine.py',ROOT/'components.py',ROOT/'reviewed_exports.py',ROOT/'geometry.py',ROOT/'vector_preview.py',ROOT/'recognition.py',ROOT/'vision.py',ROOT/'credentials.py',ROOT/'runtime.py',
              *list((ROOT/'core').glob('*.py'))])
     if not getattr(sys,'frozen',False) and (ROOT/'reference_match.py').is_file():
         inputs.append(ROOT/'reference_match.py')
@@ -73,6 +73,7 @@ def _fingerprint(options):
             for path in sorted(directory.glob('*.svg')):
                 library.update(path.name.encode('utf8'));library.update(path.read_bytes())
     return hashlib.sha256((code+json.dumps({'use_ai':bool(options.get('use_ai')), 'config':selected,
+        'extraction_mode':options.get('extraction_mode','stripes'),
         'reference_directory':str(reference_directory),'library_sha256':library.hexdigest()},sort_keys=True)).encode()).hexdigest()
 
 
@@ -89,8 +90,8 @@ def _resolve_reference_directory(source,options):
     return str(adjacent.resolve()) if adjacent.is_dir() else ''
 
 
-def _check_pipeline(fingerprint,use_ai,reference_directory=''):
-    if _fingerprint({'use_ai':use_ai,'reference_directory':reference_directory})!=fingerprint:
+def _check_pipeline(fingerprint,use_ai,reference_directory='',extraction_mode='stripes'):
+    if _fingerprint({'use_ai':use_ai,'reference_directory':reference_directory,'extraction_mode':extraction_mode})!=fingerprint:
         raise RuntimeError('本次处理期间程序代码或 AI 配置发生变化，拒绝提交混合版本；请重试。')
 
 
@@ -201,6 +202,8 @@ def process_file(source, output_root, options=None, progress=None):
     """Controller API: each source is decoded in a disposable child process."""
     source=Path(source).resolve();output_root=Path(output_root).resolve()
     options=dict(options or {})
+    if options.get('extraction_mode', 'stripes') not in ('stripes', 'components'):
+        raise ValueError('未知提取模式。')
     options['reference_directory']=_resolve_reference_directory(source,options)
     report=progress or (lambda message: None)
     if source.suffix.lower()!='.fs' or not source.is_file():
@@ -219,7 +222,8 @@ def process_file(source, output_root, options=None, progress=None):
     run=output_root/(_slug(source)+'_'+digest[:8]+'_'+key[:8]+'_run_'+datetime.now().strftime('%Y%m%d_%H%M%S_%f')+'_'+uuid.uuid4().hex[:6])
     base=run/'versions'/('initial_'+uuid.uuid4().hex[:12])
     base.mkdir(parents=True,exist_ok=False)
-    _write_json(base/'request.json',{'reference_directory':options['reference_directory']})
+    _write_json(base/'request.json',{'reference_directory':options['reference_directory'],
+                                  'extraction_mode':options.get('extraction_mode','stripes')})
     report('读取 FS 原始曲线和颜色引用（独立工作进程）。')
     python=Path(sys.executable)
     if python.name.lower()=='pythonw.exe':
@@ -243,7 +247,7 @@ def process_file(source, output_root, options=None, progress=None):
             _write_json(failure,{'source':str(source),'source_sha256':digest,'error':reason,'exit_code':child.returncode})
         raise RuntimeError(reason)
     result=json.loads((base/'manifest.json').read_text(encoding='utf8'))
-    _check_pipeline(fingerprint,bool(options.get('use_ai')),options['reference_directory'])
+    _check_pipeline(fingerprint,bool(options.get('use_ai')),options['reference_directory'],options.get('extraction_mode','stripes'))
     if _file_sha(source)!=digest:
         raise RuntimeError('处理过程中源文件发生变化，拒绝提交该次结果。')
     result=_commit_version(result)
@@ -304,12 +308,26 @@ def _render_selection(result, ids, directory):
     return str(svg_path),str(png_path)
 
 
-def export_selection(result, selected_ids, output_dir=None):
+def export_selection(result, selected_ids, output_dir=None, *, category_name=None):
     """Explicit user review: only choose existing source paths, never redraw."""
     result=dict(result)
     valid={o['id'] for o in result['objects']}
     if not selected_ids or len(selected_ids)!=len(set(selected_ids)) or any(i not in valid for i in selected_ids):
         raise ValueError('请至少选择一个有效对象，不能使用未知或重复 ID。')
+    if result.get('extraction_mode') == 'components':
+        if category_name not in result['component_categories']:
+            raise ValueError('请先在候选下拉框切换到要修正的类别，再保存该类。')
+        categories={name:list(ids) for name,ids in result['component_categories'].items()}
+        others={oid for name,ids in categories.items() if name not in (category_name,'车身') for oid in ids}
+        if set(selected_ids) & others:
+            raise ValueError('所选对象已属于其他非车身类别，请先排除重叠对象。')
+        categories[category_name]=list(selected_ids)
+        if category_name!='车身':
+            categories['车身']=[oid for oid in categories['车身'] if oid not in set(selected_ids)]
+        result['component_categories']=categories
+        result['confirmed_categories']=sorted(set(result.get('confirmed_categories',[])) | {category_name})
+        union={oid for ids in categories.values() for oid in ids}
+        selected_ids=[obj['id'] for obj in result['objects'] if obj['id'] in union]
     old_directory=Path(result['output_dir']).resolve()
     # output_dir is an optional new run destination, never an overwrite target.
     run=Path(output_dir).resolve() if output_dir else Path(result.get('run_dir',old_directory)).resolve()
@@ -337,9 +355,21 @@ def export_selection(result, selected_ids, output_dir=None):
             shutil.copy2(view[key],target)
             view[key]=str(target)
     result['selected_ids']=list(selected_ids)
+    if result.get('extraction_mode') == 'components':
+        for view in result['views']:
+            name=view['category']
+            ids=result['component_categories'][name]
+            local=dict(result,reference_match={})
+            view['svg'],view['png']=_render_selection(local,ids,Path(view['svg']).parent)
+            view['selected_ids']=list(ids)
+            view['bbox']=union_bounds([o for o in result['objects'] if o['id'] in set(ids)])
     result['result_svg'],result['result_png']=_render_selection(result,result['selected_ids'],directory)
     result.update(output_dir=str(directory),human_confirmed=True,status='ready',
                   review_note='用户已确认对象选择；尺寸、裁剪及复合操作仍按报告限制。')
+    if result.get('extraction_mode') == 'components':
+        result['status']='review'
+        result['human_confirmed']=False
+        result['review_note']='已保存该类修正；其他类别和缺失类别仍需逐项核对。'
     chosen=set(selected_ids)
     unknown=[o['id'] for o in result['objects'] if o['id'] in chosen and not o.get('fill')]
     if unknown:
@@ -349,11 +379,53 @@ def export_selection(result, selected_ids, output_dir=None):
     return _commit_version(result)
 
 
+def _run_components_worker(source,directory,digest,fingerprint,use_ai,reference_directory):
+    from components import run
+    if not use_ai:
+        raise ValueError('五类识别需要在 AI 接口配置中启用视觉模型；也可切回彩条模式。')
+    started=time.monotonic()
+    objects, components_report=run(source,directory,read_config())
+    categories=components_report['categories']
+    chosen={oid for ids in categories.values() for oid in ids}
+    for obj in objects:
+        obj['score']=1.0 if obj['id'] in chosen else 0.0
+    run_dir=directory.parent.parent
+    key=_source_key(source,digest,fingerprint)
+    result={'version':VERSION,'pipeline_fingerprint':fingerprint,'source':str(source),
+            'source_sha256':digest,'run_dir':str(run_dir),
+            'cache_index':str(run_dir.parent/'.cache'/(key+'.json')),
+            'output_dir':str(directory),'status':'review','method':'vision_five_components',
+            'extraction_mode':'components','physical_scale_verified':False,'human_confirmed':False,
+            'objects':objects,'selected_ids':[o['id'] for o in objects if o['id'] in chosen],
+            'suggested_ids':[],'candidate_count':len(chosen),
+            'preview_png':str(directory/'source_scene.png'),
+            'candidate_png':str(directory/'group_atlas.png'),
+            'views':components_report['views'], 'component_categories':categories,
+            'component_candidates':components_report.get('candidates',[]),
+            'component_coverage':components_report['coverage'],
+            'ai_result':components_report['decision'],
+            'warnings':['五类为 AI 组合识别候选，须逐类核对；模型自报置信度不是准确率。',
+                        '未识别的类别保持为空；候选有数量上限，可能漏掉拆散、转曲或未解码对象。',
+                        '车身只扣除已分类的重叠子对象，未识别的运营元素仍可能混入。',
+                        '当前解码 APath、AEditPath、AOval；其他原语、纹理及部分字体/裁剪效果可能缺失。',
+                        '当前仅提取第1页。物理比例未验证。'],
+            'elapsed_seconds':round(time.monotonic()-started,3)}
+    result['result_svg'],result['result_png']=_render_selection(result,result['selected_ids'],directory)
+    if _file_sha(source)!=digest:
+        raise RuntimeError('处理过程中源文件发生变化。')
+    _check_pipeline(fingerprint,use_ai,reference_directory,'components')
+    _seal_version(result,directory)
+    return result
+
+
 def _run_worker(source,directory,digest,fingerprint,use_ai):
     request_path=directory/'request.json'
     request=json.loads(request_path.read_text(encoding='utf8')) if request_path.is_file() else {}
     reference_directory=_resolve_reference_directory(source,request)
-    _check_pipeline(fingerprint,use_ai,reference_directory)
+    extraction_mode=request.get('extraction_mode','stripes')
+    _check_pipeline(fingerprint,use_ai,reference_directory,extraction_mode)
+    if extraction_mode == 'components':
+        return _run_components_worker(source,directory,digest,fingerprint,use_ai,reference_directory)
     run=directory.parent.parent
     key=_source_key(source,digest,fingerprint)
     started=time.monotonic()

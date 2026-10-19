@@ -38,6 +38,18 @@ def main():
         image,_,_=document.render(1,(-24,-second_y),(100,100))
         assert image.getpixel((10,50)) != image.getpixel((90,50)), 'Second page unavailable'
         root.update_idletasks();root.destroy()
+        # Smoke-test the review page and its lazy vector thumbnails in the
+        # actual frozen runtime, without network or creating product files.
+        from review_gallery import ReviewGallery
+        root=tk.Tk();root.withdraw()
+        sample={'source':'packaged-self-test.fs','source_sha256':'0'*64,
+                'objects':[{'id':'a','d':'M0 0 L10 0 L10 4 Z','bbox':[0,0,10,4],'fill':'#167ce2'}],
+                'component_categories':{'彩条':['a']}}
+        gallery=ReviewGallery(root,sample,Path(sys.executable).parent/'output'/'已复核成品')
+        gallery.withdraw();gallery._switch_category('彩条');root.update_idletasks()
+        assert len(gallery.photos)==1, 'Review thumbnails unavailable'
+        gallery._confirm();assert gallery.choices['彩条']==['a'], 'Review selection unavailable'
+        gallery.destroy();root.destroy()
         return 0
     from ui import main as launch
     launch()
