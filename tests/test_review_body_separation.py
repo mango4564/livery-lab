@@ -26,8 +26,19 @@ class ReviewBodySeparationTests(TkTestCase):
         self.gallery = ReviewGallery(self.root, self.result, Path(self.temp.name)/'out')
         self.gallery.withdraw()
         self.addCleanup(self.gallery.destroy)
-        self.gallery.tree.selection_set('1')
-        self.gallery._preview()
+        # The parent now shares a single default preview with the current body.
+        self.assertEqual(len(self.gallery.filtered), 1)
+        self.select_parent()
+
+    def select_parent(self):
+        g = self.gallery
+        g.show_all.set(True)
+        g._switch_category('车身')
+        index = next(i for i, c in enumerate(g.filtered) if c['id'] == 'G002')
+        g.tree.selection_set(str(index))
+        g._preview()
+        # Following category switches should use their normal candidates.
+        g.show_all.set(False)
 
     def visible_ids(self):
         svg = self.gallery._svg(self.gallery.current_candidate)
@@ -62,15 +73,13 @@ class ReviewBodySeparationTests(TkTestCase):
         g._switch_category('车漆')
         g._absent()
         g._switch_category('车身')
-        g.tree.selection_set('1')
-        g._preview()
+        self.select_parent()
         self.assertEqual(self.visible_ids(), ['0', '5'])
         self.assertIn(('0', '5'), g.thumbnail_cache)
         g._switch_category('车漆')
         g._confirm()
         g._switch_category('车身')
-        g.tree.selection_set('1')
-        g._preview()
+        self.select_parent()
         self.assertEqual(self.visible_ids(), ['0'])
         g._edit_objects()
         from review_gallery import ObjectSelectionEditor

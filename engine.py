@@ -182,10 +182,49 @@ def _slug(source):
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]','_',source.stem).strip(' .')[:80] or 'FS'
 
 
-def process_file(source, output_root, options=None, progress=None):
+class ExtractionCancelled(Exception):
+    """The user stopped extraction; this is not a failed FS file."""
+
+
+def _check_cancel(cancel_event):
+    if cancel_event is not None and cancel_event.is_set():
+        raise ExtractionCancelled('提取已停止。')
+
+
+def _execute_worker(cmd, timeout, cancel_event=None):
+    kwargs = dict(stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                  encoding='utf8', errors='replace', cwd=ROOT,
+                  creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    if cancel_event is None:
+        return subprocess.run(cmd, timeout=timeout, **kwargs)
+    _check_cancel(cancel_event)
+    child = subprocess.Popen(cmd, **kwargs)
+    deadline = time.monotonic() + timeout
+    try:
+        while True:
+            _check_cancel(cancel_event)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(cmd, timeout)
+            try:
+                stdout, stderr = child.communicate(timeout=min(0.1, remaining))
+                _check_cancel(cancel_event)
+                return subprocess.CompletedProcess(cmd, child.returncode, stdout, stderr)
+            except subprocess.TimeoutExpired:
+                if time.monotonic() >= deadline:
+                    raise subprocess.TimeoutExpired(cmd, timeout) from None
+    finally:
+        # Always reap the disposable worker, including cancellation and timeout.
+        if child.poll() is None:
+            child.kill()
+        child.communicate()
+
+
+def process_file(source, output_root, options=None, progress=None, cancel_event=None):
     """Controller API: each source is decoded in a disposable child process."""
     source=Path(source).resolve();output_root=Path(output_root).resolve()
     options=dict(options or {})
+    _check_cancel(cancel_event)
     if options.get('extraction_mode', 'stripes') not in ('stripes', 'components'):
         raise ValueError('未知提取模式。')
     options['reference_directory']=_resolve_reference_directory(source,options)
@@ -201,8 +240,10 @@ def process_file(source, output_root, options=None, progress=None):
     if not options.get('force'):
         old=_cached_result(index,source,digest,fingerprint)
         if old is not None:
+            _check_cancel(cancel_event)
             report('复用已校验完整性的最新版本（保留人工修正）。')
             return old
+    _check_cancel(cancel_event)
     run=output_root/(_slug(source)+'_'+digest[:8]+'_'+key[:8]+'_run_'+datetime.now().strftime('%Y%m%d_%H%M%S_%f')+'_'+uuid.uuid4().hex[:6])
     base=run/'versions'/('initial_'+uuid.uuid4().hex[:12])
     base.mkdir(parents=True,exist_ok=False)
@@ -216,9 +257,10 @@ def process_file(source, output_root, options=None, progress=None):
     cmd=([str(python)]+worker_args) if FROZEN else ([str(python),'-X','utf8',str(ROOT/'engine.py')]+worker_args)
     timeout=float(options.get('timeout_seconds',1200))
     try:
-        child=subprocess.run(cmd,capture_output=True,encoding='utf8',errors='replace',
-                             timeout=timeout,cwd=ROOT,
-                             creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+        child=_execute_worker(cmd, timeout, cancel_event)
+    except ExtractionCancelled:
+        _write_json(base/'failure.json',{'source':str(source),'source_sha256':digest,'error':'cancelled'})
+        raise
     except subprocess.TimeoutExpired:
         _write_json(base/'failure.json',{'source':str(source),'source_sha256':digest,'error':'timeout','timeout_seconds':timeout})
         raise RuntimeError(f'该文件超过 {timeout:g} 秒，工作进程已终止，其他文件可继续。') from None
@@ -234,6 +276,7 @@ def process_file(source, output_root, options=None, progress=None):
     _check_pipeline(fingerprint,bool(options.get('use_ai')),options['reference_directory'],options.get('extraction_mode','stripes'))
     if _file_sha(source)!=digest:
         raise RuntimeError('处理过程中源文件发生变化，拒绝提交该次结果。')
+    _check_cancel(cancel_event)
     result=_commit_version(result)
     report(f'解析 {len(result["objects"])} 条曲线，{len(result["selected_ids"])} 条进入当前结果；状态：待复核。')
     return result

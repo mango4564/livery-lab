@@ -17,6 +17,24 @@ from core.source_regions import object_regions, region_for_ids, split_by_region,
 import xml.etree.ElementTree as ET
 
 
+def classified_patterns(category, ids, candidates):
+    """Keep independently classified marks separate, even within one region."""
+    if category not in ('logo', '门徽'):
+        return [list(ids)]
+    selected = set(ids)
+    groups = []
+    for c in candidates:
+        members = set(c.get('selected_ids', []))
+        if (category in c.get('recommended_categories', []) and members
+                and members <= selected and members not in groups):
+            groups.append(members)
+    groups = [g for g in groups if not any(g < other for other in groups)]
+    covered = set().union(*groups) if groups else set()
+    if selected-covered:
+        groups.append(selected-covered)
+    return [[oid for oid in ids if oid in group] for group in groups]
+
+
 class SelectionPreview(ImagePreview):
     def draw(self):
         super().draw()
@@ -223,7 +241,11 @@ class ReviewGallery(tk.Toplevel):
         super().__init__(parent)
         self.result = dict(result, source_regions=[dict(r) for r in result.get('source_regions', [])])
         self.regions = self.result['source_regions']
-        self.region_assignments = object_regions(result['objects'], self.regions)
+        stripe_ids = set(result.get('component_categories', {}).get('彩条') or [])
+        for c in result.get('component_candidates', []) + ([manual_candidate] if manual_candidate else []):
+            if '彩条' in c.get('category_hints', []):
+                stripe_ids.update(c.get('selected_ids', []))
+        self.region_assignments = object_regions(result['objects'], self.regions, partial_ids=stripe_ids)
         self.by_id = {o['id']: o for o in result['objects']}
         self.choices, self.choice_labels = {}, {}
         self.patterns = {name: [] for name in LABELS}
@@ -240,9 +262,11 @@ class ReviewGallery(tk.Toplevel):
         for name in LABELS:
             ids = result.get('component_categories', {}).get(name, [])
             if ids:
-                self.candidates.append({'id':'current-'+name, 'label':'当前提取 / 已保存修正',
-                                        'selected_ids':list(ids), 'category_hints':[name],
-                                        'recommended_categories':[name]})
+                groups = classified_patterns(name, ids, result.get('component_candidates', []))
+                for index, group in enumerate(groups):
+                    self.candidates.append({'id':f'current-{name}-{index}', 'label':'当前提取 / 已保存修正',
+                                            'selected_ids':group, 'category_hints':[name],
+                                            'recommended_categories':[name]})
         self.candidates.extend(result.get('component_candidates', []))
         if not result.get('component_categories'):
             for i, view in enumerate(result.get('views', [])):
@@ -298,6 +322,8 @@ class ReviewGallery(tk.Toplevel):
         self.heading.pack(anchor='w')
         ttk.Checkbutton(middle, text='显示全部组合（手动归类）', variable=self.show_all,
                         command=lambda:self._switch_category(self.category)).pack(anchor='w', pady=6)
+        ttk.Label(middle, text='默认展示已分类图案；补选可显示全部组合或从原稿选取。',
+                  foreground='#666666').pack(anchor='w', pady=(0, 4))
         style = ttk.Style(self)
         style.configure('ReviewGallery.Treeview', rowheight=96)
         self.tree = ttk.Treeview(middle, show='tree', selectmode='browse', style='ReviewGallery.Treeview', height=6)
@@ -482,14 +508,36 @@ class ReviewGallery(tk.Toplevel):
         self.current_candidate = None
         self.filtered = []
         seen = set()
+        allowed = set(self.by_id)
+        compact_graphics = self.category in ('彩条', 'logo', '车漆') and not self.show_all.get()
         for c in self.candidates:
             ids = c.get('selected_ids', [])
-            key = tuple(sorted(ids))
-            if not ids or key in seen or not set(ids)<=set(self.by_id):
+            if not ids or not set(ids) <= allowed:
                 continue
             if not self.show_all.get() and self.category not in c.get('category_hints', []):
                 continue
-            seen.add(key); self.filtered.append(c)
+            # Old manifests also contain broad, geometry-only hints. They
+            # must not turn windows, tyres or loose surfaces into results.
+            if (compact_graphics and self.category not in c.get('recommended_categories', [])
+                    and not c.get('id', '').startswith(('current-', 'manual-', 'saved-', 'legacy-'))):
+                continue
+            # Preview/export can remove paint or logos from a parent group.
+            # Compare the effective selection, not its original ownership.
+            effective = self._effective_ids(c)
+            key = frozenset(ids if self.show_all.get() else effective)
+            if not effective or key in seen:
+                continue
+            seen.add(key)
+            self.filtered.append(c)
+        if compact_graphics or (self.category == '门徽' and not self.show_all.get()):
+            # Current selections have already been split by source region.
+            # Offer the complete classified pattern, not each native subgroup
+            # and paint surface contained in that pattern. Keep user choices.
+            complete = [set(c['selected_ids']) for c in self.filtered
+                        if c.get('id', '').startswith('current-')]
+            self.filtered = [c for c in self.filtered
+                             if c.get('id', '').startswith(('current-', 'manual-', 'saved-', 'legacy-'))
+                             or not any(set(c['selected_ids']) < ids for ids in complete)]
         self.heading.configure(text=LABELS[self.category]+' · 候选图案')
         self._render_page()
         self._refresh_status()
@@ -633,6 +681,9 @@ class ReviewGallery(tk.Toplevel):
         self._refresh_status()
 
     def _add_pattern(self, category, ids):
+        if category == '彩条':
+            self.region_assignments.update(object_regions(
+                [self.by_id[i] for i in ids], self.regions, partial_ids=ids))
         groups = split_by_region(ids, self.region_assignments)
         if len(groups) > 1:
             direction = self.source_view.get()

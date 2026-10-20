@@ -1,5 +1,7 @@
 """Offline checks for preview scheduling, stale results and bounded redraws."""
 import threading
+import tempfile
+from pathlib import Path
 import time
 import tkinter as tk
 import unittest
@@ -10,6 +12,7 @@ from unittest.mock import patch
 from PIL import Image
 
 from ui import LiveryApp
+from vector_preview import VectorImage
 
 
 class ResponsivenessTests(TkTestCase):
@@ -119,6 +122,88 @@ class ResponsivenessTests(TkTestCase):
                            assets=((None, None), None, {}, {}, []))
         self.assertNotIn('result_png', app.preview_images)
         self.assertIsNone(app.preview_viewers['result_png'].image)
+
+    def test_loading_is_distinct_from_empty_and_error_stops_progress(self):
+        started, release = threading.Event(), threading.Event()
+        def prepare(*args, **kwargs):
+            started.set()
+            release.wait(3)
+            raise ValueError('broken fixture')
+        with patch.object(self.app, '_prepare_previews', side_effect=prepare):
+            self.app.current = 'task'
+            self.app._request_previews({'source': 'fixture'})
+            self.wait_for(started.is_set)
+            viewer = self.app.preview_viewers['result_png']
+            self.assertTrue(viewer._loading)
+            viewer.draw()
+            text = viewer.canvas.itemcget(viewer.canvas.find_withtag('preview')[-1], 'text')
+            self.assertIn('正在加载', text)
+            locator_text = self.app.source_locator.canvas.itemcget(
+                self.app.source_locator.canvas.find_all()[-1], 'text')
+            self.assertIn('正在加载', locator_text)
+            release.set()
+            self.wait_for(lambda: not viewer._loading)
+            self.assertIn('加载失败', viewer._empty_message)
+
+    def test_raster_appears_before_slow_vector_preparation(self):
+        started, release = threading.Event(), threading.Event()
+        def prepare(*args, **kwargs):
+            started.set()
+            release.wait(3)
+            images, messages = kwargs['prepared_images']
+            return (('fixture', None), None, {}, images, messages)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'preview.png'
+            Image.new('RGBA', (20, 10), 'blue').save(path)
+            with patch.object(self.app, '_prepare_previews', side_effect=prepare):
+                self.app.current = 'task'
+                self.app._request_previews({'preview_png': str(path)})
+                self.wait_for(started.is_set)
+                viewer = self.app.preview_viewers['preview_png']
+                self.wait_for(lambda: viewer.image is not None)
+                self.assertTrue(viewer._loading)
+                self.assertEqual(viewer.image.getpixel((0, 0)), (0, 0, 255, 255))
+                release.set()
+                self.wait_for(lambda: not viewer._loading)
+
+    def test_preview_is_applied_before_slow_locator(self):
+        started, release = threading.Event(), threading.Event()
+        image = Image.new('RGBA', (10, 10), 'green')
+        def locator(*args):
+            started.set()
+            release.wait(3)
+            return None
+        assets = (('fixture', None), None, {}, {'result_png': image}, [])
+        with patch.object(self.app, '_prepare_previews', return_value=assets), \
+                patch('ui.SourceLocatorRenderer.prepare', side_effect=locator):
+            self.app.current = 'task'
+            self.app._request_previews({'source': 'fixture'})
+            self.wait_for(started.is_set)
+            viewer = self.app.preview_viewers['result_png']
+            self.wait_for(lambda: viewer.image is image)
+            self.assertIsNone(self.app.source_locator.photo)
+            self.assertFalse(viewer._loading)
+            release.set()
+
+    def test_first_vector_frame_has_progress_and_stale_frame_cannot_end_loading(self):
+        viewer = self.app.preview_viewers['preview_png']
+        vector = VectorImage('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>')
+        started, release = threading.Event(), threading.Event()
+        original = vector.render
+        def render(*args):
+            started.set()
+            release.wait(3)
+            return original(*args)
+        with patch.object(vector, 'render', side_effect=render):
+            viewer.set_image(None, vector)
+            viewer.draw()
+            self.wait_for(started.is_set)
+            self.assertTrue(viewer._loading)
+            viewer.set_loading('正在加载另一份文件…')
+            release.set()
+            self.wait_for(lambda: viewer._render_after is None)
+            self.assertTrue(viewer._loading)
+            self.assertIsNone(viewer.photo)
 
 
 if __name__ == '__main__':

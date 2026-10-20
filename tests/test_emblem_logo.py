@@ -37,6 +37,51 @@ def badge_scene():
 
 
 class EmblemLogoTests(TkTestCase):
+    def test_parent_with_identical_members_preserves_arc_and_badge_below_it(self):
+        objects = [dict(id=str(i), source_offset=offset, bbox=box,
+                        d='M0 0H1V1Z', fill='none')
+                   for i, (offset, box) in enumerate(zip(
+                       (20, 30, 60, 70, 110, 120),
+                       ([0, 10, 2, 20], [18, 10, 20, 20],
+                        [5, -1, 9, 8], [9, -1, 14, 8],
+                        [21, 0, 24, 8], [24, 0, 26, 8])))]
+        containers = [dict(class_name=kind, source_offset=start, end_offset=end)
+                      for kind, start, end in (('AGroup', 0, 40), ('AArcText', 10, 40),
+                                                ('AGroup', 50, 80), ('AGroup', 100, 130))]
+        candidates, _ = build_candidates(objects, containers)
+        self.assertTrue(any(c['native_type']=='AArcText' and set(c['member_ids'])=={'0','1'}
+                            for c in candidates))
+        badge = next(c for c in candidates if c['native_type']=='DoorEmblem')
+        self.assertEqual(set(badge['member_ids']), {'0', '1', '2', '3'})
+        self.assertEqual(set(badge['logo_member_ids']), {'2', '3'})
+
+    def test_complete_phone_line_keeps_digits_and_glyph_groups_are_not_logos(self):
+        objects, containers = [], []
+        for side, dx in enumerate((0, 100)):
+            offset = side*1000
+            boxes = [[0, 0, 2, 10], [18, 0, 20, 10],
+                     [3, .1, 5, 2], [5, .1, 8, 2], [9, .2, 17, 1.9],
+                     [4, -3, 8, -1], [21, 0, 25, 2]]
+            for index, (pos, box) in enumerate(zip((20, 30, 50, 60, 70, 100, 110), boxes)):
+                objects.append(dict(id=f'{side}-{index}', source_offset=offset+pos,
+                                    bbox=[box[0]+dx, box[1], box[2]+dx, box[3]],
+                                    fill='#fab951', d='M0 0H1V1Z'))
+            containers.extend([
+                dict(class_name='AArcText', source_offset=offset+10, end_offset=offset+40),
+                dict(class_name='AText', source_offset=offset+40, end_offset=offset+80),
+                dict(class_name='AGroup', source_offset=offset+45, end_offset=offset+65)])
+        candidates, _ = build_candidates(objects, containers)
+        badges = [c for c in candidates if c['native_type']=='DoorEmblem']
+        self.assertEqual(len(badges), 2)
+        self.assertFalse(any(c['native_type']=='EmblemLogo' for c in candidates))
+        for side in (0, 1):
+            badge = next(c for c in badges if f'{side}-0' in c['member_ids'])
+            self.assertEqual(set(badge['member_ids']), {f'{side}-{i}' for i in range(5)})
+            self.assertEqual(set(badge['text_member_ids']), {f'{side}-{i}' for i in (2, 3, 4)})
+        resolved = resolve_categories(objects, candidates,
+                                      decision(门徽=[c['id'] for c in badges]))
+        self.assertEqual(set(resolved['门徽']), {f'{s}-{i}' for s in (0, 1) for i in range(5)})
+
     def test_small_logo_and_complete_badge_survive_caps_and_keep_logo_with_arc(self):
         objects, containers = badge_scene()
         candidates, coverage = build_candidates(objects, containers)

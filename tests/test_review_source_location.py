@@ -22,7 +22,8 @@ class ReviewSourceLocationTests(TkTestCase):
         self.addCleanup(self.root.destroy)
         self.result = fixture(Path(self.temp.name))
         self.result['component_candidates'] = [
-            {'id': 'alternate', 'selected_ids': ['5'], 'category_hints': ['彩条']}]
+            {'id': 'alternate', 'selected_ids': ['5'], 'category_hints': ['彩条'],
+             'recommended_categories': ['彩条']}]
         mock = patch('core.fs_scene.source_preview_objects', return_value=self.result['objects'])
         self.reader = mock.start()
         self.addCleanup(mock.stop)

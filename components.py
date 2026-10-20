@@ -1,5 +1,6 @@
 """Six-category recognition with separate coverage for source paint surfaces."""
 import bisect
+import colorsys
 import hashlib
 import json
 import math
@@ -38,6 +39,21 @@ def paint_candidates(objects):
                        'member_ids': [obj['id']], 'aspect': w/h, 'area': w*h})
     all_surfaces = sorted(result, key=lambda c: -c['area'])
     surfaces = [c for c in all_surfaces if c['area'] >= page_area*.001]
+    # Reserve spatial coverage before repeated windows and nested surfaces
+    # consume the paint budget. Front/rear bases are smaller than side bases.
+    coverage_surfaces = []
+    for surface in surfaces:
+        box = surface['bbox']
+        covered = False
+        for primary in coverage_surfaces:
+            a = primary['bbox']
+            overlap = max(0, min(a[2], box[2])-max(a[0], box[0])) * max(
+                0, min(a[3], box[3])-max(a[1], box[1]))
+            if overlap/surface['area'] >= .8:
+                covered = True
+                break
+        if not covered:
+            coverage_surfaces.append(dict(surface, coverage_anchor=True))
     # A side's base can live outside its vehicle group while the roof and
     # mirror housings live inside it. Global area ranking loses those smaller
     # surfaces. Offer regional bundles AND their individual paths for review;
@@ -81,7 +97,7 @@ def paint_candidates(objects):
                         'paint_anchor_id': source['id']})
         details.extend([anchor] + companions)
     proposals, provided = [], set()
-    for c in bundles + details + surfaces:
+    for c in coverage_surfaces + bundles + details + surfaces:
         key = tuple(c['member_ids'])
         if key not in provided:
             provided.add(key)
@@ -140,10 +156,10 @@ def loose_graphics(objects, native_candidates):
     for obj in objects:
         x0, y0, x1, y1 = obj['bbox']
         w, h = x1-x0, y1-y0
-        if (obj['id'] in owned or 'C' not in obj.get('d', '')
+        if (obj['id'] in owned or not obj.get('d')
                 or obj.get('fill') in (None, 'none')
                 or obj.get('details', {}).get('closed') is False
-                or w < dw*.05 or h <= 1e-5 or w/h < 1.8 or h > dh*.3):
+                or w < dw*.003 or h <= 1e-5 or h > dh*.3):
             continue
         paths.append(obj)
 
@@ -156,6 +172,35 @@ def loose_graphics(objects, native_candidates):
                 'member_ids': [o['id'] for o in members], 'aspect': w/h, 'area': w*h}
 
     remaining = list(paths)
+    # Bounding boxes of curved stripes contain large empty areas. A matching
+    # colour inside that box is not evidence that a patch belongs to the stripe.
+    import skia
+    shapes = {}
+
+    def shape_neighbours(first, second):
+        a, b = first['bbox'], second['bbox']
+        widths = (a[2]-a[0], b[2]-b[0])
+        distance = max(widths)*.03
+        if min(widths) < max(widths)*.15:
+            # Short companions must meet the design, not merely sit near it.
+            distance = min(widths)*.1
+        try:
+            for obj in (first, second):
+                if obj['id'] not in shapes:
+                    path = VectorImage._path(obj['d'])
+                    path.transform(VectorImage._matrix('matrix('+','.join(
+                        str(v) for v in obj.get('matrix', [1, 0, 0, 1, 0, 0]))+')'))
+                    shapes[obj['id']] = path
+            expanded = skia.Path()
+            skia.Paint(Style=skia.Paint.kStrokeAndFill_Style,
+                       StrokeWidth=max(distance*2, 1e-5)).getFillPath(shapes[first['id']], expanded)
+            return not skia.Op(expanded, shapes[second['id']],
+                               skia.PathOp.kIntersect_PathOp).isEmpty()
+        except (ValueError, RuntimeError):
+            # Leave unsupported geometry out of inferred bundles; the source
+            # remains available for manual selection.
+            return False
+
     bundles = []
     while remaining:
         cluster = [remaining.pop(0)]
@@ -169,25 +214,35 @@ def loose_graphics(objects, native_candidates):
                     overlap_x = min(a[2], b[2])-max(a[0], b[0])
                     overlap_y = min(a[3], b[3])-max(a[1], b[1])
                     if (obj['fill'] == other['fill']
-                            and overlap_x > min(a[2]-a[0], b[2]-b[0])*.15
-                            and overlap_y >= -max(a[3]-a[1], b[3]-b[1])*.1):
+                            and overlap_x >= -max(a[2]-a[0], b[2]-b[0])*.03
+                            and overlap_y >= -max(a[3]-a[1], b[3]-b[1])*.1
+                            and shape_neighbours(obj, other)):
                         cluster.append(obj)
                         remaining.remove(obj)
                         changed = True
                         break
-        if len(cluster) > 1:
+        if (len(cluster) > 1 and any(
+                o['bbox'][2]-o['bbox'][0] >= dw*.05 and
+                (o['bbox'][2]-o['bbox'][0]) / (o['bbox'][3]-o['bbox'][1]) >= 1.8 for o in cluster)):
             bundles.append(proposal(cluster, 'SpatialPaths'))
     bundles.sort(key=lambda c: -c['area'])
-    return bundles + sorted((proposal([o], 'SourcePath') for o in paths),
+    bundled_ids = {oid for c in bundles for oid in c['member_ids']}
+    singles = sorted((proposal([o], 'SourcePath') for o in paths
+                             if o['bbox'][2]-o['bbox'][0] >= dw*.05
+                             and (o['bbox'][2]-o['bbox'][0]) / (o['bbox'][3]-o['bbox'][1]) >= 1.8),
                             key=lambda c: -c['area'])
+    # Reserve coverage before offering the individual children of bundles.
+    # Otherwise side-view subpaths displace smaller front/rear decorations.
+    return bundles + [c for c in singles if c['member_ids'][0] not in bundled_ids] + [
+        c for c in singles if c['member_ids'][0] in bundled_ids]
 
 
 def emblem_candidates(native_candidates):
     """Expose complete arc badges and their nested graphics before area caps.
 
     These are native source groups, not colour-based automatic labels. Keep
-    maximal nested graphics inside the arc envelope, excluding technical text
-    underneath it and vehicle-sized parents.
+    maximal nested graphics and complete text lines inside the arc envelope,
+    excluding technical text underneath it and vehicle-sized parents.
     """
     result, seen = [], set()
     for arc in native_candidates:
@@ -196,24 +251,43 @@ def emblem_candidates(native_candidates):
         a = arc['bbox']
         aw, ah = a[2]-a[0], a[3]-a[1]
         arc_ids = set(arc['member_ids'])
+        captions = [c for c in native_candidates
+                    if c['native_type'] == 'AText'
+                    and not arc_ids.intersection(c['member_ids'])
+                    and a[0] <= c['bbox'][0] and a[1] <= c['bbox'][1]
+                    and c['bbox'][2] <= a[2] and c['bbox'][3] <= a[3]
+                    and c['bbox'][2]-c['bbox'][0] <= aw*.95
+                    and c['bbox'][3]-c['bbox'][1] <= ah*.4]
+        caption_members = {o['id']: o for c in captions for o in c['members']}
         graphics = []
         for c in native_candidates:
             b = c['bbox']
+            inside = a[0] <= b[0] and a[1] <= b[1] and b[2] <= a[2] and b[3] <= a[3]
+            # An upper arc can sit above its emblem rather than enclosing it.
+            # Offer only a compact native group directly below the arc span;
+            # the visual classifier still decides whether it is a badge.
+            below = (a[0] <= b[0] and b[2] <= a[2]
+                     and 0 <= a[1]-b[3] <= aw*.15 and b[1] >= a[1]-aw*.8)
             if (c['native_type'] not in ('AGroup', 'AComposite')
                     or arc_ids.intersection(c['member_ids'])
-                    or not (a[0] <= b[0] and a[1] <= b[1] and b[2] <= a[2] and b[3] <= a[3])
-                    or b[2]-b[0] > aw*.65 or b[3]-b[1] > ah*.8
+                    or not (inside or below)
+                    or b[2]-b[0] > aw*.65 or b[3]-b[1] > max(ah*.8, aw*.6)
                     or c['area'] < arc['area']*.005):
                 continue
             graphics.append(c)
         maximal = [c for c in graphics if not any(
             set(c['member_ids']) < set(other['member_ids']) for other in graphics)]
-        logo_members = {o['id']: o for c in maximal for o in c['members']}
-        if not logo_members:
+        # Composite glyphs inside AText are text, even when they resemble a
+        # small native graphic group. Keep the entire line, including digits.
+        logo_members = {o['id']: o for c in maximal for o in c['members']
+                        if o['id'] not in caption_members}
+        if not logo_members and not caption_members:
             continue
         for kind, members in (
-                ('DoorEmblem', {o['id']: o for o in arc['members']} | logo_members),
+                ('DoorEmblem', {o['id']: o for o in arc['members']} | logo_members | caption_members),
                 ('EmblemLogo', logo_members)):
+            if not members:
+                continue
             members = sorted(members.values(), key=lambda o: o['source_offset'])
             ids = tuple(o['id'] for o in members)
             if ids in seen:
@@ -225,6 +299,7 @@ def emblem_candidates(native_candidates):
                            'source_span': [members[0]['source_offset'], members[-1]['source_offset']],
                            'member_ids': list(ids), 'aspect': w/h, 'area': w*h,
                            'arc_member_ids': list(arc['member_ids']),
+                           'text_member_ids': list(caption_members),
                            'logo_member_ids': list(logo_members)})
     return result
 
@@ -285,7 +360,10 @@ def build_candidates(objects, containers, limit=120):
     objects = sorted(objects, key=lambda o: o['source_offset'])
     offsets = [o['source_offset'] for o in objects]
     candidates, seen = [], set()
-    for group in containers:
+    # A text container may have exactly the same paths as an enclosing group.
+    # Preserve its native text identity before deduplicating memberships.
+    for group in sorted(containers, key=lambda g: (
+            {'AArcText': 0, 'AText': 1}.get(g['class_name'], 2), g['source_offset'])):
         if group['class_name'] not in ('AGroup', 'AComposite', 'AText', 'AArcText'):
             continue
         lo = bisect.bisect_left(offsets, group['source_offset'])
@@ -309,17 +387,50 @@ def build_candidates(objects, containers, limit=120):
     paint = paint_candidates(objects)
     badges = emblem_candidates(candidates)
     wordmarks = wordmark_candidates(candidates)
-    buckets = [[], [], badges+wordmarks, loose, paint]
+    # Compact graphics, including gradients and unlettered marks, otherwise
+    # lose to vehicle parts in area ranking. Preserve separate placements.
+    # This only reserves visual proposals; the model must classify them.
+    details = []
+    for c in candidates:
+        if c['native_type'] != 'AGroup' or not 2 <= len(c['members']) <= 80:
+            continue
+        if (3 <= len(c['members']) <= 40 and .8 < c['aspect'] < 1.25
+                and c['area'] < max_area*.005
+                and any(o.get('d', '').count('C') >= 3 for o in c['members'])):
+            # Include neutral badges for visual review as well as colourful
+            # marks. This pool also contains hardware: never auto-label it.
+            details.append(dict(c, native_type='CompactGraphic'))
+        colors = set()
+        for obj in c['members']:
+            fills = [obj.get('fill') or '']
+            fills.extend(stop.get('color', '') for stop in
+                         (obj.get('gradient') or {}).get('definition', {}).get('stops', []))
+            for color in fills:
+                if re.fullmatch(r'#[0-9a-fA-F]{6}', color):
+                    rgb = bytes.fromhex(color[1:])
+                    if max(rgb)-min(rgb) > 45:
+                        colors.add(color.lower())
+        hues = [colorsys.rgb_to_hsv(*(v/255 for v in bytes.fromhex(color[1:])))[0]
+                for color in colors]
+        distinct_hues = any(min(abs(a-b), 1-abs(a-b)) >= 1/9
+                            for a in hues for b in hues)
+        if (distinct_hues and (c['area'] < max_area*.01
+                              or (c['area'] < max_area*.75 and c['aspect'] < 3))
+                and .5 < c['aspect'] < 8):
+            details.append(dict(c, native_type='DetailGraphic'))
+    buckets = [[], [], badges+wordmarks+details, loose, paint]
     for c in candidates:
         body = 2.2 < c['aspect'] < 5.5 and c['area'] > max_area * .025 and len(c['members']) > 100
         bucket = 0 if body else 1 if c['native_type'] in ('AText','AArcText') else 2
         buckets[bucket].append(c)
     selected = []
     leftovers = []
+    priority_types = ('DoorEmblem', 'EmblemLogo', 'WordmarkText', 'WordmarkLogo',
+                      'DetailGraphic', 'CompactGraphic')
     caps = [limit//6]*4 + [limit-4*(limit//6)]
     for index, (bucket, cap) in enumerate(zip(buckets, caps)):
         if index not in (3, 4):
-            bucket.sort(key=lambda c: (c['native_type'] not in ('DoorEmblem', 'EmblemLogo', 'WordmarkText', 'WordmarkLogo'),
+            bucket.sort(key=lambda c: (c['native_type'] not in priority_types,
                                        -c['area'], len(c['members'])))
         local = []
         for c in bucket:
@@ -328,8 +439,15 @@ def build_candidates(objects, containers, limit=120):
                    for other in local):
                 continue
             local.append(c)
+        if index == 2:
+            # End views also live in this bucket. Keep their large native
+            # anchors available when a complex page has many small graphics.
+            anchors = [c for c in local if len(c['members']) > 100
+                       and c['area'] > max_area*.025]
+            local = anchors + [c for c in local if c not in anchors]
         selected.extend(local[:cap])
         leftovers.extend(local[cap:])
+    leftovers.sort(key=lambda c: c['native_type'] not in priority_types)
     selected.extend(leftovers[:max(0, limit-len(selected))])
     for i, c in enumerate(selected):
         c.update(id=f'G{i+1:03d}', score=1, fill='none')
@@ -362,12 +480,37 @@ def candidate_atlas(candidates, path):
     sheet.save(path)
 
 
+def detail_candidates(candidates):
+    """Show native decorations as clearly as generated path proposals.
+
+    This selects visual evidence only; it does not assign category hints.
+    """
+    bounds = union_bounds(candidates)
+    page_width = max(bounds[2]-bounds[0], 1e-6)
+    result = []
+    for c in candidates:
+        box = c['bbox']
+        w, h = box[2]-box[0], box[3]-box[1]
+        native_graphic = (
+            c['native_type'] in ('AGroup', 'AComposite')
+            and 2 <= len(c['members']) <= 30
+            and w >= page_width*.1 and w >= 1.8*h
+            and any(o.get('fill') not in (None, 'none') for o in c['members']))
+        if (native_graphic or c.get('coverage_anchor')
+                or c['native_type'] in ('DetailGraphic', 'CompactGraphic', 'DoorEmblem', 'EmblemLogo', 'SpatialPaths', 'SourcePath')):
+            result.append(c)
+    return result
+
+
 def prepare(source, directory, limit=120):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     objects, containers = load_scene(source)
     candidates, coverage = build_candidates(objects, containers, limit)
     candidate_atlas(candidates, directory/'group_atlas.png')
+    detail = detail_candidates(candidates)
+    if detail:
+        candidate_atlas(detail, directory/'group_details.png')
     rasterize(svg_document(objects, width=1800, background='#ffffff'), directory/'source_scene.png')
     return objects, candidates, coverage
 
@@ -377,7 +520,10 @@ def recognize_groups(candidates, directory, config):
     directory = Path(directory)
     metadata = [{k: c[k] for k in ('id', 'bbox', 'native_type', 'source_span')} |
                 {'path_count': len(c['member_ids'])} for c in candidates]
-    return recognize({'objects': candidates, 'component_mode': True, 'group_metadata': metadata},
+    scene = {'objects': candidates, 'component_mode': True, 'group_metadata': metadata}
+    if (directory/'group_details.png').exists():
+        scene['candidate_sheet_png'] = str(directory/'group_details.png')
+    return recognize(scene,
                      directory/'source_scene.png', directory/'group_atlas.png',
                      dict(config, max_candidates=max(len(candidates), 1)))
 
@@ -438,31 +584,24 @@ def run(source, directory, config, *, use_ai=True):
 def review_candidates(candidates, decision):
     """Compact source memberships for lazy visual review, without new geometry."""
     largest = max((c['area'] for c in candidates), default=1)
-    widest = max((c['bbox'][2]-c['bbox'][0] for c in candidates), default=1)
     result = []
     for c in candidates:
         recommended = [name for name, groups in decision['categories'].items() if c['id'] in groups]
         hints = list(recommended)
         if not hints:
-            if c['native_type'] in ('PaintSurface', 'PaintRegion'):
-                hints = ['车漆']
-            elif c['native_type'] in ('AArcText', 'DoorEmblem'):
+            # Geometry/appearance proposals are not semantic classifications.
+            # Keep unclassified surfaces, graphics and logos in the manual
+            # pool instead of presenting vehicle parts as category results.
+            if c['native_type'] in ('AArcText', 'DoorEmblem'):
                 hints = ['门徽']
-            elif c['native_type'] == 'EmblemLogo':
-                hints = ['logo', '门徽']
-            elif c['native_type'] == 'WordmarkLogo':
-                hints = ['logo']
             elif c['native_type'] == 'WordmarkText':
                 hints = ['文字']
             elif c['native_type'] == 'AText':
                 hints = ['文字']
             elif c['area'] > largest*.025 and 2.2 < c['aspect'] < 5.5 and len(c['member_ids']) > 100:
                 hints = ['车身']
-            elif len(c['member_ids']) < 150:
-                hints = ['logo']
-                if c['aspect'] > 2 and c['bbox'][2]-c['bbox'][0] > widest*.12:
-                    hints.append('彩条')
         result.append({'id':c['id'], 'label':c['id']+' · '+c['native_type'],
+                       'native_type': c['native_type'],
                        'selected_ids':list(c['member_ids']), 'bbox':c['bbox'],
                        'source_view': decision.get('source_views', {}).get(c['id'], '待确认视图'),
                        'category_hints':hints, 'recommended_categories':recommended})

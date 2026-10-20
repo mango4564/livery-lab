@@ -31,6 +31,7 @@ class LiveryApp:
         self.events: queue.Queue = queue.Queue()
         self.stop_event = threading.Event()
         self.busy = False
+        self._closed = False
         self.sources: dict[str, Path] = {}
         self.results: dict[str, dict] = {}
         self.selections: dict[str, set[str]] = {}
@@ -40,6 +41,7 @@ class LiveryApp:
         self._source_vector = None
         self._active_group = None
         self._preview_generation = 0
+        self._preview_assets_generation = None
         self._preview_requests = queue.Queue(maxsize=1)
         self._preview_thread = None
         self._displayed_task = None
@@ -73,7 +75,7 @@ class LiveryApp:
         self.remove_button.pack(side="left")
         self.start_button = ttk.Button(toolbar, text="开始批量提取", command=self._start)
         self.start_button.pack(side="right")
-        self.stop_button = ttk.Button(toolbar, text="停止后续任务", command=self._stop, state="disabled")
+        self.stop_button = ttk.Button(toolbar, text="停止提取", command=self._stop, state="disabled")
         self.stop_button.pack(side="right", padx=6)
         self.retry_button = ttk.Button(toolbar, text="重试失败任务", command=self._retry_failed, state="disabled")
         self.retry_button.pack(side="right")
@@ -462,7 +464,7 @@ class LiveryApp:
     def _batch_worker(self, jobs, output, force=False, use_ai=False, reference_directory="", concurrency=1, extraction_mode='stripes'):
         try:
             from concurrent.futures import ThreadPoolExecutor, as_completed
-            from engine import process_file
+            from engine import process_file, ExtractionCancelled
             output.mkdir(parents=True, exist_ok=True)
             worker_count = max(1, min(int(concurrency), len(jobs)))
             self.events.put(("log", f"本批次同时处理 {worker_count} 个文件，共 {len(jobs)} 个文件。"))
@@ -476,9 +478,11 @@ class LiveryApp:
                         output,
                         options={"force": force, "use_ai": use_ai, "reference_directory": reference_directory,
                                  "extraction_mode": extraction_mode},
-                        progress=lambda text: self.events.put(("log", f"[{source.name}] {text}"))
-                    )
+                        progress=lambda text: self.events.put(("log", f"[{source.name}] {text}")),
+                        cancel_event=self.stop_event)
                     self.events.put(("result", item, result))
+                except ExtractionCancelled:
+                    self.events.put(("cancelled", item))
                 except Exception as exc:
                     self.events.put(("failed", item, str(exc)))
                     self.events.put(("log", f"[{source.name}] 失败：{exc}\n{traceback.format_exc()}"))
@@ -498,11 +502,11 @@ class LiveryApp:
         except Exception as exc:
             self.events.put(("error", f"提取引擎无法启动：{exc}\n请确认 engine.py 及其依赖已安装。"))
         finally:
-            self.events.put(("done", "已停止后续任务。" if self.stop_event.is_set() else "批量处理结束。可逐项查看结果并修正。"))
+            self.events.put(("done", "提取已停止，已完成的结果已保留。" if self.stop_event.is_set() else "批量处理结束。可逐项查看结果并修正。"))
 
     def _stop(self):
         self.stop_event.set()
-        self.status.set("已请求停止，正在等待当前运行中的任务结束…")
+        self.status.set("正在终止提取进程，已完成的结果会保留…")
         self.stop_button.configure(state="disabled")
 
     def _task_selected(self, _event=None):
@@ -582,9 +586,17 @@ class LiveryApp:
             self.preview_images.clear()
             self._source_preview_key = None
             self._source_vector = None
-            for viewer in self.preview_viewers.values():
-                viewer.set_image(None)
+        if self.current is None:
             self.source_locator.set_source(None, None)
+        else:
+            self.source_locator.set_loading()
+        for key, viewer in self.preview_viewers.items():
+            if result_only and key != 'result_png':
+                continue
+            if self.current is None:
+                viewer.set_empty('请选择文件查看预览')
+            else:
+                viewer.set_loading('正在加载预览…')
         try:
             self._preview_requests.get_nowait()
         except queue.Empty:
@@ -603,16 +615,26 @@ class LiveryApp:
             if request is None:
                 return
             generation, item, result, result_only, source, source_vector = request
+            if generation != self._preview_generation:
+                continue
             try:
                 key = (result.get('source'), result.get('source_sha256'))
                 vector = cache.get(key, source_vector)
-                assets = self._prepare_previews(result, source, vector, result_only=result_only)
+                images, image_messages = self._read_preview_images(result, result_only=result_only)
+                if images:
+                    self.events.put(('preview_rasters', generation, item, images))
+                assets = self._prepare_previews(result, source, vector, result_only=result_only,
+                                                prepared_images=(images, image_messages))
                 key = assets[0]
                 if assets[1] is not None:
                     cache[key] = assets[1]
                     cache.move_to_end(key)
                     while len(cache) > 3:
                         cache.popitem(last=False)
+                if generation != self._preview_generation:
+                    continue
+                if assets[2] or assets[3]:
+                    self.events.put(('preview_assets', generation, item, result, result_only, assets))
                 page, bounds = self._locator_source(result, assets[1])
                 page_key = page['image'] if page is not None else None
                 locator = locators.get(page_key)
@@ -630,7 +652,8 @@ class LiveryApp:
                 self.events.put(('preview_error', generation, str(exc)))
 
     @staticmethod
-    def _prepare_previews(result, source=None, source_vector=None, *, result_only=False):
+    def _prepare_previews(result, source=None, source_vector=None, *, result_only=False,
+                          prepared_images=None):
         result = dict(result)
         messages = []
         if not result and source is not None:
@@ -664,6 +687,14 @@ class LiveryApp:
                 vectors['result_png'] = VectorImage(Path(svg_path).read_text(encoding='utf8'))
             except Exception as exc:
                 messages.append(f"结果矢量预览无法读取：{exc}")
+        images, image_messages = (prepared_images if prepared_images is not None else
+                                  LiveryApp._read_preview_images(result, result_only=result_only))
+        messages.extend(image_messages)
+        return source_key, source_vector, vectors, images, messages
+
+    @staticmethod
+    def _read_preview_images(result, *, result_only=False):
+        images, messages = {}, []
         for key in ('preview_png', 'candidate_png', 'result_png'):
             if result_only and key != 'result_png':
                 continue
@@ -674,9 +705,9 @@ class LiveryApp:
                         images[key] = img.convert('RGBA')
                 except (OSError, ValueError) as exc:
                     messages.append(f"预览无法读取：{path}（{exc}）")
-        return source_key, source_vector, vectors, images, messages
+        return images, messages
 
-    def _load_previews(self, result, *, result_only=False, assets=None):
+    def _load_previews(self, result, *, result_only=False, assets=None, update_locator=True):
         if assets is None:
             assets = self._prepare_previews(result, self.sources.get(self.current),
                 self._source_vector if self._source_preview_key ==
@@ -700,7 +731,17 @@ class LiveryApp:
                 raster_label=("位图 · FS 内嵌原图，清晰度受文件内缩略图限制"
                               if key == 'preview_png' else "位图 · 候选编号预览" if key == 'candidate_png'
                               else "位图 · 提取结果预览"))
+            if key not in images and key not in vectors:
+                viewer = self.preview_viewers[key]
+                if self.current is None:
+                    viewer.set_empty('请选择文件查看预览')
+                elif not result and key != 'preview_png':
+                    viewer.set_empty('提取完成后显示候选对象' if key == 'candidate_png' else '提取完成后显示结果')
+                else:
+                    viewer.set_empty('该文件未提供可显示的预览，请查看运行日志')
 
+        if not update_locator:
+            return
         if len(assets) > 5:
             self.source_locator.show_prepared(*assets[5])
         else:
@@ -734,13 +775,34 @@ class LiveryApp:
             except queue.Empty:
                 break
             kind, *args = event
-            if kind == 'previews':
+            if kind == 'preview_rasters':
+                generation, item, images = args
+                if generation == self._preview_generation and item == self.current:
+                    for key, image in images.items():
+                        viewer = self.preview_viewers[key]
+                        viewer.set_image(image, raster_label='位图 · 正在准备矢量预览')
+                        viewer._start_loading('预览已显示，正在准备矢量与原稿位置…')
+            elif kind == 'preview_assets':
                 generation, item, result, result_only, assets = args
                 if generation == self._preview_generation and item == self.current:
-                    self._load_previews(result, result_only=result_only, assets=assets)
+                    self._load_previews(result, result_only=result_only, assets=assets, update_locator=False)
+                    self._preview_assets_generation = generation
+            elif kind == 'previews':
+                generation, item, result, result_only, assets = args
+                if generation == self._preview_generation and item == self.current:
+                    if self._preview_assets_generation == generation:
+                        self.source_locator.show_prepared(*assets[5])
+                    else:
+                        self._load_previews(result, result_only=result_only, assets=assets)
             elif kind == 'preview_error':
                 if args[0] == self._preview_generation:
                     self._append_log(f'预览加载失败：{args[1]}')
+                    for viewer in self.preview_viewers.values():
+                        if viewer._loading and viewer.image is None:
+                            viewer.set_empty('预览加载失败，请查看运行日志后重试')
+                        elif viewer.image is not None:
+                            viewer._stop_loading()
+                    self.source_locator.show_prepared(None, None, None)
             elif kind == "log":
                 self._append_log(args[0])
             elif kind == "running":
@@ -770,21 +832,27 @@ class LiveryApp:
                 self.tasks.set(item, "status", "失败")
                 self._update_retry_button()
                 self._append_log(f"{self.sources[item].name} 失败：{error}")
+            elif kind == "cancelled":
+                self.tasks.set(args[0], "status", "已停止")
             elif kind == "step":
                 self.progress.configure(value=min(float(self.progress["maximum"]), float(self.progress["value"]) + 1))
             elif kind == "error":
                 self._append_log(args[0])
                 messagebox.showerror("处理失败", args[0])
             elif kind == "done":
+                if self.stop_event.is_set():
+                    for item in self.sources:
+                        if self.tasks.set(item, "status") in ("待处理", "等待重试", "处理中"):
+                            self.tasks.set(item, "status", "已停止")
                 self._set_busy(False)
                 self.status.set(args[0])
         self._drain_after = self.root.after(10 if not self.events.empty() else 100, self._drain)
 
     def _close(self):
-        if self.busy:
-            self.stop_event.set()
-            self.status.set("正在处理文件，请等待完成后关闭；已停止后续任务。")
+        if self._closed:
             return
+        self._closed = True
+        self.stop_event.set()
         self.root.after_cancel(self._drain_after)
         self._preview_generation += 1
         try:

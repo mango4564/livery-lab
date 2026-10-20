@@ -30,7 +30,7 @@ class TestBatchConcurrency(unittest.TestCase):
         lock = threading.Lock()
         state = {'active': 0, 'peak': 0}
 
-        def process(source, out_dir, options=None, progress=None):
+        def process(source, out_dir, options=None, progress=None, cancel_event=None):
             self.assertTrue(options['use_ai'])
             with lock:
                 state['active'] += 1

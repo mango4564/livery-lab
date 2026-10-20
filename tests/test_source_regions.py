@@ -55,6 +55,60 @@ class SourceRegionTests(TkTestCase):
         overlapping = dict(regions[0], id='R3')
         self.assertNotIn('stripe', object_regions(objects, regions+[overlapping]))
 
+    def test_paint_panel_rounding_drift_stays_with_view_but_crossing_does_not(self):
+        region = dict(id='R1', bbox=[100, 200, 440, 336], selected_ids=['body'])
+        objects = [dict(id='base', bbox=[110, 215, 440.003, 336.027]),
+                   dict(id='outside', bbox=[110, 215, 441, 336]),
+                   dict(id='roof', bbox=[120, 330, 130, 335])]
+        self.assertEqual(object_regions(objects, [region]), {'base': 'R1', 'roof': 'R1'})
+        self.assertNotIn('base', object_regions(objects, [region, dict(region, id='R2')]))
+
+    def test_classified_stripes_bleeding_outside_anchor_keep_separate_regions(self):
+        regions = [dict(id='R1', bbox=[0, 100, 100, 140], selected_ids=['left']),
+                   dict(id='R2', bbox=[0, 0, 100, 40], selected_ids=['right'])]
+        objects = [dict(id='left-stripe', bbox=[5, 95, 100.1, 130]),
+                   dict(id='right-stripe', bbox=[-.1, -5, 95, 30]),
+                   dict(id='crossing', bbox=[5, 25, 95, 115]),
+                   dict(id='unclassified-panel', bbox=[5, 95, 100.1, 130])]
+        self.assertEqual(object_regions(objects, regions), {})
+        eligible = ['left-stripe', 'right-stripe', 'crossing']
+        self.assertEqual(object_regions(objects, regions, partial_ids=eligible),
+                         {'left-stripe': 'R1', 'right-stripe': 'R2'})
+        overlapping = regions+[dict(regions[0], id='R3')]
+        self.assertNotIn('left-stripe', object_regions(objects, overlapping, partial_ids=eligible))
+
+    def test_gallery_and_export_split_overhanging_multicolour_stripes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            result = fixture(Path(temp))
+            # Source rectangles, including geometry, actually extend past anchors.
+            for index, obj in enumerate(result['objects']):
+                x = index % 3*15
+                y = 100 if index < 3 else 0
+                obj.update(bbox=[x, y-1, x+10, y+7],
+                           d=f'M{x} {y-1}H{x+10}V{y+7}H{x}Z')
+            result['component_categories'] = {n: [] for n in LABELS}
+            result['component_categories']['彩条'] = [o['id'] for o in result['objects']]
+            result['source_regions'] = [
+                dict(id='R1', name='左视图', source_view='左视图', anchor_ids=['G1'],
+                     bbox=[0, 100, 50, 120], selected_ids=['body-left']),
+                dict(id='R2', name='右视图', source_view='右视图', anchor_ids=['G2'],
+                     bbox=[0, 0, 50, 20], selected_ids=['body-right'])]
+            root = tk.Tk(); root.withdraw(); self.addCleanup(root.destroy)
+            gallery = ReviewGallery(root, result, Path(temp)/'out'); gallery.withdraw()
+            self.addCleanup(gallery.destroy)
+            gallery._switch_category('彩条')
+            self.assertEqual([c['selected_ids'] for c in gallery.filtered],
+                             [['0', '1', '2'], ['3', '4', '5']])
+            # Legacy mixed entries must also split at export without UI help.
+            choices = {n: None for n in LABELS}; choices['彩条'] = list(result['component_categories']['彩条'])
+            patterns = {n: [] for n in LABELS}
+            patterns['彩条'] = [dict(selected_ids=choices['彩条'], source_view='混合视图')]
+            exported = export_reviewed(result, choices, Path(temp)/'out', patterns=patterns)
+            entries = exported['manifest']['categories']['彩条']['patterns']
+            self.assertEqual([e['selected_ids'] for e in entries], [['0', '1', '2'], ['3', '4', '5']])
+            self.assertTrue(entries[0]['files'][0].startswith('左视图_彩条_01_'))
+            self.assertTrue(entries[1]['files'][0].startswith('右视图_彩条_02_'))
+
     def test_gallery_split_rename_export_layers_and_restore(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)

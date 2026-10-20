@@ -7,7 +7,7 @@ import unittest
 import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
-from components import build_candidates
+from components import build_candidates, paint_candidates, detail_candidates
 from core.paint import normalize_categories
 from core.svg_layers import SVG, INK, LayerOrderError, layered_svg, _same_render
 from geometry import svg_document
@@ -22,6 +22,30 @@ def rectangle(oid, fill, x=0):
 
 
 class PaintLayersTests(unittest.TestCase):
+    def test_eight_regions_get_large_surface_coverage_before_nested_windows(self):
+        objects, bases = [], set()
+        for row in range(4):
+            y = row*200
+            for width, x, height in ((460, 0, 130), (100, 550, 115)):
+                obj = rectangle(str(len(objects)), '#dee2e3' if row < 2 else '#9bdac7')
+                obj['bbox'] = [x, y, x+width, y+height]
+                bases.add(obj['id']); objects.append(obj)
+            # Nested body/glas surfaces outnumber the ordinary paint budget.
+            for index in range(16):
+                obj = rectangle(str(len(objects)), '#555555')
+                obj['bbox'] = [10, y+20, 450-index, y+100]
+                objects.append(obj)
+        proposals = paint_candidates(objects)
+        anchors = [c for c in proposals if c.get('coverage_anchor')]
+        self.assertEqual({c['member_ids'][0] for c in anchors}, bases)
+        self.assertTrue(bases <= {i for c in proposals[:40] for i in c['member_ids']})
+        self.assertTrue(all(c['native_type']=='PaintSurface' for c in anchors))
+        self.assertTrue(all('category_hints' not in c for c in anchors))
+        for index, candidate in enumerate(proposals):
+            candidate['id'] = f'G{index}'
+        details = detail_candidates(proposals)
+        self.assertTrue(bases <= {i for c in details for i in c['member_ids']})
+
     def test_fragmented_paint_survives_global_candidate_limit(self):
         # A large base outside the parent vehicle group, roof/mirror inside.
         # Many bigger surfaces previously pushed both fragments out of the atlas.

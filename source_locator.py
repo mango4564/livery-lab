@@ -147,6 +147,12 @@ class SourceLocator(ttk.Frame):
         image = self._renderer.prepare(page, bounds)
         self.show_prepared(image, self._renderer._viewbox, self._renderer._viewport, bounds is None)
 
+    def set_loading(self):
+        self.canvas.delete('all')
+        self.photo = None
+        self._viewbox = self._viewport = None
+        self.canvas.create_text(108, 62, text='正在加载原稿位置…', fill='#777777')
+
     def show_prepared(self, image, viewbox, viewport, empty=False):
         self.canvas.delete('all')
         self._viewbox, self._viewport = viewbox, viewport

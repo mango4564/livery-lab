@@ -118,7 +118,8 @@ class ReviewPreviewTests(TkTestCase):
                 app.group_choice.current(1)
                 app._choose_group()
                 deadline = time.monotonic() + 3
-                while app.preview_viewers['result_png'].vector_image is None:
+                while (app.preview_viewers['result_png'].vector_image is None
+                       or app.source_locator.photo is None):
                     self.root.update()
                     if time.monotonic() > deadline:
                         self.fail('Candidate preview did not finish loading')

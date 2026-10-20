@@ -87,7 +87,7 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
     # confirmed pattern separately, while category IDs remain a coverage summary.
     reviewed_patterns = {}
     regions = result.get('source_regions', [])
-    assignments = object_regions(result['objects'], regions)
+    assignments = object_regions(result['objects'], regions, partial_ids=selected['彩条'])
     if patterns is not None:
         if set(patterns) != set(LABELS):
             raise ValueError('图案记录须包含全部类别。')

@@ -18,7 +18,7 @@ class ReviewGalleryTests(TkTestCase):
         self.root=tk.Tk();self.root.withdraw();self.addCleanup(self.root.destroy)
         self.result=fixture(Path(self.temp.name))
         self.result['component_candidates']=[{'id':'other-stripe','label':'另一套彩条',
-            'selected_ids':['5'],'category_hints':['彩条'],'recommended_categories':[]}]
+            'selected_ids':['5'],'category_hints':['彩条'],'recommended_categories':['彩条']}]
         self.gallery=ReviewGallery(self.root,self.result,Path(self.temp.name)/'out')
         self.gallery.withdraw();self.root.update_idletasks()
 

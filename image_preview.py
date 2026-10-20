@@ -76,6 +76,8 @@ class ImagePreview(ttk.Frame):
         self.raster_image = None
         self.vector_label = "矢量"
         self.raster_label = "位图"
+        self._empty_message = "请选择文件查看预览"
+        self._loading = False
         bar = ttk.Frame(self)
         bar.pack(fill="x")
         self.controls = []
@@ -104,6 +106,11 @@ class ImagePreview(ttk.Frame):
         self.canvas = tk.Canvas(self, background="#e8e9ed", highlightthickness=0,
                                 height=240, cursor="hand2")
         self.canvas.pack(fill="both", expand=True)
+        self.loading_bar = ttk.Frame(self)
+        self.loading_text = ttk.Label(self.loading_bar)
+        self.loading_text.pack(side='left', padx=6)
+        self.loading_progress = ttk.Progressbar(self.loading_bar, mode='indeterminate', length=160)
+        self.loading_progress.pack(side='left', padx=6, pady=5)
         self.canvas.bind("<Configure>", self._resize)
         self.canvas.bind("<Map>", lambda e: self.fit() if self.fitting else self.request_draw())
         self.canvas.bind("<MouseWheel>", self._wheel)
@@ -119,6 +126,8 @@ class ImagePreview(ttk.Frame):
         self.set_image(None)
 
     def set_image(self, image, vector=None, *, vector_label="矢量", raster_label="位图"):
+        self._stop_loading()
+        self._render_wait_key = None
         self._draw_key = None
         self.vector_image, self.raster_image = vector, image
         self.vector_label, self.raster_label = vector_label, raster_label
@@ -135,6 +144,31 @@ class ImagePreview(ttk.Frame):
         for button in self.controls:
             button.configure(state="normal" if self.image is not None else "disabled")
         self.fit()
+
+    def set_loading(self, message="正在加载预览…"):
+        self.set_image(None)
+        self._empty_message = message
+        self._start_loading(message)
+        self._draw_key = None
+        self.request_draw()
+
+    def set_empty(self, message):
+        self.set_image(None)
+        self._empty_message = message
+        self._draw_key = None
+        self.request_draw()
+
+    def _start_loading(self, message):
+        self.loading_text.configure(text=message)
+        if not self._loading:
+            self._loading = True
+            self.loading_bar.pack(fill='x', before=self.canvas)
+            self.loading_progress.start(30)
+
+    def _stop_loading(self):
+        self._loading = False
+        self.loading_progress.stop()
+        self.loading_bar.pack_forget()
 
     def _update_source(self):
         is_vector = isinstance(self.image, VectorImage)
@@ -242,6 +276,7 @@ class ImagePreview(ttk.Frame):
 
     def destroy(self):
         self._destroyed = True
+        self._stop_loading()
         if self._render_after is not None:
             self.after_cancel(self._render_after)
             self._render_after = None
@@ -268,7 +303,7 @@ class ImagePreview(ttk.Frame):
             self.photo = None
             self._frame = None
             self.percent.configure(text="")
-            canvas.create_text(w / 2, h / 2, text="暂无预览", fill="#777777", tags='preview')
+            canvas.create_text(w / 2, h / 2, text=self._empty_message, fill="#777777", tags='preview')
             return
         self.percent.configure(text=f"{self.scale:.1%}")
         ox, oy = self.offset
@@ -281,6 +316,8 @@ class ImagePreview(ttk.Frame):
         # giant intermediate bitmap. Coordinates always refer to the source.
         size = (right - left, bottom - top)
         if isinstance(self.image, VectorImage):
+            if self._frame is None or self._frame[0] is not self.image:
+                self._start_loading("正在渲染矢量预览…")
             # Transform the last exact frame immediately during interaction.
             # A fresh vector render always replaces it when the worker catches up.
             if self._frame is not None and self._frame[0] is self.image:
@@ -327,6 +364,7 @@ class ImagePreview(ttk.Frame):
         current = (id(self.image), self.scale, self.offset,
                    max(1, self.canvas.winfo_width()), max(1, self.canvas.winfo_height()))
         if key == current:
+            self._stop_loading()
             if error is not None:
                 self.canvas.create_text(12, 12, anchor='nw', text=f'矢量预览失败：{error}', tags='preview')
             elif rendered is not None:
