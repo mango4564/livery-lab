@@ -1,9 +1,29 @@
-"""Source paint-style validation and mutually exclusive semantic categories."""
+"""Source style validation and category ownership, including emblem logos."""
 import math
 import re
 
 CATEGORY_KEYS = {'车身': 'body', '车漆': 'paint', '彩条': 'stripes',
                  '文字': 'text', 'logo': 'logo', '门徽': 'emblem'}
+
+
+def category_conflicts(categories, *, include_body=False):
+    """Only a logo embedded in a door emblem may share nonbody source IDs."""
+    owners = {}
+    for name, ids in categories.items():
+        if name == '车身' and not include_body:
+            continue
+        for oid in ids or []:
+            owners.setdefault(oid, set()).add(name)
+    return any(len(names) > 1 and names != {'logo', '门徽'} for names in owners.values())
+
+
+def category_exclusions(name, categories):
+    """Refine broad source parents without sharing logo paths with text."""
+    if name == '文字':
+        return set(categories.get('logo') or [])
+    if name == '车身':
+        return {oid for key, ids in categories.items() if key != '车身' for oid in ids or []}
+    return set()
 
 
 def hex_color(value):
@@ -59,10 +79,11 @@ def normalize_categories(objects, categories):
         if len(ids) != len(set(ids)) or not set(ids) <= valid:
             raise ValueError('类别含未知或重复源对象。')
         if name != '车身':
-            if claimed & set(ids):
-                raise ValueError('非车身类别存在重叠对象。')
             claimed.update(ids)
         result[name] = list(ids)
+    result['文字'] = [i for i in result['文字'] if i not in category_exclusions('文字', result)]
+    if category_conflicts(result):
+        raise ValueError('非车身类别存在重叠对象；仅 logo 与门徽可共享源对象。')
     result['车身'] = [i for i in result['车身'] if i not in claimed]
     return result
 

@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
+from unittest.mock import patch
 
 from components import build_candidates
 from core.paint import normalize_categories
@@ -21,6 +22,42 @@ def rectangle(oid, fill, x=0):
 
 
 class PaintLayersTests(unittest.TestCase):
+    def test_fragmented_paint_survives_global_candidate_limit(self):
+        # A large base outside the parent vehicle group, roof/mirror inside.
+        # Many bigger surfaces previously pushed both fragments out of the atlas.
+        def surface(oid, box, fill='#ffffff'):
+            obj = rectangle(str(oid), fill)
+            obj['bbox'] = box
+            return obj
+
+        for color in ('#ffffff', '#9bdac7'):
+            with self.subTest(color=color):
+                objects = [surface(0, [0, 0, 460, 130], color),
+                           surface(1, [50, 118, 232, 130], color),
+                           surface(2, [-18, 80, 38, 107], color),
+                           surface(3, [10, 10, 14, 18], color),  # small lamp
+                           surface(4, [50, 60, 150, 90], '#444444'),  # glass
+                           surface(5, [0, 300, 182, 312], color),  # other view
+                           surface(6, [260, 122, 294, 128], color)]  # roof housing
+                objects += [surface(100+i, [0, 600, 200, 630+i*3], '#123456')
+                            for i in range(30)]
+                candidates, coverage = build_candidates(objects, [])
+                bundle = next(c for c in candidates if c['native_type']=='PaintRegion'
+                              and set(c['member_ids']) == {'0', '1', '2', '6'})
+                self.assertLessEqual(len(candidates), 120)
+                self.assertGreater(coverage['provided_paint_regions'], 0)
+                for oid in ('0', '1', '2', '6'):
+                    self.assertTrue(any(c['native_type']=='PaintSurface' and
+                                        c['member_ids']==[oid] for c in candidates))
+                body = {'id': 'body', 'native_type': 'AGroup',
+                        'member_ids': ['1', '2', '3', '4', '6']}
+                from components import CATEGORIES, resolve_categories
+                categories = {n: [] for n in CATEGORIES}
+                categories.update(车身=['body'], 车漆=[bundle['id']])
+                resolved = resolve_categories(objects, candidates+[body], {'categories': categories})
+                self.assertEqual(resolved['车漆'], ['0', '1', '2', '6'])
+                self.assertEqual(resolved['车身'], ['3', '4'])
+
     def test_large_straight_closed_surface_reaches_candidate_pool(self):
         objects = [rectangle('0', '#dedabf')]
         candidates, coverage = build_candidates(objects, [], limit=120)
@@ -87,6 +124,24 @@ class PaintLayersTests(unittest.TestCase):
         self.assertTrue(info['exportable'])
         self.assertEqual(info['order_check'], 'render_640_1600')
 
+    def test_source_references_preserve_overlap_and_editable_semantic_paths(self):
+        objects = [rectangle('0', '#ff0000'), rectangle('1', '#0000ff')]
+        svg, info = layered_svg(objects, {'车身': ['0'], '车漆': ['1']},
+                                layer_names=('车漆', '车身'), source_order_fallback=True)
+        self.assertEqual(info['rendering'], 'source_order_references')
+        self.assertTrue(info['exportable'])
+        self.assertTrue(_same_render(svg_document(objects), svg))
+        root = ET.fromstring(svg)
+        paint = root.find(f'.//{{{SVG}}}g[@id="layer-paint"]/{{{SVG}}}path')
+        self.assertEqual(paint.get('data-paint-editable'), 'fill')
+        uses = root.findall(f'.//{{{SVG}}}use')
+        self.assertEqual([n.get('href') for n in uses], ['#0', '#1'])
+        self.assertEqual(len(root.findall(f'.//{{{SVG}}}path')), 2)
+        paint.set('fill', '#00ff00')
+        recolored = deepcopy(objects)
+        recolored[1]['fill'] = '#00ff00'
+        self.assertTrue(_same_render(svg_document(recolored), ET.tostring(root, encoding='unicode')))
+
     def test_final_base_and_individual_exports_have_machine_readable_layers(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -115,8 +170,10 @@ class PaintLayersTests(unittest.TestCase):
             before = {p.name: p.read_bytes() for p in folder.iterdir()}
             result['objects'][5] = dict(result['objects'][0], id='5', fill='#ff0000')
             choices['车漆'] = ['5']
-            with self.assertRaises(LayerOrderError):
-                export_reviewed(result, choices, root/'out')
+            # Even the source-order fallback must pass rendering validation.
+            with patch('core.svg_layers._same_render', return_value=False):
+                with self.assertRaises(LayerOrderError):
+                    export_reviewed(result, choices, root/'out')
             self.assertEqual(before, {p.name: p.read_bytes() for p in folder.iterdir()})
             self.assertFalse(list((root/'out').glob('.review_stage_*')))
 
