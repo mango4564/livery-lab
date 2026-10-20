@@ -16,6 +16,27 @@ class SharedDependenciesTests(unittest.TestCase):
         self.root = Path(temp.name)
         (self.root / 'requirements.txt').write_text('olefile==0.47\nPillow==12.2.0\n')
 
+    def test_supported_versions_and_incompatible_architectures(self):
+        with patch.object(source_runtime.sys, 'prefix', 'base'), \
+             patch.object(source_runtime.sys, 'base_prefix', 'base'), \
+             patch.object(source_runtime.sys, 'maxsize', 2**63 - 1), \
+             patch.object(source_runtime.platform, 'machine', return_value='AMD64'), \
+             patch.object(source_runtime.sysconfig, 'get_config_var', return_value=0):
+            for minor in (10, 11, 12, 13, 14):
+                with self.subTest(minor=minor), patch.object(source_runtime.sys, 'version_info', (3, minor)):
+                    self.assertTrue(source_runtime.supported_runtime())
+            for minor in (9, 15):
+                with self.subTest(minor=minor), patch.object(source_runtime.sys, 'version_info', (3, minor)):
+                    self.assertFalse(source_runtime.supported_runtime())
+            with patch.object(source_runtime.platform, 'machine', return_value='ARM64'):
+                self.assertFalse(source_runtime.supported_runtime())
+            with patch.object(source_runtime.sys, 'maxsize', 2**31 - 1):
+                self.assertFalse(source_runtime.supported_runtime())
+            with patch.object(source_runtime.sysconfig, 'get_config_var', return_value=1):
+                self.assertFalse(source_runtime.supported_runtime())
+            with patch.object(source_runtime.sys, 'prefix', 'virtual-env'):
+                self.assertFalse(source_runtime.supported_runtime())
+
     def test_two_extracted_versions_reuse_installed_packages_without_pip(self):
         second = self.root / 'another_version'
         second.mkdir()

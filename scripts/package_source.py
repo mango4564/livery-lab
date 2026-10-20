@@ -128,7 +128,7 @@ def payload():
     for name, data in files.items():
         if not name.endswith('.py'):
             continue
-        tree = ast.parse(data, filename=name)
+        tree = ast.parse(data, filename=name, feature_version=(3, 10))
         compile(tree, name, 'exec')
         for node in ast.walk(tree):
             imports = ([item.name for item in node.names] if isinstance(node, ast.Import)
