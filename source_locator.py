@@ -131,9 +131,10 @@ class SourceLocatorRenderer:
 
 
 class SourceLocator(ttk.Frame):
-    def __init__(self, parent):
+    def __init__(self, parent, *, title='原稿位置 · 第 1 页（自动裁白）'):
         super().__init__(parent, padding=3, relief='solid', borderwidth=1)
-        ttk.Label(self, text='原稿位置 · 第 1 页（自动裁白）').pack(anchor='w')
+        self.heading = ttk.Label(self, text=title)
+        self.heading.pack(anchor='w')
         self.canvas = tk.Canvas(self, width=216, height=124,
                                 background='white', highlightthickness=0)
         self.canvas.pack()

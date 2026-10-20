@@ -214,7 +214,7 @@ def process_file(source, output_root, options=None, progress=None):
         python=python.with_name('python.exe')
     worker_args=['_worker',str(source),str(base),digest,fingerprint,'1' if options.get('use_ai') else '0']
     cmd=([str(python)]+worker_args) if FROZEN else ([str(python),'-X','utf8',str(ROOT/'engine.py')]+worker_args)
-    timeout=float(options.get('timeout_seconds',240))
+    timeout=float(options.get('timeout_seconds',1200))
     try:
         child=subprocess.run(cmd,capture_output=True,encoding='utf8',errors='replace',
                              timeout=timeout,cwd=ROOT,
@@ -308,7 +308,7 @@ def _render_component_artifacts(result, directory):
     selected = {n: members if n in ('车身', '车漆') else [] for n, members in categories.items()}
     svg, info = layered_svg(result['objects'], selected, bounds=bounds, strict=False,
         metadata={'source_sha256': result['source_sha256'], 'human_reviewed': False},
-        layer_names=('车漆', '车身'))
+        layer_names=('车漆', '车身'), source_order_fallback=True)
     for suffix in ('svg', 'png'):
         path = directory/('vehicle-base.'+suffix)
         if suffix == 'svg':
@@ -335,12 +335,11 @@ def export_selection(result, selected_ids, output_dir=None, *, category_name=Non
             raise ValueError('请先在候选下拉框切换到要修正的类别，再保存该类。')
         from components import CATEGORIES
         categories={name:list(result['component_categories'].get(name, [])) for name in CATEGORIES}
-        others={oid for name,ids in categories.items() if name not in (category_name,'车身') for oid in ids}
-        if set(selected_ids) & others:
-            raise ValueError('所选对象已属于其他非车身类别，请先排除重叠对象。')
         categories[category_name]=list(selected_ids)
-        if category_name!='车身':
-            categories['车身']=[oid for oid in categories['车身'] if oid not in set(selected_ids)]
+        from core.paint import normalize_categories
+        categories=normalize_categories(result['objects'],categories)
+        if not categories[category_name]:
+            raise ValueError('所选类别扣除其他类别后为空，请重新选择。')
         result['component_categories']=categories
         result['confirmed_categories']=sorted(set(result.get('confirmed_categories',[])) | {category_name})
         union={oid for ids in categories.values() for oid in ids}
@@ -420,6 +419,7 @@ def _run_components_worker(source,directory,digest,fingerprint,use_ai,reference_
             'candidate_png':str(directory/'group_atlas.png'),
             'views':components_report['views'], 'component_categories':categories,
             'component_candidates':components_report.get('candidates',[]),
+            'source_regions':components_report.get('source_regions',[]),
             'component_coverage':components_report['coverage'],
             'ai_result':components_report['decision'],
             'warnings':['六类为待复核候选，须逐类核对；模型自报置信度不是准确率。',

@@ -8,9 +8,40 @@ from pathlib import Path
 
 from geometry import rasterize
 from core.svg_layers import layered_svg
+from core.source_regions import object_regions, region_for_ids, split_by_region
 
 LABELS = {'车身': '车身', '彩条': '彩条', '文字': '文字', 'logo': 'logo', '门徽': '徽章', '车漆': '车漆'}
-SOURCE_VIEWS = ('待确认视图', '左视图', '右视图', '前视图', '后视图', '顶视图', '独立图案', '混合视图')
+SOURCE_VIEWS = ('待确认视图', '左视图', '右视图', '前视图', '后视图', '顶视图', '底视图', '整体视图', '独立图案', '混合视图')
+
+
+def infer_source_view(ids, objects, candidates):
+    """Use labeled source memberships/regions, never infer direction from layout."""
+    from geometry import union_bounds
+    chosen = set(ids)
+    exact = {c.get('source_view') for c in candidates
+             if set(c.get('selected_ids', [])) == chosen
+             and c.get('source_view') in SOURCE_VIEWS[1:]}
+    if len(exact) == 1:
+        return exact.pop()
+    if exact or not chosen:
+        return SOURCE_VIEWS[0]
+    selected = [o for o in objects if o['id'] in chosen]
+    if len(selected) != len(chosen):
+        return SOURCE_VIEWS[0]
+    bounds = union_bounds(selected)
+    directions = set()
+    for c in candidates:
+        direction = c.get('source_view')
+        if direction not in SOURCE_VIEWS[1:8]:
+            continue
+        member_ids = set(c.get('selected_ids', []))
+        members = [o for o in objects if o['id'] in member_ids]
+        if not members:
+            continue
+        a = union_bounds(members)
+        if a[0] <= bounds[0] and a[1] <= bounds[1] and bounds[2] <= a[2] and bounds[3] <= a[3]:
+            directions.add(direction)
+    return directions.pop() if len(directions) == 1 else SOURCE_VIEWS[0]
 
 
 def export_reviewed(result, choices, output_root, *, patterns=None):
@@ -34,11 +65,15 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
             raise ValueError('类别选择包含重复对象。')
         selected[name] = list(ids)
     other = set()
+    from core.paint import category_conflicts, category_exclusions
+    selected['文字'] = [i for i in selected['文字'] if i not in category_exclusions('文字', selected)]
+    if choices['文字'] is not None and not selected['文字']:
+        raise ValueError('文字扣除 logo 后为空，请重新选择纯文字对象。')
+    if category_conflicts(selected):
+        raise ValueError('类别之间有重叠对象；仅 logo 与徽章可共享标志，请调整后再导出。')
     for name in LABELS:
         if name == '车身':
             continue
-        if other & set(selected[name]):
-            raise ValueError('车漆、彩条、文字、logo、徽章之间有重叠对象，请调整所选图案后再导出。')
         other.update(selected[name])
     selected['车身'] = [i for i in selected['车身'] if i not in other]
     if choices['车身'] is not None and not selected['车身']:
@@ -51,6 +86,8 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
     # Legacy callers retain their filenames; direction-aware reviews publish each
     # confirmed pattern separately, while category IDs remain a coverage summary.
     reviewed_patterns = {}
+    regions = result.get('source_regions', [])
+    assignments = object_regions(result['objects'], regions)
     if patterns is not None:
         if set(patterns) != set(LABELS):
             raise ValueError('图案记录须包含全部类别。')
@@ -72,14 +109,34 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
                     raise ValueError('同一类别不能重复添加相同源对象的图案。')
                 seen.add(key)
                 covered.update(ids)
-                kept = [i for i in ids if name != '车身' or i not in other]
+                excluded = category_exclusions(name, selected)
+                kept = [i for i in ids if i not in excluded]
                 if not kept:
-                    raise ValueError('车身图案扣除其他类别后为空，请重新选择。')
-                normalized.append({'source_view': entry['source_view'], 'selected_ids': kept})
+                    raise ValueError('图案扣除其他类别后为空，请重新选择。')
+                groups = split_by_region(kept, assignments)
+                for group in groups:
+                    pattern = {'source_view': entry['source_view'], 'selected_ids': group}
+                    region = region_for_ids(group, assignments, regions)
+                    if region:
+                        from core.source_regions import valid_region_name
+                        if not valid_region_name(region['name']):
+                            raise ValueError('区域名称无效，请重新复核。')
+                        pattern.update(source_region=region['id'], region_name=region['name'])
+                        if pattern['source_view'] == SOURCE_VIEWS[0] or len(groups) > 1:
+                            pattern['source_view'] = region['source_view']
+                    elif len(groups) > 1:
+                        pattern['source_view'] = SOURCE_VIEWS[0]
+                    normalized.append(pattern)
             expected = set(choices[name] or [])
             if covered != expected:
                 raise ValueError('图案记录与类别所选对象不一致，请重新确认。')
             reviewed_patterns[name] = normalized
+        anchors = result.get('component_candidates', []) + [
+            dict(entry) for entries in reviewed_patterns.values() for entry in entries]
+        for entries in reviewed_patterns.values():
+            for entry in entries:
+                if entry['source_view'] == SOURCE_VIEWS[0] and not entry.get('source_region'):
+                    entry['source_view'] = infer_source_view(entry['selected_ids'], result['objects'], anchors)
     root = Path(output_root).resolve()
     root.mkdir(parents=True, exist_ok=True)
     destination = root / source.stem
@@ -98,6 +155,8 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
                 'status': 'human_reviewed', 'categories': {}, 'physical_scale_verified': False}
     if patterns is not None:
         manifest['schema_version'] = 3
+        if regions:
+            manifest['source_regions'] = regions
     try:
         if selected['车漆']:
             from geometry import union_bounds
@@ -105,10 +164,11 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
             categories = {n: ids if n in ('车身', '车漆') else [] for n, ids in selected.items()}
             svg, info = layered_svg(result['objects'], categories, bounds=bounds, width=2400,
                 metadata={'source_sha256': digest, 'human_reviewed': True},
-                layer_names=('车漆', '车身'))
+                layer_names=('车漆', '车身'), source_order_fallback=True)
             (staging/'vehicle-base.svg').write_text(svg, encoding='utf8')
             rasterize(svg, staging/'vehicle-base.png', max_width=2400)
             manifest['layer_status'] = info['layer_status']
+            manifest['base_rendering'] = info['rendering']
             manifest.setdefault('schema_version', 2)
         for name, label in LABELS.items():
             ids = selected[name]
@@ -122,8 +182,10 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
                 svg, _ = layered_svg(objects, {name: pattern_ids}, width=2400, layer_names=(name,),
                     metadata={'source_sha256': digest, 'category': label, 'selected_ids': pattern_ids,
                               'source_view': entry.get('source_view', '待确认视图'),
+                              'source_region': entry.get('source_region'),
+                              'region_name': entry.get('region_name'),
                               'human_reviewed': True})
-                stem = (f"{label}_{entry['source_view']}_{index:02d}_{source.stem}"
+                stem = (f"{entry.get('region_name', entry.get('source_view'))}_{label}_{index:02d}_{source.stem}"
                         if patterns is not None else label + '_' + source.stem)
                 (staging/(stem+'.svg')).write_text(svg, encoding='utf8')
                 rasterize(svg, staging/(stem+'.png'), max_width=2400)

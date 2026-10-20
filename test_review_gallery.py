@@ -4,6 +4,7 @@ import tempfile
 import tkinter as tk
 import time
 import unittest
+from tests.tk_lifecycle import TkTestCase
 from unittest.mock import patch
 import json
 
@@ -11,7 +12,7 @@ from review_gallery import ReviewGallery
 from test_reviewed_exports import fixture
 
 
-class ReviewGalleryTests(unittest.TestCase):
+class ReviewGalleryTests(TkTestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.root=tk.Tk();self.root.withdraw();self.addCleanup(self.root.destroy)

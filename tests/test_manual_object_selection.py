@@ -5,13 +5,14 @@ import tempfile
 import tkinter as tk
 from types import SimpleNamespace
 import unittest
+from tests.tk_lifecycle import TkTestCase
 
 from review_gallery import ObjectSelectionEditor, ReviewGallery
-from reviewed_exports import export_reviewed
+from reviewed_exports import LABELS, export_reviewed
 from test_reviewed_exports import fixture
 
 
-class ManualSelectionTests(unittest.TestCase):
+class ManualSelectionTests(TkTestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -30,6 +31,7 @@ class ManualSelectionTests(unittest.TestCase):
 
     def test_point_and_box_after_zoom_and_pan_then_undo(self):
         e = self.editor
+        e.mode.set('add')
         e.viewer.set_scale(e.viewer.scale * 1.7)
         e.viewer.offset = (e.viewer.offset[0] + 43, e.viewer.offset[1] - 17)
         e.viewer.draw()
@@ -62,6 +64,7 @@ class ManualSelectionTests(unittest.TestCase):
         objects = [dict(self.result['objects'][0], bbox=[0, 0, 120, 8]), self.result['objects'][5]]
         e = self.editor = ObjectSelectionEditor(self.root, objects, [], 'logo', self.accepted.append)
         self.root.update()
+        e.mode.set('add')
         box = e.boxes['5']
         center = ((box[0]+box[2])/2, (box[1]+box[3])/2)
         self.gesture(center, center)
@@ -69,6 +72,151 @@ class ManualSelectionTests(unittest.TestCase):
         e.tree.selection_set('0')
         e._change(set(e.tree.selection()))
         self.assertEqual(e.selected, {'0', '5'})
+
+    def test_default_pan_moves_view_without_changing_selection(self):
+        e = self.editor
+        e._change({'5'})
+        self.assertEqual(e.mode.get(), 'pan')
+        offset = e.viewer.offset
+        box = e.boxes['5']
+        center = ((box[0]+box[2])/2, (box[1]+box[3])/2)
+        self.gesture(center, (center[0]+20, center[1]+10))
+        self.assertEqual(e.selected, {'5'})
+        self.assertEqual(e.viewer.offset, (offset[0]+20, offset[1]+10))
+        self.assertEqual(len(e.history), 1)
+
+    def test_cancel_selected_objects_by_click_and_box_then_undo(self):
+        e = self.editor
+        e._change({'1', '5'})
+        e.mode.set('remove')
+        box = e.boxes['5']
+        center = ((box[0]+box[2])/2, (box[1]+box[3])/2)
+        self.gesture(center, center)
+        self.assertEqual(e.selected, {'1'})
+        # Clicking again must not select the cancelled object.
+        self.gesture(center, center)
+        self.assertEqual(e.selected, {'1'})
+        box = e.boxes['1']
+        self.gesture((box[0]-1, box[1]-1), (box[2]+1, box[3]+1))
+        self.assertEqual(e.selected, set())
+        self.assertEqual(str(e.apply_button['state']), 'disabled')
+        e._undo()
+        self.assertEqual(e.selected, {'1'})
+        e._undo()
+        self.assertEqual(e.selected, {'1', '5'})
+
+    def test_cancel_overlapping_selected_body_ignores_unselected_detail(self):
+        self.editor.destroy()
+        objects = [dict(self.result['objects'][0], bbox=[0, 0, 120, 8]), self.result['objects'][5]]
+        e = self.editor = ObjectSelectionEditor(self.root, objects, ['0'], 'logo', self.accepted.append)
+        self.root.update()
+        e.mode.set('remove')
+        box = e.boxes['5']
+        center = ((box[0]+box[2])/2, (box[1]+box[3])/2)
+        self.gesture(center, center)
+        self.assertEqual(e.selected, set())
+        e._undo()
+        self.assertEqual(e.selected, {'0'})
+
+    def test_start_over_clears_selection_and_allows_new_box_selection(self):
+        e = self.editor
+        e._change({'5'})
+        e.tree.selection_set('5')
+        e._start_over()
+        self.assertEqual(e.selected, set())
+        self.assertEqual(e.tree.selection(), ())
+        self.assertEqual(e.mode.get(), 'add')
+        e._undo()
+        self.assertEqual(e.selected, {'5'})
+        e._start_over()
+        box = e.boxes['1']
+        self.gesture((box[0]-1, box[1]-1), (box[2]+1, box[3]+1))
+        self.assertEqual(e.selected, {'1'})
+        # Redrawing must remove obsolete selection boxes without accumulating overlays.
+        for _ in range(3):
+            e.viewer.draw()
+        self.assertEqual(len(e.viewer.canvas.find_withtag('selection')), 1)
+
+    def test_new_pattern_button_starts_empty_and_preserves_existing_patterns(self):
+        self.editor.destroy()
+        g = ReviewGallery(self.root, self.result, Path(self.temp.name)/'out')
+        self.addCleanup(g.destroy)
+        g._switch_category('logo')
+        g._accept_manual('logo', ['5'])
+        original = list(g.choices['logo'])
+        self.assertTrue(g.current_candidate['selected_ids'])
+        g.new_pattern_button.invoke()
+        dialog = next(w for w in g.winfo_children() if isinstance(w, ObjectSelectionEditor))
+        self.assertEqual(dialog.selected, set())
+        self.assertEqual(dialog.mode.get(), 'pan')
+        self.assertEqual(set(dialog.by_id), set(g.by_id))
+        dialog.destroy()
+        self.assertEqual(g.choices['logo'], original)
+        g.new_pattern_button.invoke()
+        dialog = next(w for w in g.winfo_children() if isinstance(w, ObjectSelectionEditor))
+        dialog._change({'1'})
+        dialog.category.set('logo')
+        dialog._apply()
+        self.assertEqual(set(g.choices['logo']), {'1', '5'})
+        self.assertEqual(len(g.patterns['logo']), 2)
+
+    def test_start_from_scratch_with_no_candidates(self):
+        self.editor.destroy()
+        result = dict(self.result, component_categories={}, component_candidates=[], views=[])
+        g = ReviewGallery(self.root, result, Path(self.temp.name)/'out')
+        self.addCleanup(g.destroy)
+        self.assertIsNone(g.current_candidate)
+        g.new_pattern_button.invoke()
+        dialog = next(w for w in g.winfo_children() if isinstance(w, ObjectSelectionEditor))
+        self.assertEqual(dialog.selected, set())
+        dialog._change({'5'})
+        dialog.category.set('车身')
+        dialog._apply()
+        self.assertEqual(g.choices[g.category], ['5'])
+
+    def test_free_selection_requires_category_and_accepts_each_pattern_type(self):
+        self.editor.destroy()
+        g = ReviewGallery(self.root, self.result, Path(self.temp.name)/'out')
+        self.addCleanup(g.destroy)
+        for category, label in LABELS.items():
+            with self.subTest(category=category):
+                g._switch_category('车身')
+                before = dict(g.choices)
+                g.new_pattern_button.invoke()
+                dialog = next(w for w in g.winfo_children() if isinstance(w, ObjectSelectionEditor))
+                self.assertEqual(dialog.category.get(), '')
+                self.assertEqual(set(dialog.category_combo['values']), set(LABELS.values()))
+                dialog._change({'5'})
+                self.assertEqual(str(dialog.apply_button['state']), 'disabled')
+                dialog._apply()
+                self.assertEqual(g.choices, before)
+                self.assertTrue(dialog.winfo_exists())
+                dialog.category.set(label)
+                self.assertEqual(dialog.selected, {'5'})
+                self.assertEqual(str(dialog.apply_button['state']), 'normal')
+                self.assertIn(label, dialog.apply_button['text'])
+                dialog.apply_button.invoke()
+                self.assertEqual(g.category, category)
+                self.assertEqual(g.choices[category], ['5'])
+                self.assertEqual(g.patterns[category][0]['selected_ids'], ['5'])
+                for other, ids in before.items():
+                    if other != category:
+                        self.assertEqual(g.choices[other], ids)
+
+    def test_category_change_is_only_applied_on_confirmation(self):
+        self.editor.destroy()
+        g = ReviewGallery(self.root, self.result, Path(self.temp.name)/'out')
+        self.addCleanup(g.destroy)
+        g._switch_category('车身')
+        before = dict(g.choices)
+        g._edit_objects()
+        dialog = next(w for w in g.winfo_children() if isinstance(w, ObjectSelectionEditor))
+        self.assertEqual(dialog.category.get(), '车身')
+        dialog.category.set('徽章')
+        dialog._change({'5'})
+        dialog.destroy()
+        self.assertEqual(g.choices, before)
+        self.assertEqual(g.category, '车身')
 
     def test_manual_choice_export_and_restore(self):
         self.editor.destroy()

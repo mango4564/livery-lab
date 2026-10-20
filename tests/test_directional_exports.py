@@ -4,14 +4,15 @@ from pathlib import Path
 import tempfile
 import tkinter as tk
 import unittest
+from tests.tk_lifecycle import TkTestCase
 from unittest.mock import patch
 
 from review_gallery import ReviewGallery
-from reviewed_exports import LABELS, export_reviewed
+from reviewed_exports import LABELS, SOURCE_VIEWS, export_reviewed, infer_source_view
 from test_reviewed_exports import fixture
 
 
-class DirectionalExportTests(unittest.TestCase):
+class DirectionalExportTests(TkTestCase):
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
@@ -37,6 +38,7 @@ class DirectionalExportTests(unittest.TestCase):
             self.assertEqual(len(entry['files']), 2)
             for filename in entry['files']:
                 self.assertIn(expected['source_view'], filename)
+                self.assertTrue(filename.startswith(expected['source_view']+'_彩条_'))
                 self.assertTrue((folder/filename).is_file())
             svg = (folder/entry['files'][0]).read_text(encoding='utf8')
             self.assertIn(expected['source_view'], svg)
@@ -48,6 +50,58 @@ class DirectionalExportTests(unittest.TestCase):
         result = export_reviewed(self.result, self.choices, self.output, patterns=self.patterns)
         files = result['manifest']['categories']['彩条']['files']
         self.assertEqual(len(files), len(set(files)))
+
+    def test_unknown_direction_inherits_source_candidate_on_export(self):
+        self.result['component_candidates'] = [
+            {'selected_ids': ['1'], 'source_view': '底视图'},
+            {'selected_ids': ['5'], 'source_view': '整体视图'}]
+        for entry in self.patterns['彩条']:
+            entry['source_view'] = '待确认视图'
+        exported = export_reviewed(self.result, self.choices, self.output, patterns=self.patterns)
+        entries = exported['manifest']['categories']['彩条']['patterns']
+        self.assertEqual([e['source_view'] for e in entries], ['底视图', '整体视图'])
+        self.assertIn('底视图', entries[0]['files'][0])
+        # Publication must not rewrite the caller's human review state.
+        self.assertEqual(self.patterns['彩条'][0]['source_view'], '待确认视图')
+
+    def test_direction_follows_region_with_ambiguity_and_manual_override(self):
+        objects = [{'id': 'body', 'bbox': [0, 0, 100, 30]},
+                   {'id': 'stripe', 'bbox': [10, 10, 50, 20]},
+                   {'id': 'other', 'bbox': [110, 10, 120, 20]}]
+        anchors = [{'selected_ids': ['body'], 'source_view': '右视图'}]
+        self.assertEqual(infer_source_view(['stripe'], objects, anchors), '右视图')
+        self.assertEqual(infer_source_view(['stripe', 'other'], objects, anchors), '待确认视图')
+        anchors.append({'selected_ids': ['body'], 'source_view': '左视图'})
+        self.assertEqual(infer_source_view(['stripe'], objects, anchors), '待确认视图')
+        anchors.append({'selected_ids': ['stripe'], 'source_view': '前视图'})
+        self.assertEqual(infer_source_view(['stripe'], objects, anchors), '前视图')
+
+    def test_ai_direction_validation_accepts_old_schema_and_rejects_bad_mapping(self):
+        from vision import _validate_components, VisionError
+        payload = {'categories': {n: [] for n in LABELS}, 'reason': 'test', 'confidence': .8}
+        _validate_components(payload, {'G1'})
+        for direction in SOURCE_VIEWS:
+            _validate_components(dict(payload, source_views={'G1': direction}), {'G1'})
+        for mapping in ({'G2': '左视图'}, {'G1': '../bad'}, {'G1': []}, []):
+            with self.subTest(mapping=mapping), self.assertRaises(VisionError):
+                _validate_components(dict(payload, source_views=mapping), {'G1'})
+
+    def test_gallery_prefills_candidate_direction_and_preserves_human_correction(self):
+        root = tk.Tk()
+        root.withdraw()
+        self.addCleanup(root.destroy)
+        self.result['component_candidates'] = [
+            {'id': 'left-stripe', 'selected_ids': ['1'], 'source_view': '左视图',
+             'category_hints': ['彩条']}]
+        gallery = ReviewGallery(root, self.result, self.output)
+        gallery.withdraw()
+        self.addCleanup(gallery.destroy)
+        gallery._switch_category('彩条')
+        self.assertEqual(gallery.source_view.get(), '左视图')
+        gallery.source_view.set('右视图')
+        gallery._confirm()
+        gallery._preview()
+        self.assertEqual(gallery.source_view.get(), '右视图')
 
     def test_invalid_or_inconsistent_patterns_never_publish(self):
         for mutation in ('unknown_view', 'duplicate', 'missing', 'unknown_id'):

@@ -8,11 +8,12 @@ from tkinter import filedialog, messagebox, ttk
 
 from PIL import Image, ImageDraw, ImageTk
 
-from geometry import svg_document
+from geometry import svg_document, union_bounds
 from image_preview import ImagePreview
-from reviewed_exports import LABELS, SOURCE_VIEWS, export_reviewed
+from reviewed_exports import LABELS, SOURCE_VIEWS, export_reviewed, infer_source_view
 from vector_preview import VectorImage
-from source_locator import source_rectangle
+from source_locator import source_rectangle, SourceLocator, SourceLocatorRenderer
+from core.source_regions import object_regions, region_for_ids, split_by_region, valid_region_name
 import xml.etree.ElementTree as ET
 
 
@@ -26,7 +27,7 @@ class SelectionPreview(ImagePreview):
 
 class ObjectSelectionEditor(tk.Toplevel):
     """Edit source IDs only; a draft has no effect until explicitly confirmed."""
-    def __init__(self, parent, objects, selected_ids, category, on_confirm):
+    def __init__(self, parent, objects, selected_ids, category, on_confirm, *, on_category_confirm=None):
         super().__init__(parent)
         self.title('手动指定'+category+' · 原稿对象选择')
         self.geometry('1250x850')
@@ -36,18 +37,20 @@ class ObjectSelectionEditor(tk.Toplevel):
         self.selected = set(selected_ids) & set(self.by_id)
         self.history = []
         self.on_confirm = on_confirm
+        self.on_category_confirm = on_category_confirm
+        self.category = tk.StringVar(value=category)
         self.gesture = None
         self.boxes = {}
-        self.mode = tk.StringVar(value='add')
+        self.mode = tk.StringVar(value='pan')
         self.status = tk.StringVar()
         outer = ttk.Frame(self, padding=10); outer.pack(fill='both', expand=True)
-        ttk.Label(outer, text='在提取原稿中指定'+category+'：点选最小对象边界；拖出框完整包含要选的对象。').pack(anchor='w')
-        ttk.Label(outer, text='重叠对象可在右侧列表多选后添加 / 移除。蓝框表示已选；取消关闭不会修改本类。', foreground='#666666').pack(anchor='w')
+        ttk.Label(outer, text='在整张提取原稿中选取图案：默认平移查看；切换“添加对象”后点选或框选，不受 AI 候选限制。').pack(anchor='w')
+        ttk.Label(outer, text='“取消选取”可点选 / 框选已选对象；重叠对象也可在右侧列表取消。蓝框表示已选；取消关闭不会修改本类。', foreground='#666666').pack(anchor='w')
         bar = ttk.Frame(outer); bar.pack(fill='x', pady=6)
-        for text, mode in [('添加对象', 'add'), ('移除对象', 'remove'), ('平移查看', 'pan')]:
+        for text, mode in [('平移查看', 'pan'), ('添加对象', 'add'), ('取消选取', 'remove')]:
             ttk.Radiobutton(bar, text=text, value=mode, variable=self.mode).pack(side='left', padx=6)
         ttk.Button(bar, text='撤销', command=self._undo).pack(side='left', padx=6)
-        ttk.Button(bar, text='清空本次选择', command=lambda: self._change(set(), replace=True)).pack(side='left')
+        ttk.Button(bar, text='清空并重新选取', command=self._start_over).pack(side='left')
         split = ttk.Panedwindow(outer, orient='horizontal'); split.pack(fill='both', expand=True)
         left, right = ttk.Frame(split), ttk.Frame(split)
         split.add(left, weight=4); split.add(right, weight=2)
@@ -72,14 +75,22 @@ class ObjectSelectionEditor(tk.Toplevel):
         self.tree.bind('<<TreeviewSelect>>', lambda e: self._show_draft())
         actions = ttk.Frame(right); actions.pack(fill='x')
         ttk.Button(actions, text='添加列表所选', command=lambda: self._change(set(self.tree.selection()))).pack(side='left')
-        ttk.Button(actions, text='移除列表所选', command=lambda: self._change(set(self.tree.selection()), remove=True)).pack(side='left', padx=5)
+        ttk.Button(actions, text='取消列表所选', command=lambda: self._change(set(self.tree.selection()), remove=True)).pack(side='left', padx=5)
         self.draft = ImagePreview(right, allow_expand=False)
         self.draft.pack(fill='both', expand=True, pady=8)
         ttk.Label(outer, textvariable=self.status).pack(anchor='w', pady=6)
         footer = ttk.Frame(outer); footer.pack(fill='x')
+        if self.on_category_confirm:
+            ttk.Label(footer, text='将所选对象作为：').pack(side='left')
+            self.category_combo = ttk.Combobox(footer, textvariable=self.category,
+                                               values=list(LABELS.values()), state='readonly', width=12)
+            self.category_combo.pack(side='left', padx=6)
+            ttk.Label(footer, text='请选择图案类别后确认').pack(side='left')
         ttk.Button(footer, text='取消', command=self.destroy).pack(side='right')
         self.apply_button = ttk.Button(footer, text='确认所选对象为'+category, command=self._apply)
         self.apply_button.pack(side='right', padx=8)
+        self.category.trace_add('write', lambda *_: self._update_category())
+        self._update_category()
         svg = svg_document(self.objects, diagnostic=True)
         self.viewbox = tuple(map(float, ET.fromstring(svg).get('viewBox').split()))
         self.viewer.set_image(None, VectorImage(svg), vector_label='提取原稿矢量 · 浅色对象辅助描边 · 滚轮缩放')
@@ -92,6 +103,7 @@ class ObjectSelectionEditor(tk.Toplevel):
         if not hasattr(self, 'viewbox') or not self.viewer.image:
             return
         v = self.viewer
+        v.canvas.delete('selection')
         size = (v.image.width, v.image.height)
         self.boxes = {}
         for obj in self.objects:
@@ -105,7 +117,7 @@ class ObjectSelectionEditor(tk.Toplevel):
                 v.canvas.create_rectangle(*box, outline='#0284c7', width=2, tags='selection')
         for oid in self.tree.selection():
             if oid in self.boxes:
-                v.canvas.create_rectangle(*self.boxes[oid], outline='#f97316', width=2, dash=(4, 3))
+                v.canvas.create_rectangle(*self.boxes[oid], outline='#f97316', width=2, dash=(4, 3), tags='selection')
 
     def _press(self, event):
         if self.mode.get() == 'pan':
@@ -131,10 +143,13 @@ class ObjectSelectionEditor(tk.Toplevel):
             self.gesture = None
             self.viewer.canvas.delete('rubberband')
             if max(abs(event.x-x), abs(event.y-y)) < 4:
-                hits = [oid for oid, (x0, y0, x1, y1) in self.boxes.items()
+                # Ignore unselected details when cancelling an overlapping selection.
+                boxes = {oid: box for oid, box in self.boxes.items()
+                         if self.mode.get() != 'remove' or oid in self.selected}
+                hits = [oid for oid, (x0, y0, x1, y1) in boxes.items()
                         if x0 <= event.x <= x1 and y0 <= event.y <= y1]
                 if not hits:
-                    hits = [oid for oid, (x0, y0, x1, y1) in self.boxes.items()
+                    hits = [oid for oid, (x0, y0, x1, y1) in boxes.items()
                             if x0-3 <= event.x <= x1+3 and y0-3 <= event.y <= y1+3]
                 # Small details remain reachable inside a larger body outline.
                 hits.sort(key=lambda oid: (self.boxes[oid][2]-self.boxes[oid][0]) *
@@ -157,6 +172,11 @@ class ObjectSelectionEditor(tk.Toplevel):
             self.selected = changed
         self._refresh()
 
+    def _start_over(self):
+        self.tree.selection_remove(*self.tree.selection())
+        self._change(set(), replace=True)
+        self.mode.set('add')
+
     def _undo(self):
         if self.history:
             self.selected = self.history.pop()
@@ -166,7 +186,7 @@ class ObjectSelectionEditor(tk.Toplevel):
         for oid in self.by_id:
             self.tree.set(oid, 'chosen', '✓' if oid in self.selected else '')
         self.status.set(f'本类已选 {len(self.selected)} / {len(self.objects)} 个源对象；右下预览为当前选择，橙框为列表定位。')
-        self.apply_button.configure(state='normal' if self.selected else 'disabled')
+        self._update_category()
         self.viewer.draw()
         self._show_draft()
 
@@ -176,10 +196,23 @@ class ObjectSelectionEditor(tk.Toplevel):
         self.draft.set_image(None, VectorImage(svg_document(objects)) if objects else None,
                              vector_label='本类所选对象预览 · 保留源路径')
 
+    def _update_category(self):
+        category = self.category.get()
+        valid = not self.on_category_confirm or category in LABELS.values()
+        self.title('手动选取图案'+(' · '+category if category else ' · 请选择图案类别'))
+        self.apply_button.configure(text='确认所选对象为'+category if category else '请选择图案类别',
+                                    state='normal' if self.selected and valid else 'disabled')
+
     def _apply(self):
         ids = [o['id'] for o in self.objects if o['id'] in self.selected]
         if ids:
-            self.on_confirm(ids)
+            if self.on_category_confirm:
+                category = next((key for key, label in LABELS.items() if label == self.category.get()), None)
+                if category is None:
+                    return
+                self.on_category_confirm(category, ids)
+            else:
+                self.on_confirm(ids)
             self.destroy()
 
 
@@ -188,7 +221,9 @@ class ReviewGallery(tk.Toplevel):
 
     def __init__(self, parent, result, output_root, manual_candidate=None):
         super().__init__(parent)
-        self.result = result
+        self.result = dict(result, source_regions=[dict(r) for r in result.get('source_regions', [])])
+        self.regions = self.result['source_regions']
+        self.region_assignments = object_regions(result['objects'], self.regions)
         self.by_id = {o['id']: o for o in result['objects']}
         self.choices, self.choice_labels = {}, {}
         self.patterns = {name: [] for name in LABELS}
@@ -197,6 +232,9 @@ class ReviewGallery(tk.Toplevel):
         self.current_candidate = None
         self.busy = False
         self.events = queue.Queue()
+        self._locator_requests = queue.Queue(maxsize=1)
+        self._locator_stop = threading.Event()
+        self._locator_generation = 0
         self.photos, self.thumbnail_cache = [], {}
         self.candidates = []
         for name in LABELS:
@@ -221,6 +259,7 @@ class ReviewGallery(tk.Toplevel):
         self.status = tk.StringVar(value='逐类添加需要导出的图案，并标注来源视图；没有图案的类别请明确标记。')
         self._build()
         self._restore()
+        self._split_region_candidates()
         self._switch_category()
         self.protocol('WM_DELETE_WINDOW', self._close)
         self._poll_id = None
@@ -233,12 +272,17 @@ class ReviewGallery(tk.Toplevel):
                 except Exception as exc: self.events.put(('candidate_error',str(exc)))
             threading.Thread(target=load_candidates,daemon=True).start()
         self._poll_id=self.after(100, self._drain)
+        threading.Thread(target=self._locator_worker,
+                         args=(result, self._locator_requests, self.events, self._locator_stop),
+                         daemon=True).start()
 
     def _build(self):
         outer = ttk.Frame(self, padding=12)
         outer.pack(fill='both', expand=True)
         ttk.Label(outer, text=Path(self.result['source']).name, font=('Microsoft YaHei UI', 13, 'bold')).pack(anchor='w')
-        ttk.Label(outer, text='① 选择类别和候选   ② 标注来源视图并添加（每类可添加多个方向）   ③ 六类确认后导出').pack(anchor='w', pady=(4,10))
+        ttk.Label(outer, text='① 核对 AI 原稿区域   ② 选择候选并添加（自动继承区域名）   ③ 六类确认后导出').pack(anchor='w', pady=(4,10))
+        self.region_button = ttk.Button(outer, text='查看原稿区域 / 统一修改区域名称…', command=self._edit_regions)
+        self.region_button.pack(anchor='w', pady=(0, 5))
         split = ttk.Panedwindow(outer, orient='horizontal')
         split.pack(fill='both', expand=True)
         left, middle, right = ttk.Frame(split), ttk.Frame(split), ttk.Frame(split)
@@ -267,6 +311,8 @@ class ReviewGallery(tk.Toplevel):
         self.page_label = ttk.Label(paging); self.page_label.pack(side='left', padx=6)
         self.preview = ImagePreview(right)
         self.preview.pack(fill='both', expand=True)
+        self.source_locator = SourceLocator(self.preview.canvas, title='原稿位置 · 正在加载…')
+        self.source_locator.place(x=8, y=8)
         self.best_label = ttk.Label(right, wraplength=600, foreground='#155e75')
         self.best_label.pack(anchor='w', pady=7)
         view_row = ttk.Frame(right); view_row.pack(fill='x')
@@ -284,6 +330,9 @@ class ReviewGallery(tk.Toplevel):
         self.absent_button.pack(fill='x', pady=4)
         self.edit_button = ttk.Button(right, text='识别不正确？在原稿上点选 / 框选本类对象…', command=self._edit_objects)
         self.edit_button.pack(fill='x', pady=8)
+        self.new_pattern_button = ttk.Button(right, text='从零自由选取新图案（不使用当前候选）…',
+                                             command=lambda: self._edit_objects(from_scratch=True))
+        self.new_pattern_button.pack(fill='x', pady=(0, 8))
         row = ttk.Frame(outer); row.pack(fill='x', pady=(12,4))
         ttk.Label(row, text='成品保存位置').pack(side='left')
         self.output_entry = ttk.Entry(row, textvariable=self.output_root)
@@ -292,7 +341,7 @@ class ReviewGallery(tk.Toplevel):
         self.browse_button.pack(side='left')
         self.export_button = ttk.Button(row, text='导出六类已确认成品', command=self._export)
         self.export_button.pack(side='left', padx=(8,0))
-        ttk.Label(outer, text='每个图案分别导出：类别_来源视图_序号_FS文件名.svg / .png；方向由人工核对，无法判断时保留“待确认视图”。', foreground='#666666').pack(anchor='w')
+        ttk.Label(outer, text='每个图案分别导出：区域名称_类别_序号_FS文件名.svg / .png；区域名称自动继承，来源方向可手动更正。', foreground='#666666').pack(anchor='w')
         ttk.Label(outer, textvariable=self.status, wraplength=1250).pack(anchor='w', pady=6)
 
     def _restore(self):
@@ -301,6 +350,13 @@ class ReviewGallery(tk.Toplevel):
             saved = json.loads(path.read_text(encoding='utf8'))
             if saved['source_sha256'] != self.result['source_sha256'] or Path(saved['source']).resolve()!=Path(self.result['source']).resolve():
                 return
+            # Only restore names for regions from this extraction; never trust saved geometry.
+            overrides = {r['id']: r for r in saved.get('source_regions', [])}
+            for region in self.regions:
+                old = overrides.get(region['id'], {})
+                if (old.get('anchor_ids') == region['anchor_ids'] and old.get('bbox') == region['bbox']
+                        and valid_region_name(old.get('name')) and old.get('source_view') in SOURCE_VIEWS):
+                    region.update(name=old['name'], source_view=old['source_view'])
             for name, label in LABELS.items():
                 record = saved['categories'].get(label)
                 if record is None:
@@ -316,14 +372,109 @@ class ReviewGallery(tk.Toplevel):
                         continue
                     if set(i for e in entries for i in e['selected_ids']) != set(ids):
                         continue
-                    self.patterns[name] = [{'selected_ids': list(e['selected_ids']), 'source_view': e['source_view']} for e in entries]
+                    self.patterns[name] = [dict(e, selected_ids=list(e['selected_ids'])) for e in entries]
+                    for entry in self.patterns[name]:
+                        entry.pop('files', None)
+                        self._inherit_region(entry)
                     self.choices[name] = list(ids)
-                    self.choice_labels[name] = '、'.join(e['source_view'] for e in self.patterns[name])
+                    self.choice_labels[name] = '、'.join(e.get('region_name', e['source_view']) for e in self.patterns[name])
                     for index, entry in enumerate(self.patterns[name]):
                         self.candidates.insert(0, dict(entry, id=f'saved-{name}-{index}', label='上次已复核成品',
                             category_hints=[name], recommended_categories=[]))
         except (OSError, ValueError, KeyError, TypeError):
             return
+
+    def _region(self, ids):
+        return region_for_ids(ids, self.region_assignments, self.regions)
+
+    def _inherit_region(self, entry):
+        region = self._region(entry['selected_ids'])
+        if region:
+            entry.update(source_region=region['id'], region_name=region['name'])
+        return entry
+
+    def _split_region_candidates(self):
+        if not self.regions:
+            return
+        candidates = []
+        for candidate in self.candidates:
+            for index, ids in enumerate(split_by_region(candidate['selected_ids'], self.region_assignments)):
+                candidates.append(dict(candidate, id=candidate.get('id', 'region')+f'-region-{index}',
+                                       selected_ids=ids))
+        self.candidates = candidates
+
+    def _rename_region(self, rid, name, direction):
+        if not valid_region_name(name) or direction not in SOURCE_VIEWS:
+            raise ValueError('名称限 1–40 字，不能包含路径字符或首尾空格。')
+        if any(r['id'] != rid and r['name'] == name for r in self.regions):
+            raise ValueError('区域名称不能重复。')
+        region = next(r for r in self.regions if r['id'] == rid)
+        region.update(name=name, source_view=direction)
+        for entries in self.patterns.values():
+            for entry in entries:
+                if self._region(entry['selected_ids']) is region:
+                    entry.update(source_region=rid, region_name=name, source_view=direction)
+        for category in self.choices:
+            if self.patterns[category]:
+                self._sync_patterns(category)
+        self._refresh_status()
+        self._render_page()
+        if self.current_candidate:
+            self._preview()
+
+    def _edit_regions(self):
+        if self.busy:
+            return
+        if not self.regions:
+            messagebox.showinfo('原稿区域', '本任务暂无 AI 区域。请启用 AI 重新提取；旧任务仍可逐图手动标注来源视图。', parent=self)
+            return
+        dialog = tk.Toplevel(self)
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.title('原稿区域 · 修改一次，相关图案统一沿用')
+        dialog.geometry('1000x680')
+        preview = ImagePreview(dialog)
+        preview.pack(fill='both', expand=True)
+        row = ttk.Frame(dialog, padding=8); row.pack(fill='x')
+        selected = tk.StringVar(value=self.regions[0]['id'])
+        chooser = ttk.Combobox(row, textvariable=selected, values=[r['id'] for r in self.regions], state='readonly', width=6)
+        chooser.pack(side='left')
+        name, direction = tk.StringVar(), tk.StringVar()
+        ttk.Entry(row, textvariable=name, width=28).pack(side='left', padx=6)
+        ttk.Combobox(row, textvariable=direction, values=SOURCE_VIEWS, state='readonly').pack(side='left')
+        ttk.Label(dialog, text='绿色框为原稿区域，红框为当前区域。名称用于文件名和 SVG 图层；方向不确定可保留“待确认视图”。').pack(anchor='w', padx=8)
+        def draw(_event=None):
+            region = next(r for r in self.regions if r['id'] == selected.get())
+            name.set(region['name']); direction.set(region['source_view'])
+            from core.fs_scene import source_preview_objects
+            try:
+                objects = source_preview_objects(self.result)
+            except Exception:
+                objects = self.result['objects']
+            root = ET.fromstring(svg_document(objects, background='#ffffff'))
+            ns = '{http://www.w3.org/2000/svg}'
+            _, y, width, height = map(float, root.get('viewBox').split())
+            for r in self.regions:
+                x0, y0, x1, y1 = r['bbox']
+                color = '#dc2626' if r['id'] == selected.get() else '#059669'
+                top = 2*y+height-y1
+                ET.SubElement(root, ns+'rect', {'x': str(x0), 'y': str(top), 'width': str(x1-x0),
+                    'height': str(y1-y0), 'fill': 'none', 'stroke': color, 'stroke-width': str(width/600)})
+                label = ET.SubElement(root, ns+'text', {'x': str(x0), 'y': str(top+width/65),
+                    'font-size': str(width/65), 'fill': color, 'font-family': 'Microsoft YaHei'})
+                label.text = r['id']+' · '+r['name']
+            preview.set_image(None, VectorImage(ET.tostring(root, encoding='unicode')),
+                              vector_label='原稿区域 · 滚轮缩放 / 拖动查看')
+        def apply():
+            try:
+                self._rename_region(selected.get(), name.get(), direction.get())
+            except ValueError as exc:
+                messagebox.showerror('区域名称无效', str(exc), parent=dialog)
+                return
+            draw()
+        ttk.Button(row, text='应用到本区域全部图案', command=apply).pack(side='left', padx=8)
+        chooser.bind('<<ComboboxSelected>>', draw)
+        draw()
 
     def _switch_category(self, name=None):
         self.category = name or self.category
@@ -343,12 +494,33 @@ class ReviewGallery(tk.Toplevel):
         self._render_page()
         self._refresh_status()
 
+    def _effective_ids(self, candidate):
+        """Show the same parent refinement that reviewed exports apply.
+
+        Keep original memberships for undo/reclassification. Confirmed choices
+        (including explicit absence) override the model's provisional labels.
+        """
+        ids = candidate['selected_ids']
+        if self.category not in ('车身', '文字'):
+            return list(ids)
+        categories = self.result.get('component_categories', {})
+        from core.paint import category_exclusions
+        excluded = category_exclusions(self.category, {
+            name: self.choices.get(name, categories.get(name)) for name in LABELS})
+        return [oid for oid in ids if oid not in excluded]
+
+    def _selection_label(self, candidate):
+        ids = self._effective_ids(candidate)
+        removed = len(candidate['selected_ids']) - len(ids)
+        removed_label = 'logo' if self.category == '文字' else '车漆等'
+        return str(len(ids))+' 条源路径'+(f'（已扣除{removed_label} {removed} 条）' if removed else '')
+
     def _svg(self, candidate):
-        chosen = set(candidate['selected_ids'])
+        chosen = set(self._effective_ids(candidate))
         return svg_document([o for o in self.result['objects'] if o['id'] in chosen], width=1400)
 
     def _thumbnail(self, candidate):
-        key = tuple(candidate['selected_ids'])
+        key = tuple(self._effective_ids(candidate))
         if key not in self.thumbnail_cache:
             import re
             svg = self._svg(candidate)
@@ -371,16 +543,20 @@ class ReviewGallery(tk.Toplevel):
             c = self.filtered[index]
             photo = self._thumbnail(c); self.photos.append(photo)
             prefix = '推荐 · ' if self.category in c.get('recommended_categories', []) else ''
+            region = self._region(c['selected_ids'])
+            region_label = ' · '+region['name'] if region else ''
             self.tree.insert('', 'end', iid=str(index), image=photo,
-                             text=' '+prefix+c.get('label',c['id'])+'\n '+str(len(c['selected_ids']))+' 条源路径')
+                             text=' '+prefix+c.get('label',c['id'])+region_label+'\n '+self._selection_label(c))
         pages = max(1,(len(self.filtered)+self.PAGE_SIZE-1)//self.PAGE_SIZE)
         self.page_label.configure(text=f'{self.page+1}/{pages} 页 · {len(self.filtered)} 套')
         children = self.tree.get_children()
         if children:
             self.tree.selection_set(children[0]); self._preview()
         else:
+            self.current_candidate = None
             self.preview.set_image(None)
-            self.status.set('该类暂无分组候选，可勾选“显示全部组合”，或在工作台补选对象后重新打开。')
+            self._request_location()
+            self.status.set('该类暂无分组候选，可直接点击“从零自由选取新图案”，在整张原稿上点选或框选。')
 
     def _change_page(self, delta):
         page = self.page+delta
@@ -394,9 +570,61 @@ class ReviewGallery(tk.Toplevel):
         self.current_candidate = self.filtered[int(rows[0])]
         saved = next((e for e in self.patterns[self.category]
                       if set(e['selected_ids']) == set(self.current_candidate['selected_ids'])), None)
-        self.source_view.set((saved or self.current_candidate).get('source_view', SOURCE_VIEWS[0]))
+        direction = (saved or self.current_candidate).get('source_view', SOURCE_VIEWS[0])
+        region = self._region(self.current_candidate['selected_ids'])
+        if region and not saved:
+            direction = region['source_view']
+        if direction == SOURCE_VIEWS[0] and not region:
+            direction = infer_source_view(self.current_candidate['selected_ids'], self.result['objects'],
+                                          self.candidates + [e for entries in self.patterns.values() for e in entries])
+        self.source_view.set(direction)
         vector = VectorImage(self._svg(self.current_candidate))
-        self.preview.set_image(None, vector, vector_label='候选 SVG · 可缩放、拖动；选择来源视图后添加')
+        self.preview.set_image(None, vector, vector_label=('来源区域：'+region['name']+' · 自动继承名称' if region else '候选 SVG · 待确认区域，可手动标注来源视图'))
+        self._request_location()
+
+    def _request_location(self):
+        self._locator_generation += 1
+        selected = [self.by_id[i] for i in self._effective_ids(self.current_candidate or {'selected_ids': []})
+                    if i in self.by_id and self.by_id[i].get('bbox')]
+        # Clear the previous candidate's red box while the new one is loading.
+        self.source_locator.show_prepared(None, None, None)
+        self.source_locator.heading.configure(text='原稿位置 · 正在加载…' if selected else '原稿位置 · 无候选图案')
+        try:
+            self._locator_requests.get_nowait()
+        except queue.Empty:
+            pass
+        self._locator_requests.put_nowait((self._locator_generation,
+                                          union_bounds(selected) if selected else None))
+
+    @staticmethod
+    def _locator_worker(result, requests, events, stop):
+        # Only plain data and PIL images cross this boundary; Tk stays on the UI thread.
+        renderer, page, title = SourceLocatorRenderer(), None, ''
+        while not stop.is_set():
+            try:
+                generation, bounds = requests.get(timeout=.2)
+            except queue.Empty:
+                continue
+            if bounds is None:
+                events.put(('locator', (generation, None, None, None, '原稿位置 · 无候选图案')))
+                continue
+            try:
+                if page is None:
+                    try:
+                        from core.fs_scene import source_preview_objects
+                        objects = source_preview_objects(result)
+                        title = '原稿位置 · 第 1 页 · 红框为当前图案'
+                    except Exception:
+                        objects = result['objects']
+                        title = '原稿位置 · 提取对象预览（原稿读取失败）'
+                    page = {'objects': objects, 'image': VectorImage(
+                        svg_document(objects, background='#ffffff'))}
+                image = renderer.prepare(page, bounds)
+                payload = (generation, image, renderer._viewbox, renderer._viewport, title)
+            except Exception:
+                payload = (generation, None, None, None, '原稿位置 · 预览不可用')
+            if not stop.is_set():
+                events.put(('locator', payload))
 
     def _confirm(self):
         if self.busy or not self.current_candidate:
@@ -405,7 +633,17 @@ class ReviewGallery(tk.Toplevel):
         self._refresh_status()
 
     def _add_pattern(self, category, ids):
+        groups = split_by_region(ids, self.region_assignments)
+        if len(groups) > 1:
+            direction = self.source_view.get()
+            for group in groups:
+                region = self._region(group)
+                self.source_view.set(region['source_view'] if region else SOURCE_VIEWS[0])
+                self._add_pattern(category, group)
+            self.source_view.set(direction)
+            return
         entry = {'selected_ids': list(ids), 'source_view': self.source_view.get()}
+        self._inherit_region(entry)
         entries = self.patterns[category]
         for index, old in enumerate(entries):
             if set(old['selected_ids']) == set(ids):
@@ -418,7 +656,7 @@ class ReviewGallery(tk.Toplevel):
     def _sync_patterns(self, category):
         entries = self.patterns[category]
         self.choices[category] = list(dict.fromkeys(i for e in entries for i in e['selected_ids'])) if entries else None
-        self.choice_labels[category] = '、'.join(e['source_view'] for e in entries) if entries else '无图案'
+        self.choice_labels[category] = '、'.join(e.get('region_name', e['source_view']) for e in entries) if entries else '无图案'
 
     def _preview_pattern(self, _event=None):
         rows = self.pattern_list.curselection()
@@ -428,6 +666,7 @@ class ReviewGallery(tk.Toplevel):
         self.source_view.set(self.current_candidate['source_view'])
         self.preview.set_image(None, VectorImage(self._svg(self.current_candidate)),
                                vector_label='已添加图案 · 修改来源视图后点击更新')
+        self._request_location()
 
     def _remove_pattern(self):
         rows = self.pattern_list.curselection()
@@ -440,13 +679,15 @@ class ReviewGallery(tk.Toplevel):
             self.choice_labels.pop(self.category, None)
         self._refresh_status()
 
-    def _edit_objects(self):
+    def _edit_objects(self, *, from_scratch=False):
         if self.busy:
             return
         category = self.category
-        initial = (self.current_candidate or {}).get('selected_ids', [])
+        initial = [] if from_scratch else self._effective_ids(self.current_candidate or {'selected_ids': []})
         ObjectSelectionEditor(self, self.result['objects'], initial or [],
-                              LABELS[category], lambda ids: self._accept_manual(category, ids))
+                              '' if from_scratch else LABELS[category],
+                              lambda ids: self._accept_manual(category, ids),
+                              on_category_confirm=self._accept_manual)
 
     def _accept_manual(self, category, ids):
         if self.busy or not ids or not set(ids) <= set(self.by_id):
@@ -475,7 +716,7 @@ class ReviewGallery(tk.Toplevel):
         self.best_label.configure(text=f'本类已添加 {len(entries)} 个图案：'+self.choice_labels.get(self.category,'尚未确认'))
         self.pattern_list.delete(0, 'end')
         for index, entry in enumerate(entries, 1):
-            self.pattern_list.insert('end', f"{index:02d} · {entry['source_view']} · {len(entry['selected_ids'])} 条源路径")
+            self.pattern_list.insert('end', f"{index:02d} · {entry.get('region_name', entry['source_view'])} · {self._selection_label(entry)}")
         self.status.set(f'已确认 {len(self.choices)}/{len(LABELS)} 类。可跨页添加多个图案；选中已添加项可预览、更新方向或移除。')
 
     def _browse(self):
@@ -496,7 +737,7 @@ class ReviewGallery(tk.Toplevel):
                     for name, entries in self.patterns.items()}
         output = self.output_root.get()
         self.busy = True
-        for widget in (self.export_button,self.confirm_button,self.absent_button,self.edit_button,self.browse_button,self.output_entry):
+        for widget in (self.export_button,self.confirm_button,self.absent_button,self.edit_button,self.new_pattern_button,self.browse_button,self.output_entry):
             widget.configure(state='disabled')
         self.status.set('正在生成已确认的 SVG / PNG 成品…')
         def work():
@@ -510,6 +751,13 @@ class ReviewGallery(tk.Toplevel):
         except queue.Empty:
             pass
         else:
+            if kind == 'locator':
+                generation, image, viewbox, viewport, title = value
+                if generation == self._locator_generation:
+                    self.source_locator.heading.configure(text=title)
+                    self.source_locator.show_prepared(image, viewbox, viewport)
+                self._poll_id = self.after(100, self._drain)
+                return
             if kind in ('candidates','candidate_error'):
                 if kind=='candidates':
                     self.candidates.extend(value)
@@ -519,7 +767,7 @@ class ReviewGallery(tk.Toplevel):
                 self._poll_id=self.after(100,self._drain)
                 return
             self.busy = False
-            for widget in (self.export_button,self.confirm_button,self.absent_button,self.edit_button,self.browse_button,self.output_entry):
+            for widget in (self.export_button,self.confirm_button,self.absent_button,self.edit_button,self.new_pattern_button,self.browse_button,self.output_entry):
                 widget.configure(state='normal')
             if kind=='ok':
                 self.status.set('已导出复核成品：'+value['output_dir'])
@@ -535,6 +783,7 @@ class ReviewGallery(tk.Toplevel):
         self.destroy()
 
     def destroy(self):
+        self._locator_stop.set()
         poll_id=getattr(self,'_poll_id',None)
         if poll_id is not None:
             try: self.after_cancel(poll_id)

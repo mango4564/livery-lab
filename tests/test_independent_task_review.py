@@ -5,6 +5,7 @@ import tempfile
 import time
 import tkinter as tk
 import unittest
+from tests.tk_lifecycle import TkTestCase
 from unittest.mock import patch
 
 from review_gallery import ReviewGallery
@@ -12,7 +13,7 @@ from test_reviewed_exports import fixture
 from ui import LiveryApp
 
 
-class IndependentTaskReviewTests(unittest.TestCase):
+class IndependentTaskReviewTests(TkTestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

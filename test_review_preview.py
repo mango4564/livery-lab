@@ -4,6 +4,7 @@ from pathlib import Path
 import tkinter as tk
 import time
 import unittest
+from tests.tk_lifecycle import TkTestCase
 from unittest.mock import patch
 
 from geometry import svg_document
@@ -13,7 +14,7 @@ from ui import LiveryApp
 from vector_preview import VectorDocument, VectorImage
 
 
-class ReviewPreviewTests(unittest.TestCase):
+class ReviewPreviewTests(TkTestCase):
     def setUp(self):
         self.root = tk.Tk()
         self.root.geometry('1280x880+0+0')
