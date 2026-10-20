@@ -29,14 +29,64 @@ def paint_candidates(objects):
     for obj in objects:
         box = obj['bbox']
         w, h = box[2]-box[0], box[3]-box[1]
-        if (min(w, h) <= 1e-5 or w*h < page_area*.001
+        if (min(w, h) <= 1e-5
                 or obj.get('details', {}).get('closed') is False
                 or style_capability(obj) == 'unsupported'):
             continue
         result.append({'members': [obj], 'bbox': box, 'native_type': 'PaintSurface',
                        'source_span': [obj['source_offset'], obj['source_offset']],
                        'member_ids': [obj['id']], 'aspect': w/h, 'area': w*h})
-    return sorted(result, key=lambda c: -c['area'])
+    all_surfaces = sorted(result, key=lambda c: -c['area'])
+    surfaces = [c for c in all_surfaces if c['area'] >= page_area*.001]
+    # A side's base can live outside its vehicle group while the roof and
+    # mirror housings live inside it. Global area ranking loses those smaller
+    # surfaces. Offer regional bundles AND their individual paths for review;
+    # matching appearance is only a proposal, never a semantic assignment.
+    largest = max((c['area'] for c in surfaces), default=0)
+    bundles, details, seen = [], [], set()
+    for anchor in surfaces:
+        if anchor['area'] < largest * .2:
+            continue
+        source = anchor['members'][0]
+        a = anchor['bbox']
+        dx, dy = (a[2]-a[0])*.1, (a[3]-a[1])*.1
+        companions = []
+        for surface in all_surfaces:
+            obj, b = surface['members'][0], surface['bbox']
+            # Small roof housings need local scale; globally admitting small
+            # white parts would also collect lamps and wheel highlights.
+            roof_detail = (surface['area'] >= anchor['area']*.0025
+                           and b[1] >= a[3]-dy)
+            if (not (surface['area'] >= anchor['area']*.015 or roof_detail)
+                    or surface['area'] > anchor['area']*.35
+                    or (obj.get('fill') or '').lower() != (source.get('fill') or '').lower()
+                    or obj.get('gradient') != source.get('gradient')
+                    or not (a[0]-dx <= b[0] and a[1]-dy <= b[1]
+                            and b[2] <= a[2]+dx and b[3] <= a[3]+dy)):
+                continue
+            companions.append(surface)
+        if not companions:
+            continue
+        members = sorted([source] + [c['members'][0] for c in companions],
+                         key=lambda o: o['source_offset'])
+        ids = tuple(o['id'] for o in members)
+        if ids in seen:
+            continue
+        seen.add(ids)
+        box = union_bounds(members)
+        w, h = box[2]-box[0], box[3]-box[1]
+        bundles.append({'members': members, 'bbox': box, 'native_type': 'PaintRegion',
+                        'source_span': [members[0]['source_offset'], members[-1]['source_offset']],
+                        'member_ids': list(ids), 'aspect': w/h, 'area': w*h,
+                        'paint_anchor_id': source['id']})
+        details.extend([anchor] + companions)
+    proposals, provided = [], set()
+    for c in bundles + details + surfaces:
+        key = tuple(c['member_ids'])
+        if key not in provided:
+            provided.add(key)
+            proposals.append(c)
+    return proposals
 
 
 def text_ranges(raw, classes, word):
@@ -132,6 +182,104 @@ def loose_graphics(objects, native_candidates):
                             key=lambda c: -c['area'])
 
 
+def emblem_candidates(native_candidates):
+    """Expose complete arc badges and their nested graphics before area caps.
+
+    These are native source groups, not colour-based automatic labels. Keep
+    maximal nested graphics inside the arc envelope, excluding technical text
+    underneath it and vehicle-sized parents.
+    """
+    result, seen = [], set()
+    for arc in native_candidates:
+        if arc['native_type'] != 'AArcText':
+            continue
+        a = arc['bbox']
+        aw, ah = a[2]-a[0], a[3]-a[1]
+        arc_ids = set(arc['member_ids'])
+        graphics = []
+        for c in native_candidates:
+            b = c['bbox']
+            if (c['native_type'] not in ('AGroup', 'AComposite')
+                    or arc_ids.intersection(c['member_ids'])
+                    or not (a[0] <= b[0] and a[1] <= b[1] and b[2] <= a[2] and b[3] <= a[3])
+                    or b[2]-b[0] > aw*.65 or b[3]-b[1] > ah*.8
+                    or c['area'] < arc['area']*.005):
+                continue
+            graphics.append(c)
+        maximal = [c for c in graphics if not any(
+            set(c['member_ids']) < set(other['member_ids']) for other in graphics)]
+        logo_members = {o['id']: o for c in maximal for o in c['members']}
+        if not logo_members:
+            continue
+        for kind, members in (
+                ('DoorEmblem', {o['id']: o for o in arc['members']} | logo_members),
+                ('EmblemLogo', logo_members)):
+            members = sorted(members.values(), key=lambda o: o['source_offset'])
+            ids = tuple(o['id'] for o in members)
+            if ids in seen:
+                continue
+            seen.add(ids)
+            box = union_bounds(members)
+            w, h = box[2]-box[0], box[3]-box[1]
+            result.append({'members': members, 'bbox': box, 'native_type': kind,
+                           'source_span': [members[0]['source_offset'], members[-1]['source_offset']],
+                           'member_ids': list(ids), 'aspect': w/h, 'area': w*h,
+                           'arc_member_ids': list(arc['member_ids']),
+                           'logo_member_ids': list(logo_members)})
+    return result
+
+
+def wordmark_candidates(native_candidates):
+    """Split native text children from adjacent native graphic groups.
+
+    These are proposals for visual classification, not colour/filename rules.
+    Characters converted into compound paths stay whole inside native AText.
+    """
+    result, seen = [], set()
+    for parent in native_candidates:
+        if parent['native_type'] != 'AGroup' or len(parent['members']) > 200:
+            continue
+        parent_ids = set(parent['member_ids'])
+        texts = [c for c in native_candidates if c['native_type']=='AText'
+                 and set(c['member_ids']) < parent_ids]
+        text_members = {o['id']: o for c in texts for o in c['members']}
+        if not text_members:
+            continue
+        t = union_bounds(list(text_members.values()))
+        th = t[3]-t[1]
+        if th <= 0 or t[2]-t[0] < th*1.5 or parent['bbox'][3]-parent['bbox'][1] > th*3:
+            continue
+        remaining = parent_ids-set(text_members)
+        graphics = []
+        for c in native_candidates:
+            b = c['bbox']
+            side_gap = max(t[0]-b[2], b[0]-t[2])
+            if (c['native_type'] in ('AGroup', 'AComposite')
+                    and set(c['member_ids']) <= remaining
+                    and -.05*th <= side_gap <= th*2
+                    and min(t[3], b[3])-max(t[1], b[1]) > 0
+                    and c['area'] >= th*th*.05):
+                graphics.append(c)
+        maximal = [c for c in graphics if not any(
+            set(c['member_ids']) < set(other['member_ids']) for other in graphics)]
+        if not maximal:
+            continue
+        proposals = [('WordmarkText', list(text_members.values()))]
+        proposals += [('WordmarkLogo', c['members']) for c in maximal]
+        for kind, members in proposals:
+            members = sorted(members, key=lambda o:o['source_offset'])
+            ids = tuple(o['id'] for o in members)
+            if ids in seen:
+                continue
+            seen.add(ids)
+            box = union_bounds(members)
+            w, h = box[2]-box[0], box[3]-box[1]
+            result.append({'members': members, 'bbox': box, 'native_type': kind,
+                           'source_span': [members[0]['source_offset'], members[-1]['source_offset']],
+                           'member_ids': list(ids), 'aspect': w/h, 'area': w*h})
+    return result
+
+
 def build_candidates(objects, containers, limit=120):
     """Keep native ownership, deduplicate nested copies and expose omissions."""
     objects = sorted(objects, key=lambda o: o['source_offset'])
@@ -159,16 +307,20 @@ def build_candidates(objects, containers, limit=120):
     loose = loose_graphics(objects, candidates)
     max_area = max((c['area'] for c in candidates), default=1)
     paint = paint_candidates(objects)
-    buckets = [[], [], [], loose, paint]
+    badges = emblem_candidates(candidates)
+    wordmarks = wordmark_candidates(candidates)
+    buckets = [[], [], badges+wordmarks, loose, paint]
     for c in candidates:
         body = 2.2 < c['aspect'] < 5.5 and c['area'] > max_area * .025 and len(c['members']) > 100
         bucket = 0 if body else 1 if c['native_type'] in ('AText','AArcText') else 2
         buckets[bucket].append(c)
     selected = []
     leftovers = []
-    for index, (bucket, cap) in enumerate(zip(buckets, [limit//5]*5)):
-        if index != 3:
-            bucket.sort(key=lambda c: (-c['area'], len(c['members'])))
+    caps = [limit//6]*4 + [limit-4*(limit//6)]
+    for index, (bucket, cap) in enumerate(zip(buckets, caps)):
+        if index not in (3, 4):
+            bucket.sort(key=lambda c: (c['native_type'] not in ('DoorEmblem', 'EmblemLogo', 'WordmarkText', 'WordmarkLogo'),
+                                       -c['area'], len(c['members'])))
         local = []
         for c in bucket:
             ids = set(c['member_ids'])
@@ -182,10 +334,14 @@ def build_candidates(objects, containers, limit=120):
     for i, c in enumerate(selected):
         c.update(id=f'G{i+1:03d}', score=1, fill='none')
     return selected, {'native_candidates': len(candidates), 'loose_graphic_candidates': len(loose),
-                      'paint_surface_candidates': len(paint),
+                      'provided_emblem_candidates': sum(c['native_type'] in ('DoorEmblem', 'EmblemLogo') for c in selected),
+                      'provided_wordmark_candidates': sum(c['native_type'] in ('WordmarkText', 'WordmarkLogo') for c in selected),
+                      'paint_surface_candidates': sum(c['native_type']=='PaintSurface' for c in paint),
+                      'paint_region_candidates': sum(c['native_type']=='PaintRegion' for c in paint),
                       'provided_paint_surfaces': sum(c['native_type']=='PaintSurface' for c in selected),
+                      'provided_paint_regions': sum(c['native_type']=='PaintRegion' for c in selected),
                       'provided_candidates': len(selected),
-                      'omitted_or_deduplicated_candidates': len(candidates)+len(loose)+len(paint)-len(selected),
+                      'omitted_or_deduplicated_candidates': len(candidates)+len(badges)+len(wordmarks)+len(loose)+len(paint)-len(selected),
                       'candidate_limit': limit, 'reference_library_used': False}
 
 
@@ -227,26 +383,24 @@ def recognize_groups(candidates, directory, config):
 
 
 def resolve_categories(objects, candidates, decision):
-    """Map semantic groups back to source paths; never silently double assign."""
+    """Map groups to source paths; allow only explicit emblem/logo sharing."""
     by_group = {c['id']: c for c in candidates}
     categories = {}
     for name in CATEGORIES:
         categories[name] = set()
         for gid in decision['categories'][name]:
             categories[name].update(by_group[gid]['member_ids'])
-    # A native arc-text child is more precise than a parent containing seat
-    # counts or other technical lettering. Keep only complete contained arcs.
+    # Remove technical lettering from broad parents, while retaining the
+    # complete badge's graphic when that complete candidate is selected.
     arcs = [set(c['member_ids']) for c in candidates if c['native_type']=='AArcText'
             and set(c['member_ids']) <= categories['门徽']]
     if arcs:
-        categories['门徽'] = set().union(*arcs)
-    nonbody = set()
-    for name in CATEGORIES[1:]:
-        if nonbody & categories[name]:
-            raise ValueError('非车身类别存在重叠源对象，需人工复核分组。')
-        nonbody.update(categories[name])
-    categories['车身'] -= nonbody
-    return {name: [o['id'] for o in objects if o['id'] in ids] for name, ids in categories.items()}
+        complete = [set(c['member_ids']) for c in candidates if c['native_type']=='DoorEmblem'
+                    and set(c['member_ids']) <= categories['门徽']]
+        categories['门徽'] = set().union(*arcs, *complete)
+    from core.paint import normalize_categories
+    return normalize_categories(objects, {
+        name: [o['id'] for o in objects if o['id'] in ids] for name, ids in categories.items()})
 
 
 def run(source, directory, config, *, use_ai=True):
@@ -260,6 +414,8 @@ def run(source, directory, config, *, use_ai=True):
     report = {'source': str(source.resolve()), 'source_sha256': digest, 'coverage': coverage,
               'decision': decision, 'categories': categories, 'status': 'review', 'views': []}
     report['candidates'] = review_candidates(candidates, decision)
+    from core.source_regions import build_source_regions
+    report['source_regions'] = build_source_regions(candidates, decision)
     for name, ids in categories.items():
         selected = set(ids)
         from core.svg_layers import layered_svg
@@ -288,10 +444,16 @@ def review_candidates(candidates, decision):
         recommended = [name for name, groups in decision['categories'].items() if c['id'] in groups]
         hints = list(recommended)
         if not hints:
-            if c['native_type'] == 'PaintSurface':
+            if c['native_type'] in ('PaintSurface', 'PaintRegion'):
                 hints = ['车漆']
-            elif c['native_type'] == 'AArcText':
+            elif c['native_type'] in ('AArcText', 'DoorEmblem'):
                 hints = ['门徽']
+            elif c['native_type'] == 'EmblemLogo':
+                hints = ['logo', '门徽']
+            elif c['native_type'] == 'WordmarkLogo':
+                hints = ['logo']
+            elif c['native_type'] == 'WordmarkText':
+                hints = ['文字']
             elif c['native_type'] == 'AText':
                 hints = ['文字']
             elif c['area'] > largest*.025 and 2.2 < c['aspect'] < 5.5 and len(c['member_ids']) > 100:
@@ -302,6 +464,7 @@ def review_candidates(candidates, decision):
                     hints.append('彩条')
         result.append({'id':c['id'], 'label':c['id']+' · '+c['native_type'],
                        'selected_ids':list(c['member_ids']), 'bbox':c['bbox'],
+                       'source_view': decision.get('source_views', {}).get(c['id'], '待确认视图'),
                        'category_hints':hints, 'recommended_categories':recommended})
     return result
 

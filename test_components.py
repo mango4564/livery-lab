@@ -71,7 +71,7 @@ class ComponentsTests(unittest.TestCase):
         c = [{'id': 'a', 'native_type': 'AGroup', 'member_ids': ['1']},
              {'id': 'b', 'native_type': 'AGroup', 'member_ids': ['1', '2']}]
         with self.assertRaises(ValueError):
-            resolve_categories([{'id': '1'}, {'id': '2'}], c, decision(logo=['a'], 文字=['b']))
+            resolve_categories([{'id': '1'}, {'id': '2'}], c, decision(logo=['a'], 彩条=['b']))
 
 
 if __name__ == '__main__':
