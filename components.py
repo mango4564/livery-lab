@@ -245,16 +245,28 @@ def emblem_candidates(native_candidates):
     excluding technical text underneath it and vehicle-sized parents.
     """
     result, seen = [], set()
+    all_text_ids = {i for c in native_candidates
+                    if c['native_type'] in ('AText', 'AArcText') for i in c['member_ids']}
     for arc in native_candidates:
         if arc['native_type'] != 'AArcText':
             continue
         a = arc['bbox']
         aw, ah = a[2]-a[0], a[3]-a[1]
         arc_ids = set(arc['member_ids'])
+        # Prefer the smallest compact owner. Coincident text from separate
+        # source groups must not be assembled into the same badge.
+        owners = [c for c in native_candidates if c['native_type'] == 'AGroup'
+                  and arc_ids < set(c['member_ids'])
+                  and c['bbox'][2]-c['bbox'][0] <= aw*1.1
+                  and c['bbox'][3]-c['bbox'][1] <= max(ah*1.8, aw)]
+        owner_ids = set(min(owners, key=lambda c: len(c['member_ids']))['member_ids']) if owners else None
         captions = [c for c in native_candidates
                     if c['native_type'] == 'AText'
                     and not arc_ids.intersection(c['member_ids'])
-                    and a[0] <= c['bbox'][0] and a[1] <= c['bbox'][1]
+                    and (owner_ids is None or set(c['member_ids']) <= owner_ids)
+                    and a[0] <= c['bbox'][0]
+                    and (a[1] <= c['bbox'][1] or (owner_ids is not None
+                         and a[1]-c['bbox'][1] <= aw*.15))
                     and c['bbox'][2] <= a[2] and c['bbox'][3] <= a[3]
                     and c['bbox'][2]-c['bbox'][0] <= aw*.95
                     and c['bbox'][3]-c['bbox'][1] <= ah*.4]
@@ -270,6 +282,7 @@ def emblem_candidates(native_candidates):
                      and 0 <= a[1]-b[3] <= aw*.15 and b[1] >= a[1]-aw*.8)
             if (c['native_type'] not in ('AGroup', 'AComposite')
                     or arc_ids.intersection(c['member_ids'])
+                    or (owner_ids is not None and not set(c['member_ids']) <= owner_ids)
                     or not (inside or below)
                     or b[2]-b[0] > aw*.65 or b[3]-b[1] > max(ah*.8, aw*.6)
                     or c['area'] < arc['area']*.005):
@@ -280,7 +293,7 @@ def emblem_candidates(native_candidates):
         # Composite glyphs inside AText are text, even when they resemble a
         # small native graphic group. Keep the entire line, including digits.
         logo_members = {o['id']: o for c in maximal for o in c['members']
-                        if o['id'] not in caption_members}
+                        if o['id'] not in all_text_ids}
         if not logo_members and not caption_members:
             continue
         for kind, members in (
@@ -301,6 +314,47 @@ def emblem_candidates(native_candidates):
                            'arc_member_ids': list(arc['member_ids']),
                            'text_member_ids': list(caption_members),
                            'logo_member_ids': list(logo_members)})
+    return result
+
+
+def text_block_candidates(native_candidates):
+    """Keep native multiline lettering, including captions converted to paths.
+
+    Reserve complete compact owners for visual classification. Never infer
+    missing letters, mirror the other side, or join unrelated spatial groups.
+    """
+    result, seen = [], set()
+    arc_ids = {i for c in native_candidates if c['native_type'] == 'AArcText'
+               for i in c['member_ids']}
+    for text in native_candidates:
+        if text['native_type'] != 'AText':
+            continue
+        t = text['bbox']
+        tw, th = t[2]-t[0], t[3]-t[1]
+        if th <= 0 or tw < th*3:
+            continue
+        ids = set(text['member_ids'])
+        owners = sorted((c for c in native_candidates if c['native_type'] == 'AGroup'
+                         and ids < set(c['member_ids']) and len(c['members']) <= 200),
+                        key=lambda c: len(c['members']))
+        for owner in owners:
+            if arc_ids.intersection(owner['member_ids']):
+                continue
+            rest = [o for o in owner['members'] if o['id'] not in ids]
+            if len(rest) < 4:
+                continue
+            b = union_bounds(rest)
+            bw, bh = b[2]-b[0], b[3]-b[1]
+            overlap = max(0, min(t[2], b[2])-max(t[0], b[0]))
+            gap = max(t[1]-b[3], b[1]-t[3])
+            if not (.45*tw <= bw <= 1.2*tw and 0 < bh <= th*.8
+                    and overlap >= min(tw, bw)*.85 and 0 <= gap <= th*.65):
+                continue
+            key = tuple(owner['member_ids'])
+            if key not in seen:
+                result.append(dict(owner, native_type='TextBlock'))
+                seen.add(key)
+            break
     return result
 
 
@@ -387,6 +441,7 @@ def build_candidates(objects, containers, limit=120):
     paint = paint_candidates(objects)
     badges = emblem_candidates(candidates)
     wordmarks = wordmark_candidates(candidates)
+    text_blocks = text_block_candidates(candidates)
     # Compact graphics, including gradients and unlettered marks, otherwise
     # lose to vehicle parts in area ranking. Preserve separate placements.
     # This only reserves visual proposals; the model must classify them.
@@ -418,14 +473,14 @@ def build_candidates(objects, containers, limit=120):
                               or (c['area'] < max_area*.75 and c['aspect'] < 3))
                 and .5 < c['aspect'] < 8):
             details.append(dict(c, native_type='DetailGraphic'))
-    buckets = [[], [], badges+wordmarks+details, loose, paint]
+    buckets = [[], [], badges+text_blocks+wordmarks+details, loose, paint]
     for c in candidates:
         body = 2.2 < c['aspect'] < 5.5 and c['area'] > max_area * .025 and len(c['members']) > 100
         bucket = 0 if body else 1 if c['native_type'] in ('AText','AArcText') else 2
         buckets[bucket].append(c)
     selected = []
     leftovers = []
-    priority_types = ('DoorEmblem', 'EmblemLogo', 'WordmarkText', 'WordmarkLogo',
+    priority_types = ('DoorEmblem', 'EmblemLogo', 'TextBlock', 'WordmarkText', 'WordmarkLogo',
                       'DetailGraphic', 'CompactGraphic')
     caps = [limit//6]*4 + [limit-4*(limit//6)]
     for index, (bucket, cap) in enumerate(zip(buckets, caps)):
@@ -497,7 +552,7 @@ def detail_candidates(candidates):
             and w >= page_width*.1 and w >= 1.8*h
             and any(o.get('fill') not in (None, 'none') for o in c['members']))
         if (native_graphic or c.get('coverage_anchor')
-                or c['native_type'] in ('DetailGraphic', 'CompactGraphic', 'DoorEmblem', 'EmblemLogo', 'SpatialPaths', 'SourcePath')):
+                or c['native_type'] in ('DetailGraphic', 'CompactGraphic', 'TextBlock', 'DoorEmblem', 'EmblemLogo', 'SpatialPaths', 'SourcePath')):
             result.append(c)
     return result
 
@@ -594,7 +649,7 @@ def review_candidates(candidates, decision):
             # pool instead of presenting vehicle parts as category results.
             if c['native_type'] in ('AArcText', 'DoorEmblem'):
                 hints = ['门徽']
-            elif c['native_type'] == 'WordmarkText':
+            elif c['native_type'] in ('WordmarkText', 'TextBlock'):
                 hints = ['文字']
             elif c['native_type'] == 'AText':
                 hints = ['文字']
