@@ -3,6 +3,7 @@ import threading
 import time
 import tkinter as tk
 import unittest
+from tests.tk_lifecycle import TkTestCase
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -11,7 +12,7 @@ from PIL import Image
 from ui import LiveryApp
 
 
-class ResponsivenessTests(unittest.TestCase):
+class ResponsivenessTests(TkTestCase):
     def setUp(self):
         self.root = tk.Tk()
         self.root.withdraw()

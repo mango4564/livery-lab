@@ -1,0 +1,146 @@
+{
+  "date": "2026-10-20",
+  "scope": "Local source renderer comparison; not official application FPS",
+  "samples": [
+    {
+      "input": "3261588.fs.svg",
+      "characters": 7750411,
+      "paths": 4162,
+      "viewport": [
+        1000,
+        650
+      ],
+      "zooms": [
+        1,
+        1.25,
+        1.5,
+        2,
+        4,
+        8,
+        32,
+        1,
+        1.25,
+        1.5,
+        2
+      ],
+      "baseline": {
+        "initialization_ms": 109.099,
+        "frame_ms": [
+          128.392,
+          125.148,
+          118.146,
+          115.99,
+          111.91,
+          113.67,
+          111.418,
+          128.303,
+          120.681,
+          110.247,
+          110.861
+        ],
+        "warm_median_ms": 114.83,
+        "retained_picture": false
+      },
+      "optimized": {
+        "initialization_ms": 382.775,
+        "frame_ms": [
+          125.158,
+          12.185,
+          4.464,
+          4.365,
+          4.499,
+          4.455,
+          4.173,
+          19.969,
+          11.942,
+          4.669,
+          5.118
+        ],
+        "warm_median_ms": 4.584,
+        "retained_picture": true
+      },
+      "visible_ui": {
+        "first_exact_ready": true,
+        "final_exact_ready": true,
+        "heartbeat_max_gap_ms": 35.739,
+        "heartbeat_median_gap_ms": 11.503,
+        "initial_heartbeat_max_gap_ms": 27.416,
+        "interaction_completed": true,
+        "elapsed_ms": 1417.549,
+        "presents": 31,
+        "present_max_ms": 17.689,
+        "errors": []
+      }
+    },
+    {
+      "input": "7260798.fs.svg",
+      "characters": 42229922,
+      "paths": 51794,
+      "viewport": [
+        1000,
+        650
+      ],
+      "zooms": [
+        1,
+        1.25,
+        1.5,
+        2,
+        4,
+        8,
+        32,
+        1,
+        1.25,
+        1.5,
+        2
+      ],
+      "baseline": {
+        "initialization_ms": 691.444,
+        "frame_ms": [
+          953.925,
+          914.156,
+          1153.776,
+          1398.749,
+          1587.534,
+          1275.074,
+          919.56,
+          928.66,
+          904.964,
+          925.657,
+          1050.078
+        ],
+        "warm_median_ms": 989.369,
+        "retained_picture": false
+      },
+      "optimized": {
+        "initialization_ms": 2629.232,
+        "frame_ms": [
+          226.457,
+          95.137,
+          97.133,
+          101.924,
+          117.017,
+          47.591,
+          4.687,
+          122.337,
+          96.545,
+          99.442,
+          109.971
+        ],
+        "warm_median_ms": 98.287,
+        "retained_picture": true
+      },
+      "visible_ui": {
+        "first_exact_ready": true,
+        "final_exact_ready": true,
+        "heartbeat_max_gap_ms": 34.902,
+        "heartbeat_median_gap_ms": 11.334,
+        "initial_heartbeat_max_gap_ms": 82.119,
+        "interaction_completed": true,
+        "elapsed_ms": 1397.393,
+        "presents": 31,
+        "present_max_ms": 15.853,
+        "errors": []
+      }
+    }
+  ]
+}

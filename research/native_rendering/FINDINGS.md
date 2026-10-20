@@ -29,6 +29,10 @@ ASpotColorItem field 1 is the tint percentage byte. Native getColor applies per 
 
 Color-management output is a separate path: stored RGB does not prove equality to an ICC-managed screen rendering. Missing embedded images, text/font shaping, gradients beyond observed enums, effects, clipping, layers, and unsupported geometry classes can still prevent an exact official match. No static investigation here proves a complete renderer.
 
+## Viewport performance investigation (2026-10-20)
+
+The same installed `fscore.dll` identity was reopened with REA/Ghidra. `ADocView::OnDraw` delegates to region redraw/copy operations. `ADeviceMgr::redrawRegion` sets clipping and can render into an offscreen device; `copyRegion` reuses that buffer when valid. `resizeBuffers` includes overlapping-region reuse and coordinate synchronization; two terminal-flow warnings mean its whole control flow remains incompletely recovered. `AObject::getFinalResult` stores a result pointer on the object and conditionally builds it when absent. These are static observations, not an official FPS benchmark or proof of GPU use. Exact pseudocode and limitations are retained in [performance.json](performance.json); the evidence ledger and local implementation measurements are in [vector preview performance](../../docs/vector-preview-performance.md).
+
 ## Metadata change verification
 
 Added only `object_flags` and raw `pen_hex` to core/fs_geometry.py. Parsed all ten case files successfully, retaining geometry counts (3309, 4985, 4541, 10190, 33397, 54210, 25702, 20889, 24988, 6205). No parsed leaf in those ten files has bit 0x08000000. No additional geometry decoder implemented in this subtask.

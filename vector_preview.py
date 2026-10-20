@@ -1,5 +1,7 @@
 """Retain SVG vectors and render only the visible viewport with Skia."""
 import math
+import re
+import threading
 import xml.etree.ElementTree as ET
 
 import skia
@@ -17,12 +19,173 @@ class VectorImage:
         self._hairline_tree = None
         self._hairline_nodes = []
         self._hairline_scale = None
+        self._render_lock = threading.Lock()
+        self._picture = None
         if 'data-fs-hairline="true"' in svg:
             self._hairline_tree = ET.fromstring(svg)
             self._hairline_nodes = [node for node in self._hairline_tree.iter()
                                     if node.get('data-fs-hairline') == 'true']
             box = [float(v) for v in self._hairline_tree.get('viewBox', '').replace(',', ' ').split()]
             self._units = min(self.width / box[2], self.height / box[3]) if len(box) == 4 else 1.0
+            try:
+                self._picture = self._record_vectors(self._hairline_tree)
+                self.dom = None
+                self._hairline_tree = None
+                self._hairline_nodes = []
+            except (ValueError, TypeError, IndexError):
+                # General SVG (styles, clipping, use, etc.) keeps the importer.
+                self._picture = None
+
+    @staticmethod
+    def _matrix(value):
+        matrix = skia.Matrix()
+        for match in re.finditer(r'(matrix|translate|scale)\s*\(([^)]*)\)', value):
+            args = [float(v) for v in re.split(r'[\s,]+', match[2].strip())]
+            if match[1] == 'matrix' and len(args) == 6:
+                a, b, c, d, e, f = args
+                part = skia.Matrix.MakeAll(a, c, e, b, d, f, 0, 0, 1)
+            elif match[1] == 'translate' and 1 <= len(args) <= 2:
+                part = skia.Matrix.Translate(args[0], args[1] if len(args) == 2 else 0)
+            elif match[1] == 'scale' and 1 <= len(args) <= 2:
+                part = skia.Matrix.Scale(args[0], args[-1])
+            else:
+                raise ValueError('Unsupported transform')
+            matrix = skia.Matrix.Concat(matrix, part)
+        if re.sub(r'(matrix|translate|scale)\s*\([^)]*\)', '', value).strip():
+            raise ValueError('Unsupported transform')
+        return matrix
+
+    @staticmethod
+    def _path(value):
+        # FS exports absolute commands. Unknown SVG syntax uses SVGDOM instead.
+        tokens = re.findall(r'[MLCQHVAZ]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?', value)
+        if re.sub(r'[MLCQHVAZ]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?|[\s,]', '', value):
+            raise ValueError('Unsupported path')
+        path, i, command = skia.Path(), 0, None
+        current = start = (0, 0)
+        sizes = dict(M=2, L=2, C=6, Q=4, H=1, V=1, A=7)
+        while i < len(tokens):
+            if tokens[i].isalpha():
+                command = tokens[i]
+                i += 1
+                if command == 'Z':
+                    path.close()
+                    current = start
+                    command = None
+                    continue
+            count = sizes.get(command)
+            if count is None:
+                raise ValueError('Invalid path')
+            args = list(map(float, tokens[i:i+count]))
+            if len(args) != count:
+                raise ValueError('Incomplete path')
+            i += count
+            if command == 'M':
+                path.moveTo(*args)
+                current = start = tuple(args)
+                command = 'L'
+            elif command == 'L':
+                path.lineTo(*args)
+                current = tuple(args)
+            elif command == 'C':
+                path.cubicTo(*args)
+                current = tuple(args[-2:])
+            elif command == 'Q':
+                path.quadTo(*args)
+                current = tuple(args[-2:])
+            elif command in ('H', 'V'):
+                current = (args[0], current[1]) if command == 'H' else (current[0], args[0])
+                path.lineTo(*current)
+            else:
+                rx, ry, angle, large, sweep, x, y = args
+                path.arcTo(rx, ry, angle, skia.Path.kLarge_ArcSize if large else skia.Path.kSmall_ArcSize,
+                           skia.PathDirection.kCW if sweep else skia.PathDirection.kCCW, x, y)
+                current = (x, y)
+        return path
+
+    def _record_vectors(self, root):
+        if set(root.attrib) - {'width', 'height', 'viewBox'}:
+            raise ValueError('Unsupported SVG root')
+        box = [float(v) for v in root.get('viewBox', f'0 0 {self.width} {self.height}').replace(',', ' ').split()]
+        unit = min(self.width / box[2], self.height / box[3])
+        viewport = skia.Matrix.MakeAll(unit, 0, (self.width-box[2]*unit)/2-box[0]*unit,
+                                       0, unit, (self.height-box[3]*unit)/2-box[1]*unit, 0, 0, 1)
+        inverse_viewport = skia.Matrix()
+        if not viewport.invert(inverse_viewport):
+            raise ValueError('Invalid SVG viewport')
+        nodes = []
+        changed = False
+        identifiers = set()
+        def visit(parent, matrix):
+            nonlocal changed
+            for node in parent:
+                tag = node.tag.rsplit('}', 1)[-1]
+                if tag in ('metadata', 'defs'):
+                    continue
+                if tag == 'g' and not (set(node.attrib) - {'transform'}):
+                    visit(node, skia.Matrix.Concat(matrix, self._matrix(node.get('transform', ''))))
+                    continue
+                if tag not in ('path', 'rect') or 'style' in node.attrib or 'clip-path' in node.attrib:
+                    raise ValueError('Unsupported SVG node')
+                # renderNode deliberately omits ancestors; apply their matrices.
+                if (tag == 'rect' and not (set(node.attrib) - {'x', 'y', 'width', 'height', 'fill'})
+                        and re.fullmatch(r'#[0-9a-fA-F]{6}', node.get('fill', ''))):
+                    nodes.append((node, matrix, 'rect'))
+                    continue
+                identifier = node.get('id')
+                if not identifier:
+                    identifier = f'__preview_node_{len(nodes)}'
+                    node.set('id', identifier)
+                    changed = True
+                if identifier in identifiers:
+                    raise ValueError('Duplicate SVG id')
+                identifiers.add(identifier)
+                hairline = node.get('data-fs-hairline') == 'true'
+                path = None
+                if hairline:
+                    allowed = {'id', 'd', 'transform', 'fill', 'fill-rule', 'stroke', 'stroke-width',
+                               'vector-effect', 'data-fs-hairline'}
+                    if (tag != 'path' or not re.fullmatch(r'none|#[0-9a-fA-F]{6}', node.get('fill', ''))
+                            or set(node.attrib) - allowed):
+                        raise ValueError('Unsupported cosmetic stroke')
+                    if not re.fullmatch(r'#[0-9a-fA-F]{6}', node.get('stroke', '')):
+                        raise ValueError('Unsupported stroke color')
+                    path = self._path(node.get('d', ''))
+                nodes.append((node, matrix, path))
+        visit(root, viewport)
+        ET.register_namespace('', 'http://www.w3.org/2000/svg')
+        dom = self._parse(ET.tostring(root, encoding='unicode')) if changed else self.dom
+        recorder = skia.PictureRecorder()
+        canvas = recorder.beginRecording(skia.Rect.MakeWH(self.width, self.height), skia.RTreeFactory()())
+        pictures = []
+        for index, (node, matrix, path) in enumerate(nodes):
+            if index and index % 128 == 0:
+                pictures.append(recorder.finishRecordingAsPicture())
+                recorder = skia.PictureRecorder()
+                canvas = recorder.beginRecording(skia.Rect.MakeWH(self.width, self.height), skia.RTreeFactory()())
+            canvas.save()
+            canvas.concat(matrix)
+            if isinstance(path, str):
+                color = int(node.get('fill')[1:], 16) | 0xff000000
+                canvas.drawRect(skia.Rect.MakeXYWH(*[float(node.get(k, 0)) for k in ('x', 'y', 'width', 'height')]),
+                                skia.Paint(Color=color, AntiAlias=True))
+            elif path is None:
+                # renderNode includes root viewBox, but omits ancestor groups.
+                canvas.concat(inverse_viewport)
+                dom.renderNode(canvas, node.get('id'))
+            else:
+                canvas.concat(self._matrix(node.get('transform', '')))
+                if node.get('fill') != 'none':
+                    path.setFillType(skia.PathFillType.kEvenOdd if node.get('fill-rule') == 'evenodd'
+                                     else skia.PathFillType.kWinding)
+                    canvas.drawPath(path, skia.Paint(Color=int(node.get('fill')[1:], 16) | 0xff000000,
+                                                    AntiAlias=True))
+                color = int(node.get('stroke')[1:], 16) | 0xff000000
+                canvas.drawPath(path, skia.Paint(Color=color, AntiAlias=True,
+                                                Style=skia.Paint.kStroke_Style, StrokeWidth=0))
+            canvas.restore()
+        pictures.append(recorder.finishRecordingAsPicture())
+        return tuple(pictures)
 
     @staticmethod
     def _parse(svg):
@@ -34,11 +197,16 @@ class VectorImage:
         return dom
 
     def render(self, scale, offset, viewport):
+        # One document can be shared with a worker, locator and expanded view.
+        with self._render_lock:
+            return self._render(scale, offset, viewport)
+
+    def _render(self, scale, offset, viewport):
         ox, oy = offset
         w, h = map(int, viewport)
         if ox >= w or oy >= h or ox + self.width * scale <= 0 or oy + self.height * scale <= 0:
             return None
-        if self._hairline_nodes and self._hairline_scale != scale:
+        if self._picture is None and self._hairline_nodes and self._hairline_scale != scale:
             # The SVG importer ignores non-scaling-stroke. Recompute native
             # cosmetic pen widths only on zoom; panning reuses the parsed DOM.
             for node in self._hairline_nodes:
@@ -54,7 +222,13 @@ class VectorImage:
         canvas.clear(skia.ColorTRANSPARENT)
         canvas.translate(ox, oy)
         canvas.scale(scale, scale)
-        self.dom.render(canvas)
+        if self._picture is not None:
+            # Bound a native call to a small batch, allowing Tk's Python thread
+            # to regain the GIL between batches of a very complex document.
+            for picture in self._picture:
+                canvas.drawPicture(picture)
+        else:
+            self.dom.render(canvas)
         # Unpremultiply before checkerboard composition for correct edge colors.
         tile = Image.frombytes('RGBa', (w, h), surface.makeImageSnapshot().tobytes()).convert('RGBA')
         return tile, 0, 0

@@ -2,11 +2,55 @@
 from __future__ import annotations
 
 import math
+import queue
+import threading
+from functools import lru_cache
 import tkinter as tk
 from tkinter import ttk
 
 from PIL import Image, ImageDraw, ImageTk
 from vector_preview import VectorDocument, VectorImage
+
+
+@lru_cache(maxsize=4)
+def _checkerboard(size):
+    background = Image.new('RGBA', size, 'white')
+    draw = ImageDraw.Draw(background)
+    for y in range(0, size[1], 16):
+        for x in range(0, size[0], 16):
+            if (x // 16 + y // 16) % 2:
+                draw.rectangle((x, y, x + 15, y + 15), fill='#dddddd')
+    return background
+
+
+def _render_worker(requests, results):
+    """Only native/PIL work here; all Tk operations stay on the UI thread."""
+    while True:
+        request = requests.get()
+        if request is None:
+            return
+        if request[-1]:
+            # While wheel/drag events arrive, the UI transforms the exact cached
+            # frame. Avoid competing for the GIL with costly vector replay until
+            # the gesture pauses; keep only its newest requested viewport.
+            while True:
+                try:
+                    request = requests.get(timeout=.08)
+                    if request is None:
+                        return
+                except queue.Empty:
+                    break
+        key, image, scale, offset, size, _ = request
+        try:
+            rendered = image.render(scale, offset, size)
+            value = (key, rendered, None)
+        except Exception as exc:
+            value = (key, None, exc)
+        try:
+            results.get_nowait()
+        except queue.Empty:
+            pass
+        results.put_nowait(value)
 
 
 class ImagePreview(ttk.Frame):
@@ -21,6 +65,13 @@ class ImagePreview(ttk.Frame):
         self._size = None
         self._draw_after = None
         self._draw_key = None
+        self._render_requests = queue.Queue(maxsize=1)
+        self._render_results = queue.Queue(maxsize=1)
+        self._render_thread = None
+        self._render_after = None
+        self._render_wait_key = None
+        self._frame = None
+        self._destroyed = False
         self.vector_image = None
         self.raster_image = None
         self.vector_label = "矢量"
@@ -190,6 +241,16 @@ class ImagePreview(ttk.Frame):
             self.draw()
 
     def destroy(self):
+        self._destroyed = True
+        if self._render_after is not None:
+            self.after_cancel(self._render_after)
+            self._render_after = None
+        if self._render_thread is not None:
+            try:
+                self._render_requests.get_nowait()
+            except queue.Empty:
+                pass
+            self._render_requests.put_nowait(None)
         if self._draw_after is not None:
             self.after_cancel(self._draw_after)
             self._draw_after = None
@@ -202,11 +263,12 @@ class ImagePreview(ttk.Frame):
         if key == self._draw_key:
             return
         self._draw_key = key
-        canvas.delete("all")
-        self.photo = None
+        canvas.delete('preview')
         if self.image is None:
+            self.photo = None
+            self._frame = None
             self.percent.configure(text="")
-            canvas.create_text(w / 2, h / 2, text="暂无预览", fill="#777777")
+            canvas.create_text(w / 2, h / 2, text="暂无预览", fill="#777777", tags='preview')
             return
         self.percent.configure(text=f"{self.scale:.1%}")
         ox, oy = self.offset
@@ -219,25 +281,69 @@ class ImagePreview(ttk.Frame):
         # giant intermediate bitmap. Coordinates always refer to the source.
         size = (right - left, bottom - top)
         if isinstance(self.image, VectorImage):
-            rendered = self.image.render(self.scale, self.offset, (w, h))
-            if rendered is None:
-                return
-            tile, left, top = rendered
-            size = tile.size
+            # Transform the last exact frame immediately during interaction.
+            # A fresh vector render always replaces it when the worker catches up.
+            if self._frame is not None and self._frame[0] is self.image:
+                _, old_scale, old_offset, old_tile = self._frame
+                ratio = old_scale / self.scale
+                tile = old_tile.transform((w, h), Image.Transform.AFFINE,
+                    (ratio, 0, old_offset[0] + (0-self.offset[0])*ratio,
+                     0, ratio, old_offset[1] + (0-self.offset[1])*ratio),
+                    Image.Resampling.BILINEAR)
+                self._present(tile, 0, 0)
+            request = (key, self.image, self.scale, self.offset, (w, h),
+                       self._frame is not None and self._frame[0] is self.image)
+            self._render_wait_key = key
+            try:
+                self._render_requests.get_nowait()
+            except queue.Empty:
+                pass
+            self._render_requests.put_nowait(request)
+            if self._render_thread is None:
+                self._render_thread = threading.Thread(target=_render_worker,
+                    args=(self._render_requests, self._render_results), daemon=True)
+                self._render_thread.start()
+            if self._render_after is None:
+                self._render_after = self.after(16, self._poll_render)
+            return
         else:
             tile = self.image.transform(size, Image.Transform.AFFINE,
                                         (1 / self.scale, 0, (left - ox) / self.scale,
                                          0, 1 / self.scale, (top - oy) / self.scale),
                                         Image.Resampling.BICUBIC)
-        background = Image.new("RGBA", size, "white")
-        draw = ImageDraw.Draw(background)
-        for y in range(0, size[1], 16):
-            for x in range(0, size[0], 16):
-                if (x // 16 + y // 16) % 2:
-                    draw.rectangle((x, y, x + 15, y + 15), fill="#dddddd")
+        self._present(tile, left, top)
+
+    def _poll_render(self):
+        self._render_after = None
+        if self._destroyed:
+            return
+        try:
+            key, rendered, error = self._render_results.get_nowait()
+        except queue.Empty:
+            self._render_after = self.after(16, self._poll_render)
+            return
+        if key == self._render_wait_key:
+            self._render_wait_key = None
+        current = (id(self.image), self.scale, self.offset,
+                   max(1, self.canvas.winfo_width()), max(1, self.canvas.winfo_height()))
+        if key == current:
+            if error is not None:
+                self.canvas.create_text(12, 12, anchor='nw', text=f'矢量预览失败：{error}', tags='preview')
+            elif rendered is not None:
+                tile, left, top = rendered
+                self._frame = (self.image, key[1], key[2], tile)
+                self._present(tile, left, top)
+        # A newer request may already be running; stale results never repaint.
+        if self._render_wait_key is not None:
+            self._render_after = self.after(16, self._poll_render)
+
+    def _present(self, tile, left, top):
+        background = _checkerboard(tile.size).copy()
         background.alpha_composite(tile)
-        self.photo = ImageTk.PhotoImage(background, master=canvas)
-        canvas.create_image(left, top, image=self.photo, anchor="nw")
+        self.photo = ImageTk.PhotoImage(background, master=self.canvas)
+        self.canvas.delete('preview')
+        item = self.canvas.create_image(left, top, image=self.photo, anchor='nw', tags='preview')
+        self.canvas.tag_lower(item)
 
     def expand(self):
         if self.image is None:
