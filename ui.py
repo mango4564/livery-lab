@@ -50,20 +50,7 @@ class LiveryApp:
         self.ai_status = tk.StringVar(value="AI 未配置")
         self.reference_directory = tk.StringVar()
         self.reference_status = tk.StringVar(value="独立识别：直接分析源曲线，不使用参考库")
-        self.show_all = tk.BooleanVar(value=False)
-        self.object_filter = tk.StringVar()
-        self.locate_id = tk.StringVar()
-        self.object_page = 0
-        self.object_page_size = 300
-        self._filter_after = None
-        self._object_cache_key = None
-        self._object_rows = []
-        self._object_index = {}
-        self._matching_rows = []
-        self._matching_key = None
-        self.method_status = tk.StringVar(value="识别结果均需人工复核")
-        self.object_warning = tk.StringVar(value="选中列表行可查看对象警告。")
-        self.status = tk.StringVar(value="添加 FS 文件后开始。识别结果可在右侧补选、排除。")
+        self.status = tk.StringVar(value="添加 FS 文件后开始。提取后可打开六类图案复核并导出成品。")
         self._build()
         self._refresh_ai()
         self._drain_after = self.root.after(100, self._drain)
@@ -88,6 +75,8 @@ class LiveryApp:
         self.start_button.pack(side="right")
         self.stop_button = ttk.Button(toolbar, text="停止后续任务", command=self._stop, state="disabled")
         self.stop_button.pack(side="right", padx=6)
+        self.retry_button = ttk.Button(toolbar, text="重试失败任务", command=self._retry_failed, state="disabled")
+        self.retry_button.pack(side="right")
         self.concurrency_spin = ttk.Spinbox(toolbar, from_=1, to=max(64, (os.cpu_count() or 4) * 2), textvariable=self.concurrency, width=4)
         self.concurrency_spin.pack(side="right", padx=(2, 6))
         self.concurrency_label = ttk.Label(toolbar, text="并发任务数:")
@@ -136,11 +125,10 @@ class LiveryApp:
         log_scroll.pack(side="right", fill="y")
         self.log.pack(fill="both", expand=True)
 
-        # Only the preview and object list absorb height changes. Fixed controls
+        # The preview absorbs height changes. Fixed controls
         # must keep their requested height, including on high-DPI displays.
         right.columnconfigure(0, weight=1)
-        right.rowconfigure(0, weight=3)
-        right.rowconfigure(4, weight=1)
+        right.rowconfigure(0, weight=1)
         self.previews = ttk.Notebook(right)
         self.previews.grid(row=0, column=0, sticky="nsew")
         self.canvases = {}
@@ -163,67 +151,17 @@ class LiveryApp:
         self.group_choice.bind('<<ComboboxSelected>>',self._choose_group)
         ttk.Label(group_bar, text='移入展开 · 悬浮切换预览', foreground='#666666').pack(side='left')
 
-        ttk.Label(right, textvariable=self.method_status, foreground="#7a4d00", wraplength=850).grid(row=2, column=0, sticky="w", pady=(4, 0))
-        object_bar = ttk.Frame(right)
-        object_bar.grid(row=3, column=0, sticky="ew", pady=(8, 4))
-        ttk.Label(object_bar, text="矢量对象").pack(side="left")
-        ttk.Checkbutton(object_bar, text="显示全部", variable=self.show_all, command=self._populate_objects).pack(side="left", padx=8)
-        ttk.Label(object_bar, text="筛选 ID / 颜色").pack(side="left")
-        ttk.Entry(object_bar, textvariable=self.object_filter, width=20).pack(side="left", padx=6)
-        self.object_filter.trace_add("write", self._schedule_filter)
-        self.selection_label = ttk.Label(object_bar, text="已选 0")
-        self.selection_label.pack(side="right")
-        object_frame = ttk.Frame(right)
-        object_frame.grid(row=4, column=0, sticky="nsew")
-        self.objects = ttk.Treeview(object_frame, columns=("chosen", "id", "fill", "score", "bbox"), show="headings", selectmode="extended", height=7)
-        for key, label, width in (("chosen", "保留", 45), ("id", "对象 ID", 130), ("fill", "填充", 85), ("score", "评分", 65), ("bbox", "边界", 230)):
-            self.objects.heading(key, text=label)
-            self.objects.column(key, width=width, stretch=key in ("id", "bbox"))
-        object_scroll = ttk.Scrollbar(object_frame, command=self.objects.yview)
-        self.objects.configure(yscrollcommand=object_scroll.set)
-        object_scroll.pack(side="right", fill="y")
-        self.objects.pack(fill="both", expand=True)
-        self.objects.bind("<Double-1>", self._toggle_object)
-        self.objects.bind("<<TreeviewSelect>>", self._show_object_warnings)
-        page_bar = ttk.Frame(right)
-        page_bar.grid(row=5, column=0, sticky="ew", pady=(4, 0))
-        self.prev_page_button = ttk.Button(page_bar, text="上一页", command=lambda: self._change_page(-1))
-        self.prev_page_button.pack(side="left")
-        self.next_page_button = ttk.Button(page_bar, text="下一页", command=lambda: self._change_page(1))
-        self.next_page_button.pack(side="left", padx=5)
-        self.page_label = ttk.Label(page_bar, text="匹配 0 个 · 第 0 / 0 页")
-        self.page_label.pack(side="left", padx=6)
-        locate_bar = ttk.Frame(right)
-        locate_bar.grid(row=6, column=0, sticky="ew", pady=(4, 0))
-        ttk.Label(locate_bar, text="对象 ID").pack(side="left", padx=(0, 3))
-        locate_entry = ttk.Entry(locate_bar, textvariable=self.locate_id, width=16)
-        locate_entry.pack(side="left")
-        locate_entry.bind("<Return>", lambda _: self._locate_object())
-        ttk.Button(locate_bar, text="定位", command=self._locate_object).pack(side="left", padx=4)
-        ttk.Button(locate_bar, text="按 ID 补选", command=lambda: self._locate_object(include=True)).pack(side="left")
-        ttk.Label(right, textvariable=self.object_warning, foreground="#8a4b00", wraplength=850).grid(row=7, column=0, sticky="w", pady=(3, 0))
         actions = ttk.Frame(right)
-        actions.grid(row=8, column=0, sticky="ew", pady=(6, 0))
+        actions.grid(row=2, column=0, sticky="ew", pady=(6, 0))
         actions.columnconfigure(0, weight=1)
-        selection_actions = ttk.Frame(actions)
-        selection_actions.grid(row=0, column=0, sticky="w")
-        ttk.Button(selection_actions, text="补选对象", command=lambda: self._change_selection(True)).pack(side="left")
-        ttk.Button(selection_actions, text="排除对象", command=lambda: self._change_selection(False)).pack(side="left", padx=(6, 0))
         export_actions = ttk.Frame(actions)
-        export_actions.grid(row=0, column=1, sticky="e")
+        export_actions.grid(row=0, column=0, sticky="e")
         self.save_button = ttk.Button(export_actions, text="保存修正 SVG / PNG", command=self._save)
         self.save_button.pack(side="right")
         self.review_button = ttk.Button(export_actions, text='六类图案复核 / 导出成品', command=self._open_review_gallery)
         self.review_button.pack(side='right', padx=(0, 6))
 
-        def arrange_actions(event):
-            stacked = event.width < selection_actions.winfo_reqwidth() + export_actions.winfo_reqwidth() + 12
-            export_actions.grid_configure(row=1 if stacked else 0,
-                                          column=0 if stacked else 1,
-                                          pady=(6, 0) if stacked else 0)
-
-        actions.bind("<Configure>", arrange_actions)
-        ttk.Label(right, text="双击对象切换保留状态；预览在保存修正后更新。", foreground="#666666").grid(row=9, column=0, sticky="w", pady=(5, 0))
+        ttk.Label(right, text="候选需人工复核；补选、排除请在六类图案复核页面操作。", foreground="#666666").grid(row=3, column=0, sticky="w", pady=(5, 0))
         self.progress = ttk.Progressbar(outer, mode="determinate")
         self.progress.pack(side="bottom", fill="x", before=split)
         ttk.Label(outer, textvariable=self.status, wraplength=1100).pack(side="bottom", anchor="w", pady=(5, 0), before=split)
@@ -304,8 +242,8 @@ class LiveryApp:
             self.results.pop(item, None)
             self.selections.pop(item, None)
         self.current = None
-        self._populate_objects()
         self._request_previews({})
+        self._update_retry_button()
 
     def _browse_output(self):
         folder = filedialog.askdirectory(title="选择输出目录")
@@ -339,8 +277,6 @@ class LiveryApp:
             existing = json.loads(CONFIG_PATH.read_text(encoding="utf-8-sig")) if CONFIG_PATH.exists() else {}
             if not isinstance(existing, dict):
                 raise ValueError("settings.json 必须是 JSON 对象。")
-            if existing.get("api_key"):
-                raise ValueError("配置文件含明文 api_key，请先迁移至环境变量并移除 api_key；界面不会重写密钥。")
             existing["reference_directory"] = directory
             temporary = CONFIG_PATH.with_suffix(".json.tmp")
             temporary.write_text(json.dumps(existing, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -356,8 +292,13 @@ class LiveryApp:
         if self.busy:
             return
         try:
-            from vision import CONFIG_PATH, DEFAULTS, read_config, configuration_status, test_connection
+            from vision import CONFIG_PATH, DEFAULTS, read_config, configuration_status, test_connection, resolve_api_key
             config = read_config()
+            try:
+                config['api_key'] = resolve_api_key(config) or ''
+            except RuntimeError:
+                # A stale legacy credential must not prevent entering a new key.
+                config['api_key'] = ''
         except Exception as exc:
             messagebox.showerror("AI 配置错误", str(exc))
             return
@@ -368,19 +309,16 @@ class LiveryApp:
         frame = ttk.Frame(dialog, padding=16)
         frame.pack(fill="both", expand=True)
         fields = {}
-        for index, (name, label) in enumerate((("base_url", "API 根地址（含 /v1）"), ("model", "视觉模型名称"), ("api_key_env", "密钥环境变量名称"))):
+        for index, (name, label) in enumerate((("base_url", "API 根地址（含 /v1）"), ("model", "视觉模型名称"), ("api_key", "API 密钥"))):
             ttk.Label(frame, text=label).grid(row=index, column=0, sticky="w", pady=6)
             value = tk.StringVar(value=config.get(name, ""))
             ttk.Entry(frame, textvariable=value, width=54).grid(row=index, column=1, sticky="ew", padx=(12, 0))
             fields[name] = value
         enabled = tk.BooleanVar(value=config.get("enabled", False))
         use_system_proxy = tk.BooleanVar(value=config.get("use_system_proxy", True))
-        secret_value=tk.StringVar()
-        ttk.Label(frame,text='更新本机密钥（留空保留）').grid(row=3,column=0,sticky='w',pady=6)
-        ttk.Entry(frame,textvariable=secret_value,show='•',width=54).grid(row=3,column=1,sticky='ew',padx=(12,0))
         ttk.Checkbutton(frame, text="启用 AI 视觉识别", variable=enabled).grid(row=4, column=0, columnspan=2, sticky="w", pady=8)
         ttk.Checkbutton(frame, text="使用系统代理（关闭后仅本工具直连接口）", variable=use_system_proxy).grid(row=5, column=0, columnspan=2, sticky="w", pady=4)
-        ttk.Label(frame, text="启用后，任务会把整车图、候选图和源对象信息发往上方接口，独立识别，不使用参考库。\n本机密钥使用 Windows 当前用户加密保存；环境变量优先。\n保存配置不会测试连接或发送图片。", wraplength=540, foreground="#666666").grid(row=6, column=0, columnspan=2, sticky="w", pady=8)
+        ttk.Label(frame, text="接口地址、模型和 API 密钥直接保存在程序目录的 settings.json 中，支持 HTTP / HTTPS。\n保存后可重新打开查看和修改；保存配置不会测试连接或发送图片。", wraplength=540, foreground="#666666").grid(row=6, column=0, columnspan=2, sticky="w", pady=8)
 
         def save():
             updated = {name: config.get(name, default) for name, default in DEFAULTS.items()}
@@ -391,19 +329,11 @@ class LiveryApp:
                 # Validate locally before writing; no credential or endpoint requests.
                 if updated["enabled"]:
                     configuration_status(updated)
-                if not updated["api_key_env"] or not updated["api_key_env"].replace("_", "a").isalnum() or updated["api_key_env"][0].isdigit():
-                    raise ValueError("密钥环境变量名称无效。")
-                # Never rewrite a local inline credential through the UI.
+                # Merge unrelated settings while saving the key as plain JSON.
                 existing = {}
                 if CONFIG_PATH.exists():
                     existing = json.loads(CONFIG_PATH.read_text(encoding="utf-8-sig"))
-                if existing.get("api_key"):
-                    raise ValueError("配置文件含本地明文 api_key。请先将密钥迁移到环境变量并移除 api_key，再通过界面保存；现有配置没有修改。")
                 existing.update(updated)
-                if secret_value.get().strip():
-                    from credentials import save_api_key
-                    save_api_key(secret_value.get())
-                    secret_value.set('')
                 temporary = CONFIG_PATH.with_suffix(".json.tmp")
                 temporary.write_text(json.dumps(existing, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
                 temporary.replace(CONFIG_PATH)
@@ -423,8 +353,6 @@ class LiveryApp:
             test_config.update({name: value.get().strip() for name, value in fields.items()})
             test_config["enabled"] = True
             test_config["use_system_proxy"] = use_system_proxy.get()
-            if secret_value.get().strip():
-                test_config["api_key"] = secret_value.get().strip()
 
             def worker():
                 try:
@@ -486,9 +414,24 @@ class LiveryApp:
             self.concurrency_spin.configure(state="disabled" if busy else "normal")
         self.group_choice.configure(state="disabled" if busy else "readonly")
         self.stop_button.configure(state="normal" if busy else "disabled")
+        self._update_retry_button()
 
-    def _start(self):
+    def _failed_jobs(self):
+        return [(item, source) for item, source in self.sources.items()
+                if self.tasks.set(item, "status") == "失败"]
+
+    def _update_retry_button(self):
+        self.retry_button.configure(state="normal" if not self.busy and self._failed_jobs() else "disabled")
+
+    def _retry_failed(self):
+        self._start(retry_failed=True)
+
+    def _start(self, *, retry_failed=False):
         if self.busy:
+            return
+        jobs = self._failed_jobs() if retry_failed else list(self.sources.items())
+        if retry_failed and not jobs:
+            self._update_retry_button()
             return
         if not self.sources:
             messagebox.showinfo("添加素材", "请先添加 FS 文件或文件夹。")
@@ -502,12 +445,15 @@ class LiveryApp:
             concurrency = os.cpu_count() or 4
             self.concurrency.set(concurrency)
         output = Path(self.output.get()).expanduser().resolve()
-        jobs = list(self.sources.items())
         self._refresh_ai()
         use_ai = self.use_ai.get()
         reference_directory = self.reference_directory.get()
         self.stop_event.clear()
         self.progress.configure(value=0, maximum=len(jobs))
+        for item, _source in jobs:
+            self.tasks.set(item, "status", "等待重试" if retry_failed else "待处理")
+        if retry_failed:
+            self._append_log(f"重试 {len(jobs)} 个失败任务；使用当前配置重新提取，可能产生 AI 接口费用。")
         self._set_busy(True)
         self.status.set(f"正在启动 {min(concurrency, len(jobs))} 个并发任务…")
         mode = 'components' if self.five_components.get() else 'stripes'
@@ -566,7 +512,6 @@ class LiveryApp:
         if display_key == self._displayed_task:
             return
         self._displayed_task = display_key
-        self._populate_objects()
         self._request_previews(self.results.get(self.current, {}))
         self._update_groups()
 
@@ -588,194 +533,11 @@ class LiveryApp:
         self._active_group = (self.current, index)
         group=groups[index]
         self.selections[self.current]=set(group['selected_ids'])
-        self._populate_objects()
         preview=dict(self.results[self.current],result_png=group['png'],result_svg=group['svg'],
                      selected_ids=group['selected_ids'])
         self._request_previews(preview, result_only=True)
         self.previews.select(self.preview_viewers['result_png'])
         self.status.set('已切换候选组合，尚未保存。请核对后保存修正。')
-
-    def _schedule_filter(self, *_):
-        if self._filter_after is not None:
-            self.root.after_cancel(self._filter_after)
-        self._filter_after = self.root.after(200, self._apply_filter)
-
-    def _apply_filter(self):
-        self._filter_after = None
-        self._populate_objects()
-
-    def _prepare_object_rows(self):
-        result = self.results.get(self.current, {})
-        source = result.get("objects", [])
-        cache_key = (self.current, id(source), len(source))
-        if cache_key == self._object_cache_key:
-            return
-        self._object_cache_key = cache_key
-        self._matching_key = None
-        self._object_rows = []
-        self._object_index = {}
-        for obj in source:
-            oid = str(obj["id"])
-            try:
-                score = float(obj.get("score", 0) or 0)
-            except (TypeError, ValueError):
-                score = 0
-            bounds = ", ".join(f"{v:.1f}" if isinstance(v, (float, int)) else str(v) for v in obj.get("bbox", []))
-            row = (oid, score, f"{oid} {obj.get('fill', '')}".lower(), bounds, obj)
-            self._object_rows.append(row)
-            self._object_index[oid] = row
-            # Source IDs are aliases only when unambiguous in this document.
-            for key in ("object_id", "source_object_id"):
-                if obj.get(key) is not None:
-                    alias = str(obj[key])
-                    if alias != oid:
-                        self._object_index[alias] = row if alias not in self._object_index else None
-
-    def _populate_objects(self, reset_page=True):
-        if self._filter_after is not None:
-            self.root.after_cancel(self._filter_after)
-            self._filter_after = None
-        self._prepare_object_rows()
-        chosen = self.selections.get(self.current, set())
-        needle = self.object_filter.get().strip().lower()
-        matching_key = (self._object_cache_key, needle, self.show_all.get(), frozenset(chosen))
-        if matching_key != self._matching_key:
-            self._matching_rows = [row for row in self._object_rows
-                if (self.show_all.get() or row[1] > 0 or row[0] in chosen)
-                and (not needle or needle in row[2])]
-            self._matching_key = matching_key
-        if reset_page:
-            self.object_page = 0
-        self._render_object_page()
-        self._update_method_status()
-
-    def _render_object_page(self):
-        old_focus = self.objects.focus()
-        self.objects.delete(*self.objects.get_children())
-        chosen = self.selections.get(self.current, set())
-        total = len(self._matching_rows)
-        pages = (total + self.object_page_size - 1) // self.object_page_size
-        self.object_page = max(0, min(self.object_page, max(0, pages - 1)))
-        start = self.object_page * self.object_page_size
-        for oid, score, _, bounds, obj in self._matching_rows[start:start + self.object_page_size]:
-            self.objects.insert("", "end", iid=oid, values=("✓" if oid in chosen else "", oid,
-                obj.get("fill") or "未知", f"{score:.3f}", bounds))
-        if old_focus and self.objects.exists(old_focus):
-            self.objects.focus(old_focus)
-            self.objects.selection_set(old_focus)
-        self.selection_label.configure(text=f"已选 {len(chosen)} / 共 {len(self._object_rows)}")
-        self.page_label.configure(text=f"匹配 {total:,} 个 · 第 {self.object_page + 1 if pages else 0} / {pages} 页 · 每页 {self.object_page_size}")
-        self.prev_page_button.configure(state="normal" if self.object_page > 0 else "disabled")
-        self.next_page_button.configure(state="normal" if self.object_page + 1 < pages else "disabled")
-        self._show_object_warnings()
-
-    def _change_page(self, delta):
-        self.object_page += delta
-        self._render_object_page()
-
-    def _locate_object(self, include=False):
-        if self.current not in self.results or (include and self.busy):
-            return
-        self._prepare_object_rows()
-        requested = self.locate_id.get().strip()
-        row = self._object_index.get(requested)
-        if row is None:
-            self.object_warning.set(f"未找到唯一对象 ID：{requested}。请输入列表中的完整 ID。")
-            return
-        oid = row[0]
-        if include:
-            self.selections.setdefault(self.current, set()).add(oid)
-        # Exact location deliberately clears text filtering and exposes all rows.
-        self.show_all.set(True)
-        self.object_filter.set("")
-        self._populate_objects()
-        self.object_page = next(i for i, candidate in enumerate(self._matching_rows) if candidate[0] == oid) // self.object_page_size
-        self._render_object_page()
-        self.objects.selection_set(oid)
-        self.objects.focus(oid)
-        self.objects.see(oid)
-        self._show_object_warnings()
-        self.status.set(f"已{'补选并' if include else ''}定位对象 {oid}。" + ("尚未保存修正。" if include else ""))
-
-    def _show_object_warnings(self, _event=None):
-        messages = []
-        for oid in self.objects.selection():
-            row = self._object_index.get(oid)
-            if not row:
-                continue
-            obj = row[4]
-            warnings = obj.get("warnings") or []
-            if isinstance(warnings, str):
-                warnings = [warnings]
-            details = list(map(str, warnings))
-            fill_status = obj.get("fill_status")
-            if fill_status and fill_status != "stored_display_rgb":
-                details.append(f"填充状态：{fill_status}")
-            if not obj.get("fill"):
-                details.append("填充颜色未知，需核对导出结果")
-            if obj.get("visibility") == "unknown":
-                details.append("原始隐藏状态未确立")
-            if obj.get("requires_boolean_semantics"):
-                details.append("涉及组合/裁剪语义，需人工复核")
-            messages.append(f"{oid}：" + ("；".join(dict.fromkeys(details)) or "无对象级警告；仍需与整车原图核对。"))
-            if len(messages) >= 3:
-                break
-        self.object_warning.set(" | ".join(messages) if messages else "选中列表行可查看对象警告；翻页不会丢失已保留对象。")
-
-    def _update_method_status(self):
-        result = self.results.get(self.current, {})
-        recognition = result.get("recognition") or {}
-        method = result.get("method") or (recognition.get("method") if isinstance(recognition, dict) else "") or result.get("recognition_method") or ""
-        method_text = str(method).lower()
-        labels = {
-            "reference_motif_matched": "参考辅助匹配 · 参考图形组合已匹配",
-            "reference_partial_review": "参考辅助匹配 · 参考组合未齐，必须复核",
-            "rules_candidates": "本地规则候选 · 识别尚未验证",
-            "unresolved_review": "等待 AI 独立识别或手动复核",
-            "vision_selected_source_paths": "AI 判断原始对象 · 需复核",
-            "vision_five_components": "五类 AI 组合识别 · 请逐类核对",
-            "vision_six_components": "六类 AI 组合识别 · 请逐类核对",
-            "manual_six_components": "六类手工复核 · 尚未自动分类",
-            "ai_failed_no_selection": "AI 失败 · 未生成选择",
-        }
-        label = labels.get(method_text)
-        if not label:
-            if "reference" in method_text or "template" in method_text:
-                label = "参考辅助匹配"
-            elif "ai" in method_text or "vision" in method_text:
-                label = "AI 识别"
-            else:
-                label = "本地候选识别"
-        reference = result.get("reference_match")
-        detail = ""
-        if result.get('extraction_mode') == 'components':
-            missing=[name for name,ids in result.get('component_categories',{}).items() if not ids]
-            detail=' · 未识别：'+('、'.join(missing) if missing else '无空类别')
-        if isinstance(reference, dict):
-            name = reference.get("reference_name") or "未命名参考"
-            matched, required = reference.get("matched_count", "?"), reference.get("required_count", "?")
-            transfer = reference.get("transfer") or []
-            transfer_text = " / ".join(map(str, transfer)) if isinstance(transfer, list) else str(transfer)
-            detail = f" · {name}：{matched}/{required}" + (f" · {transfer_text}" if transfer_text else "")
-        self.method_status.set(f"{label}{detail} · 候选需复核；导出成功不表示识别已全部正确。")
-
-    def _change_selection(self, include):
-        if self.current not in self.results:
-            return
-        ids = self.objects.selection()
-        chosen = self.selections.setdefault(self.current, set())
-        chosen.update(ids) if include else chosen.difference_update(ids)
-        self._populate_objects(reset_page=False)
-        self.status.set("选择已修改；点击“保存修正 SVG / PNG”导出并更新预览。")
-
-    def _toggle_object(self, event):
-        oid = self.objects.identify_row(event.y)
-        if not oid or self.current not in self.results:
-            return
-        chosen = self.selections.setdefault(self.current, set())
-        chosen.remove(oid) if oid in chosen else chosen.add(oid)
-        self._populate_objects(reset_page=False)
-        self.status.set("选择已修改，尚未保存。")
 
     def _save(self):
         if self.busy or self.current not in self.results:
@@ -783,7 +545,7 @@ class LiveryApp:
         item = self.current
         ids = sorted(self.selections.get(item, set()))
         if not ids:
-            messagebox.showinfo("没有保留对象", "请至少补选一个对象后再保存。")
+            messagebox.showinfo("没有保留对象", "请先在六类图案复核页面选择图案或手动补选对象。")
             return
         result = self.results[item]
         category_name = None
@@ -992,6 +754,7 @@ class LiveryApp:
                 self.selections[item] = set(map(str, result.get("selected_ids", [])))
                 status = {"ready": "候选已导出·需复核", "review": "候选需复核", "failed": "失败"}.get(result.get("status"), "待复核")
                 self.tasks.set(item, "status", status)
+                self._update_retry_button()
                 self._append_log(f"{self.sources[item].name}：{status}")
                 for warning in result.get("warnings", []):
                     self._append_log(f"提示：{warning}")
@@ -999,13 +762,13 @@ class LiveryApp:
                     self.tasks.selection_set(item)
                     self.current = item
                 if self.current == item:
-                    self._populate_objects()
                     self._displayed_task = (self.current, id(result))
                     self._request_previews(result)
                     self._update_groups()
             elif kind == "failed":
                 item, error = args
                 self.tasks.set(item, "status", "失败")
+                self._update_retry_button()
                 self._append_log(f"{self.sources[item].name} 失败：{error}")
             elif kind == "step":
                 self.progress.configure(value=min(float(self.progress["maximum"]), float(self.progress["value"]) + 1))
@@ -1022,8 +785,6 @@ class LiveryApp:
             self.stop_event.set()
             self.status.set("正在处理文件，请等待完成后关闭；已停止后续任务。")
             return
-        if self._filter_after is not None:
-            self.root.after_cancel(self._filter_after)
         self.root.after_cancel(self._drain_after)
         self._preview_generation += 1
         try:

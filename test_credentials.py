@@ -75,12 +75,13 @@ class CredentialsTests(unittest.TestCase):
         self.assertTrue(credentials.load_api_key(self.path) == self.key)
         self.assertEqual(list(self.path.parent.glob('*.tmp')), [])
 
-    def test_environment_then_legacy_then_dpapi_precedence(self):
+    def test_plain_config_then_legacy_environment_then_dpapi_precedence(self):
         config = {'api_key_env': 'RANDOM_TEST_CREDENTIAL', 'api_key': secrets.token_urlsafe(48)}
         encrypted_key = secrets.token_urlsafe(48)
         with patch.dict(os.environ, {'RANDOM_TEST_CREDENTIAL': self.key}, clear=True), patch.object(vision, 'load_api_key') as load:
-            self.assertTrue(vision.resolve_api_key(config) == self.key)
+            self.assertTrue(vision.resolve_api_key(config) == config['api_key'])
             load.assert_not_called()
+            self.assertTrue(vision.resolve_api_key({'api_key_env': 'RANDOM_TEST_CREDENTIAL'}) == self.key)
         with patch.dict(os.environ, {}, clear=True), patch.object(vision, 'load_api_key') as load:
             self.assertTrue(vision.resolve_api_key(config) == config['api_key'])
             load.assert_not_called()
@@ -91,8 +92,13 @@ class CredentialsTests(unittest.TestCase):
         config = {'enabled': True, 'base_url': 'https://offline.invalid/v1', 'model': 'offline-model'}
         with patch.dict(os.environ, {}, clear=True), patch.object(vision, 'load_api_key', return_value=self.key), patch.object(vision.request, 'build_opener', side_effect=AssertionError('Network forbidden')):
             status = vision.configuration_status(config)
-            self.assertIn('Windows 本机加密密钥', status)
+            self.assertIn('已配置', status)
             self.assertTrue(self.key not in status)
+
+    def test_explicit_empty_key_does_not_restore_an_old_credential(self):
+        with patch.dict(os.environ, {'LIVERY_API_KEY': self.key}), patch.object(vision, 'load_api_key') as load:
+            self.assertEqual(vision.resolve_api_key({'api_key': ''}), '')
+            load.assert_not_called()
 
 
 if __name__ == '__main__':
