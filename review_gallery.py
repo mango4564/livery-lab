@@ -511,7 +511,7 @@ class ReviewGallery(tk.Toplevel):
         self.filtered = []
         seen = set()
         allowed = set(self.by_id)
-        compact_graphics = self.category in ('彩条', 'logo', '车漆') and not self.show_all.get()
+        compact_graphics = self.category in ('彩条', 'logo', '车漆', '门徽') and not self.show_all.get()
         for c in self.candidates:
             ids = c.get('selected_ids', [])
             if not ids or not set(ids) <= allowed:

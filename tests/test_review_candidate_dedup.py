@@ -57,7 +57,7 @@ class ReviewCandidateDedupTests(unittest.TestCase):
             decision['categories'][name] = []
 
     def test_old_geometry_hints_are_hidden_and_manual_selection_is_preserved(self):
-        for name in ('彩条', 'logo', '车漆'):
+        for name in ('彩条', 'logo', '车漆', '门徽'):
             with self.subTest(category=name):
                 objects = [{'id': str(i)} for i in range(5)]
                 candidates = [dict(id='old-'+str(i), selected_ids=[str(i)], category_hints=[name])
