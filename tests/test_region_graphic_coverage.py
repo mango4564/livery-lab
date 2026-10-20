@@ -167,6 +167,8 @@ class RegionGraphicCoverageTests(unittest.TestCase):
         self.assertEqual(images.call_count, 3)
         self.assertIn('逐个原稿区域', content[0]['text'])
         self.assertIn('不能只选一侧', content[0]['text'])
+        self.assertIn('同一区域内可能同时有多个不同logo或门徽', content[0]['text'])
+        self.assertIn('完整弧形公司名仍归门徽', content[0]['text'])
         self.assertNotIn('优先选择上方同一侧', content[0]['text'])
 
 

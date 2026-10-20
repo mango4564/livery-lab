@@ -56,7 +56,7 @@ def object_regions(objects, regions, *, partial_ids=()):
                                    and b[2] <= a[2]+eps and b[3] <= a[3]+eps):
                 matches.append(region['id'])
         if not matches and obj['id'] in partial_ids:
-            # A classified stripe may bleed beyond its vehicle anchor. Its
+            # A classified graphic may bleed beyond its region anchor. Its
             # dominant bounds and centre must identify one view unambiguously.
             # Do not enlarge region bounds or apply this to arbitrary panels.
             b = obj.get('bbox')

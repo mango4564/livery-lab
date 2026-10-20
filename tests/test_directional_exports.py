@@ -13,6 +13,36 @@ from test_reviewed_exports import fixture
 
 
 class DirectionalExportTests(TkTestCase):
+    def test_multiple_logos_and_badges_in_one_region_are_independently_selectable_and_exportable(self):
+        result = dict(self.result, component_categories={name: [] for name in LABELS})
+        result['component_categories'].update(logo=['0', '1', '2'], 门徽=['3', '4', '5'])
+        result['source_regions'] = [dict(id='R1', name='同一侧视图', source_view='左视图',
+                                         bbox=[.5, .3, 110, 8], selected_ids=[])]
+        groups = [('logo', ['0']), ('logo', ['1']), ('logo', ['2']),
+                  ('门徽', ['3', '4']), ('门徽', ['5'])]
+        result['component_candidates'] = [dict(id=f'G{i}', selected_ids=ids,
+                                               category_hints=[name], recommended_categories=[name])
+                                          for i, (name, ids) in enumerate(groups)]
+        root = tk.Tk();root.withdraw();self.addCleanup(root.destroy)
+        with patch.object(ReviewGallery, '_locator_worker', return_value=None):
+            gallery = ReviewGallery(root, result, self.output)
+        gallery.withdraw();self.addCleanup(gallery.destroy)
+        for category, count in (('logo', 3), ('门徽', 2)):
+            gallery._switch_category(category)
+            self.assertEqual(len(gallery.filtered), count)
+            for candidate in list(gallery.filtered):
+                gallery.current_candidate = candidate
+                gallery.source_view.set('左视图');gallery._confirm()
+        for name in LABELS:
+            if name not in ('logo', '门徽'):
+                gallery._switch_category(name);gallery._absent()
+        exported = export_reviewed(gallery.result, gallery.choices, self.output, patterns=gallery.patterns)
+        for label, count in (('logo', 3), ('徽章', 2)):
+            record = exported['manifest']['categories'][label]
+            self.assertEqual(len(record['patterns']), count)
+            self.assertEqual(len(set(record['files'])), count*2)
+            self.assertTrue(all(p['source_region']=='R1' for p in record['patterns']))
+
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)

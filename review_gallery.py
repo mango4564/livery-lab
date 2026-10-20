@@ -241,11 +241,13 @@ class ReviewGallery(tk.Toplevel):
         super().__init__(parent)
         self.result = dict(result, source_regions=[dict(r) for r in result.get('source_regions', [])])
         self.regions = self.result['source_regions']
-        stripe_ids = set(result.get('component_categories', {}).get('彩条') or [])
+        graphic_ids = set()
+        for name in ('彩条', 'logo', '门徽'):
+            graphic_ids.update(result.get('component_categories', {}).get(name) or [])
         for c in result.get('component_candidates', []) + ([manual_candidate] if manual_candidate else []):
-            if '彩条' in c.get('category_hints', []):
-                stripe_ids.update(c.get('selected_ids', []))
-        self.region_assignments = object_regions(result['objects'], self.regions, partial_ids=stripe_ids)
+            if set(c.get('category_hints', [])).intersection(('彩条', 'logo', '门徽')):
+                graphic_ids.update(c.get('selected_ids', []))
+        self.region_assignments = object_regions(result['objects'], self.regions, partial_ids=graphic_ids)
         self.by_id = {o['id']: o for o in result['objects']}
         self.choices, self.choice_labels = {}, {}
         self.patterns = {name: [] for name in LABELS}
@@ -681,7 +683,7 @@ class ReviewGallery(tk.Toplevel):
         self._refresh_status()
 
     def _add_pattern(self, category, ids):
-        if category == '彩条':
+        if category in ('彩条', 'logo', '门徽'):
             self.region_assignments.update(object_regions(
                 [self.by_id[i] for i in ids], self.regions, partial_ids=ids))
         groups = split_by_region(ids, self.region_assignments)
