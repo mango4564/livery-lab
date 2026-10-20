@@ -153,6 +153,38 @@ def decode_oval(payload, word):
         'geometry_evidence': 'AOval field1/field1 dimensions; AFigure matrix applied once'}
 
 
+def decode_rectangle(payload, word):
+    """Decode sharp ARectangle primitives, applying their figure matrix once.
+
+    Field 1 holds local dimensions; field 2 starts with the corner amount.
+    Rounded/chamfered corners are deliberately rejected until decoded.
+    """
+    top = fields(payload, word=word)
+    base = fields(top[0], word=word)
+    params = fields(top[1], word=word)
+    width, height = struct.unpack('<2d', params[1])
+    corner = params[2]
+    if len(corner) != 9 or corner[8] not in (1, 2):
+        raise ValueError('unsupported rectangle corner encoding')
+    amount, = struct.unpack('<d', corner[:8])
+    if amount != 0 or int.from_bytes(params.get(3, b'\0'), 'little') != 0:
+        raise ValueError('unsupported rectangle corner style')
+    matrix = struct.unpack('<6d', base[1])
+    if (not all(math.isfinite(v) and abs(v) < 1e12 for v in (width, height) + matrix)
+            or min(width, height) <= 0):
+        raise ValueError('invalid rectangle dimensions/matrix')
+    a, b, c, d, e, f = matrix
+    if a * d - b * c == 0:
+        raise ValueError('degenerate rectangle')
+    points = [(a*x + c*y + e, b*x + d*y + f)
+              for x, y in ((0, 0), (width, 0), (width, height), (0, height))]
+    path = ' '.join(('M' if i == 0 else 'L') + f'{x:.17g},{y:.17g}'
+                    for i, (x, y) in enumerate(points)) + ' Z'
+    return path, points, base, {
+        'closed': True, 'primitive': 'rectangle', 'width': width, 'height': height,
+        'geometry_evidence': 'ARectangle field1/field1 dimensions; zero corner amount; AFigure matrix applied once'}
+
+
 def extract_geometry(source, page='Page 1'):
     source = Path(source)
     with olefile.OleFileIO(source) as ole:
@@ -161,7 +193,7 @@ def extract_geometry(source, page='Page 1'):
     word = compression["tlv_word_bytes"]
     objects, rejected = [], 0
     for class_name, decoder in [("APath", decode_simple), ("AEditPath", decode_edit),
-                                ('AOval', decode_oval)]:
+                                ('AOval', decode_oval), ('ARectangle', decode_rectangle)]:
         if class_name not in names:
             continue
         class_index = names.index(class_name)
