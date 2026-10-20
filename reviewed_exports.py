@@ -197,6 +197,36 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
                                               'selected_ids':ids, 'files':files}
             if patterns is not None:
                 manifest['categories'][label]['patterns'] = pattern_records
+            # Keep exact exported pattern memberships/files for placement hints.
+            reviewed_patterns[name] = pattern_records
+        if selected['车漆']:
+            from core.placements import attach_placements
+            # Old callers may only provide one category-wide selection. Split
+            # by known region, but never claim it identifies individual motifs.
+            placement_patterns = reviewed_patterns
+            if patterns is None:
+                placement_patterns = {}
+                for name in LABELS:
+                    entries = []
+                    for group in split_by_region(selected[name], assignments):
+                        entry = {'selected_ids': group, 'files': manifest['categories'][LABELS[name]]['files']}
+                        region = region_for_ids(group, assignments, regions)
+                        if region:
+                            entry.update(source_region=region['id'], region_name=region['name'],
+                                         source_view=region['source_view'])
+                        entries.append(entry)
+                    placement_patterns[name] = entries
+            base_path = staging/'vehicle-base.svg'
+            svg, placements = attach_placements(base_path.read_text(encoding='utf8'),
+                staging/'vehicle-base.png', result['objects'], placement_patterns, regions,
+                digest, individual_patterns=patterns is not None)
+            base_path.write_text(svg, encoding='utf8')
+            (staging/'vehicle-base.placements.json').write_text(
+                json.dumps(placements, ensure_ascii=False, indent=2, allow_nan=False), encoding='utf8')
+            manifest['placements'] = {'schema_version': placements['schema_version'],
+                                      'template_id': placements['template_id'],
+                                      'file': 'vehicle-base.placements.json',
+                                      'slot_count': len(placements['slots'])}
         if hashlib.sha256(source.read_bytes()).hexdigest() != digest:
             raise ValueError('导出期间源 FS 发生变化，未发布成品。')
         manifest['artifact_sha256'] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()

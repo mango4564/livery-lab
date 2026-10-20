@@ -509,12 +509,13 @@ def build_candidates(objects, containers, limit=120):
     return selected, {'native_candidates': len(candidates), 'loose_graphic_candidates': len(loose),
                       'provided_emblem_candidates': sum(c['native_type'] in ('DoorEmblem', 'EmblemLogo') for c in selected),
                       'provided_wordmark_candidates': sum(c['native_type'] in ('WordmarkText', 'WordmarkLogo') for c in selected),
+                      'provided_text_blocks': sum(c['native_type']=='TextBlock' for c in selected),
                       'paint_surface_candidates': sum(c['native_type']=='PaintSurface' for c in paint),
                       'paint_region_candidates': sum(c['native_type']=='PaintRegion' for c in paint),
                       'provided_paint_surfaces': sum(c['native_type']=='PaintSurface' for c in selected),
                       'provided_paint_regions': sum(c['native_type']=='PaintRegion' for c in selected),
                       'provided_candidates': len(selected),
-                      'omitted_or_deduplicated_candidates': len(candidates)+len(badges)+len(wordmarks)+len(loose)+len(paint)-len(selected),
+                      'omitted_or_deduplicated_candidates': len(candidates)+len(badges)+len(text_blocks)+len(wordmarks)+len(loose)+len(paint)-len(selected),
                       'candidate_limit': limit, 'reference_library_used': False}
 
 
@@ -570,12 +571,14 @@ def prepare(source, directory, limit=120):
     return objects, candidates, coverage
 
 
-def recognize_groups(candidates, directory, config):
+def recognize_groups(candidates, directory, config, *, surface_audit=False):
     from vision import recognize
     directory = Path(directory)
     metadata = [{k: c[k] for k in ('id', 'bbox', 'native_type', 'source_span')} |
                 {'path_count': len(c['member_ids'])} for c in candidates]
     scene = {'objects': candidates, 'component_mode': True, 'group_metadata': metadata}
+    if surface_audit:
+        scene['body_surface_audit'] = True
     if (directory/'group_details.png').exists():
         scene['candidate_sheet_png'] = str(directory/'group_details.png')
     return recognize(scene,
@@ -604,6 +607,85 @@ def resolve_categories(objects, candidates, decision):
         name: [o['id'] for o in objects if o['id'] in ids] for name, ids in categories.items()})
 
 
+def residual_surface_candidates(objects, candidates, decision, limit=120):
+    """Expose residual and omitted filled paths at each body's local scale.
+
+    This is a review queue, not a paint detector. Windows, lamps and tyres
+    remain in it for visual rejection; no colour rule removes them from body.
+    Omitted sibling decorations precede residual structure within each region.
+    """
+    from core.paint import style_capability
+    resolved = resolve_categories(objects, candidates, decision)
+    body_ids = set(resolved['车身'])
+    reserved = {i for name, ids in resolved.items() if name != '车身' for i in ids}
+    selected = set(decision['categories']['车身'])
+    bodies = [c for c in candidates if c['id'] in selected]
+    text_ids = {i for c in candidates if c['native_type'] in ('AText', 'AArcText', 'TextBlock')
+                for i in c['member_ids']}
+    queues = [[] for _ in bodies]
+    for obj in objects:
+        if (obj['id'] in reserved or obj['id'] in text_ids
+                or obj.get('details', {}).get('closed') is False
+                or style_capability(obj) == 'unsupported'):
+            continue
+        b = obj['bbox'];w, h = b[2]-b[0], b[3]-b[1]
+        owners = [(i, c) for i, c in enumerate(bodies) if obj['id'] in c['member_ids']]
+        # Decorations are frequently siblings of the structural body group.
+        # Review omitted source objects inside the same vehicle, too; selecting
+        # only body descendants silently drops complete motifs and other colours.
+        if not owners and obj['id'] not in body_ids:
+            owners = [(i, c) for i, c in enumerate(bodies)
+                      if b[0] >= c['bbox'][0] and b[1] >= c['bbox'][1]
+                      and b[2] <= c['bbox'][2] and b[3] <= c['bbox'][3]]
+        if not owners or min(w, h) <= 1e-5:
+            continue
+        index, owner = min(owners, key=lambda pair: pair[1]['area'])
+        if w*h < owner['area']*.001:
+            continue
+        queues[index].append(dict(members=[obj], member_ids=[obj['id']], bbox=b,
+                                 native_type='PaintSurface', source_span=[obj['source_offset']]*2,
+                                 area=w*h, aspect=w/h, body_anchor_id=owner['id'],
+                                 omitted_decoration=obj['id'] not in body_ids))
+    for queue in queues:
+        queue.sort(key=lambda c: (not c['omitted_decoration'], -c['area']))
+    # Round robin prevents a detailed side view from displacing end-view paint.
+    ordered = [queue[i] for i in range(max(map(len, queues), default=0))
+               for queue in queues if i < len(queue)]
+    first = max((int(c['id'][1:]) for c in candidates), default=0)+1
+    for index, c in enumerate(ordered[:limit], first):
+        c['id'] = f'G{index:03d}'
+    return ordered[:limit], len(ordered)
+
+
+def refine_body_surfaces(objects, candidates, decision, directory, config):
+    """Visually audit residual body surfaces and merge only explicit labels."""
+    import copy
+    audit, total = residual_surface_candidates(objects, candidates, decision)
+    coverage = {'body_surface_audit_candidates': len(audit),
+                'body_surface_audit_omitted': total-len(audit),
+                'body_surface_audit_classified': 0}
+    if not audit:
+        return decision, coverage
+    path = Path(directory)/'body_surface_audit';path.mkdir(parents=True, exist_ok=True)
+    candidate_atlas(audit, path/'group_atlas.png')
+    rasterize(svg_document(objects, width=2000, background='#ffffff'), path/'source_scene.png')
+    body_ids = set(resolve_categories(objects, candidates, decision)['车身'])
+    rasterize(svg_document([o for o in objects if o['id'] in body_ids], width=2000,
+                           background='#bbbbbb'), path/'group_details.png')
+    checked = recognize_groups(audit, path, config, surface_audit=True)
+    (path/'decision.json').write_text(json.dumps(checked, ensure_ascii=False, indent=2), encoding='utf8')
+    merged = copy.deepcopy(decision)
+    for name in ('车漆', '彩条'):
+        merged['categories'][name].extend(checked['categories'][name])
+        coverage['body_surface_audit_classified'] += len(checked['categories'][name])
+    merged.setdefault('source_views', {}).update(checked.get('source_views', {}))
+    merged['reason'] += '；车身残留面复核：'+checked.get('reason', '')
+    # Commit proposals only after the complete merged protocol validates.
+    resolve_categories(objects, candidates+audit, merged)
+    candidates.extend(audit)
+    return merged, coverage
+
+
 def run(source, directory, config, *, use_ai=True):
     source, directory = Path(source), Path(directory)
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
@@ -611,6 +693,9 @@ def run(source, directory, config, *, use_ai=True):
     decision = (recognize_groups(candidates, directory, config) if use_ai else
                 {'categories': {name: [] for name in CATEGORIES},
                  'reason': '手工复核模式，尚未分类；未调用 AI。', 'confidence': 0.0})
+    if use_ai:
+        decision, audit_coverage = refine_body_surfaces(objects, candidates, decision, directory, config)
+        coverage.update(audit_coverage)
     categories = resolve_categories(objects, candidates, decision)
     report = {'source': str(source.resolve()), 'source_sha256': digest, 'coverage': coverage,
               'decision': decision, 'categories': categories, 'status': 'review', 'views': []}
