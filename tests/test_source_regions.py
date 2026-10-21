@@ -8,7 +8,7 @@ from tests.tk_lifecycle import TkTestCase
 import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
-from core.source_regions import build_source_regions, object_regions, region_for_ids
+from core.source_regions import build_source_regions, object_regions, region_for_ids, split_by_region
 from review_gallery import ReviewGallery
 from reviewed_exports import LABELS, export_reviewed
 from test_reviewed_exports import fixture
@@ -18,6 +18,53 @@ from vision import _validate_components, VisionError
 def proposals():
     return [{'id': 'R1', 'name': '侧面区域A', 'source_view': '待确认视图', 'anchor_ids': ['G1']},
             {'id': 'R2', 'name': '后视图', 'source_view': '后视图', 'anchor_ids': ['G2']}]
+
+
+def paint_view_fixture(root):
+    """Small rectangles reproducing the four-view boundary drift of 3261129."""
+    result = fixture(root)
+    boxes = [[57.377, 292.089, 529.304, 428.282], [122.262, 416.603, 304.429, 428.234],
+             [60.954, 111.360, 532.881, 247.553], [285.780, 235.725, 467.947, 247.356],
+             [570.583, 291.982, 669.735, 429.001], [570.593, 115.356, 669.700, 238.610]]
+    for obj, box in zip(result['objects'], boxes):
+        x1, y1, x2, y2 = box
+        obj.update(bbox=box, d=f'M{x1} {y1}H{x2}V{y2}H{x1}Z')
+    result['component_categories'] = {n: [] for n in LABELS}
+    result['component_categories']['车漆'] = [o['id'] for o in result['objects']]
+    result['source_regions'] = [
+        dict(id=f'R{i}', name=name, source_view=name, anchor_ids=[f'G{i}'],
+             selected_ids=[f'body-{i}'], bbox=box)
+        for i, (name, box) in enumerate([
+            ('右视图', [60.905, 97.603, 532.789, 247.404]),
+            ('左视图', [57.420, 278.481, 529.304, 428.282]),
+            ('前视图', [570.540, 280.462, 669.753, 428.787]),
+            ('后视图', [569.368, 99.133, 670.925, 238.546])], 1)]
+    return result
+
+
+class PaintRegionGeometryTests(unittest.TestCase):
+    def test_classified_paint_drift_has_bounded_tolerance_and_rejects_ambiguity(self):
+        region = dict(id='R1', bbox=[0, 0, 100, 100], selected_ids=['body'])
+        objects = [dict(id='paint', bbox=[0, 10, 100.15, 100.15]),
+                   dict(id='crossing', bbox=[0, 10, 101, 100]),
+                   dict(id='unclassified', bbox=[0, 10, 100.15, 100.15])]
+        self.assertEqual(object_regions(objects, [region]), {})
+        self.assertEqual(object_regions(objects, [region], paint_ids=['paint', 'crossing']),
+                         {'paint': 'R1'})
+        self.assertEqual(object_regions(objects, [region, dict(region, id='R2')],
+                                        paint_ids=['paint']), {})
+
+    def test_unknown_paint_splits_disconnected_locations_but_keeps_touching_paths(self):
+        objects = [dict(id='a', bbox=[0, 0, 10, 10]),
+                   dict(id='b', bbox=[20, 0, 30, 10]),
+                   dict(id='bridge', bbox=[10, 0, 20, 10]),
+                   dict(id='front', bbox=[100, 0, 110, 10]),
+                   dict(id='rear', bbox=[100, 50, 110, 60]),
+                   dict(id='missing')]
+        ids = [o['id'] for o in objects]
+        self.assertEqual(split_by_region(ids, {}, objects=objects),
+                         [['a', 'b', 'bridge'], ['front'], ['rear'], ['missing']])
+        self.assertEqual(split_by_region(ids, {}), [ids])
 
 
 class SourceRegionTests(TkTestCase):
@@ -62,6 +109,50 @@ class SourceRegionTests(TkTestCase):
                    dict(id='roof', bbox=[120, 330, 130, 335])]
         self.assertEqual(object_regions(objects, [region]), {'base': 'R1', 'roof': 'R1'})
         self.assertNotIn('base', object_regions(objects, [region, dict(region, id='R2')]))
+
+    def test_gallery_and_export_keep_four_paint_views_separate(self):
+        with tempfile.TemporaryDirectory() as temp:
+            result = paint_view_fixture(Path(temp))
+            root = tk.Tk(); root.withdraw(); self.addCleanup(root.destroy)
+            gallery = ReviewGallery(root, result, Path(temp)/'out'); gallery.withdraw()
+            self.addCleanup(gallery.destroy)
+            gallery._switch_category('车漆')
+            expected = [['0', '1'], ['2', '3'], ['4'], ['5']]
+            self.assertEqual([c['selected_ids'] for c in gallery.filtered], expected)
+            self.assertEqual([gallery._region(ids)['source_view'] for ids in expected],
+                             ['左视图', '右视图', '前视图', '后视图'])
+            gallery._add_pattern('车漆', result['component_categories']['车漆'])
+            self.assertEqual([e['selected_ids'] for e in gallery.patterns['车漆']], expected)
+            # Legacy saved records mixing views must split at export too.
+            choices = {n: None for n in LABELS}
+            choices['车漆'] = result['component_categories']['车漆']
+            patterns = {n: [] for n in LABELS}
+            patterns['车漆'] = [dict(selected_ids=choices['车漆'], source_view='混合视图')]
+            exported = export_reviewed(result, choices, Path(temp)/'out', patterns=patterns)
+            entries = exported['manifest']['categories']['车漆']['patterns']
+            self.assertEqual([e['selected_ids'] for e in entries], expected)
+            self.assertEqual([e['source_view'] for e in entries],
+                             ['左视图', '右视图', '前视图', '后视图'])
+
+    def test_unknown_paint_locations_stay_separate_in_gallery_and_export(self):
+        with tempfile.TemporaryDirectory() as temp:
+            result = fixture(Path(temp))
+            result['component_categories'] = {n: [] for n in LABELS}
+            result['component_categories']['车漆'] = ['0', '3', '5']
+            root = tk.Tk(); root.withdraw(); self.addCleanup(root.destroy)
+            gallery = ReviewGallery(root, result, Path(temp)/'out'); gallery.withdraw()
+            self.addCleanup(gallery.destroy)
+            gallery._switch_category('车漆')
+            self.assertEqual([c['selected_ids'] for c in gallery.filtered], [['0'], ['3'], ['5']])
+            gallery._add_pattern('车漆', ['0', '3', '5'])
+            self.assertEqual([e['selected_ids'] for e in gallery.patterns['车漆']], [['0'], ['3'], ['5']])
+            choices = {n: None for n in LABELS}; choices['车漆'] = ['0', '3', '5']
+            patterns = {n: [] for n in LABELS}
+            patterns['车漆'] = [dict(selected_ids=choices['车漆'], source_view='混合视图')]
+            exported = export_reviewed(result, choices, Path(temp)/'out', patterns=patterns)
+            entries = exported['manifest']['categories']['车漆']['patterns']
+            self.assertEqual([e['selected_ids'] for e in entries], [['0'], ['3'], ['5']])
+            self.assertEqual([e['source_view'] for e in entries], ['待确认视图']*3)
 
     def test_classified_stripes_bleeding_outside_anchor_keep_separate_regions(self):
         regions = [dict(id='R1', bbox=[0, 100, 100, 140], selected_ids=['left']),

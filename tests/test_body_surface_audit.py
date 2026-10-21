@@ -90,8 +90,8 @@ class BodySurfaceAuditTests(unittest.TestCase):
         def classify(audit, directory, config, **kwargs):
             self.assertTrue(kwargs['surface_audit'])
             ids = {c['member_ids'][0]: c['id'] for c in audit}
-            return decision(车漆=[ids[n] for n in ('roof', 'rear-blue', 'rear-yellow')],
-                            彩条=[ids['stripe']])
+            return decision(车漆=[ids['roof']],
+                            彩条=[ids[n] for n in ('rear-blue', 'rear-yellow', 'stripe')])
         with tempfile.TemporaryDirectory() as directory:
             with patch('components.recognize_groups', side_effect=classify) as model, \
                     patch('components.rasterize'), patch('components.candidate_atlas'):
@@ -99,8 +99,8 @@ class BodySurfaceAuditTests(unittest.TestCase):
             model.assert_called_once()
             self.assertTrue((Path(directory)/'body_surface_audit/decision.json').exists())
         resolved = resolve_categories(objects, candidates, merged)
-        self.assertEqual(set(resolved['车漆']), {'base', 'roof', 'rear-blue', 'rear-yellow'})
-        self.assertEqual(resolved['彩条'], ['stripe'])
+        self.assertEqual(set(resolved['车漆']), {'base', 'roof'})
+        self.assertEqual(set(resolved['彩条']), {'rear-blue', 'rear-yellow', 'stripe'})
         self.assertEqual(set(resolved['车身']), {'glass', 'lamp', 'tyre', 'caption'})
         self.assertEqual(coverage['body_surface_audit_classified'], 4)
         self.assertEqual(first, before)
@@ -154,8 +154,54 @@ class BodySurfaceAuditTests(unittest.TestCase):
         self.assertIn('同一区域内首轮漏分类', prompt)
         self.assertIn('椰树', prompt)
         self.assertIn('逐个左右/前后区域独立核对', prompt)
+        self.assertIn('成套蓝黄装饰块应归彩条', prompt)
+        self.assertIn('镜壳的蓝色基础漆面仍归车漆', prompt)
         self.assertEqual(images.call_count, 3)
+
+    def test_colour_and_matching_paint_surfaces_precede_large_neutral_structure(self):
+        objects = [
+            dict(id='body-shell', source_offset=0, bbox=[0, 0, 100, 100], fill='#ffffff',
+                 details={'closed': True}, d='M0 0H100V100H0Z'),
+            dict(id='confirmed-stripe', source_offset=10, bbox=[10, 10, 30, 20], fill='#ffc056',
+                 details={'closed': True}, d='M10 10H30V20H10Z'),
+            dict(id='huge-glass', source_offset=20, bbox=[10, 20, 90, 80], fill='#ffffff',
+                 details={'closed': True}, d='M10 20H90V80H10Z'),
+            dict(id='huge-chassis', source_offset=30, bbox=[10, 80, 90, 95], fill='#000000',
+                 details={'closed': True}, d='M10 80H90V95H10Z'),
+            dict(id='matching-corner', source_offset=40, bbox=[80, 85, 95, 95], fill='#ffc056',
+                 details={'closed': True}, d='M80 85H95V95H80Z'),
+            dict(id='other-color-piece', source_offset=50, bbox=[20, 85, 35, 95], fill='#004488',
+                 details={'closed': True}, d='M20 85H35V95H20Z'),
+        ]
+        candidates = [
+            dict(id='G001', native_type='AGroup', member_ids=[o['id'] for o in objects],
+                 members=list(objects), bbox=[0, 0, 100, 100], area=10000, aspect=1.0),
+            dict(id='G002', native_type='PaintSurface', member_ids=['confirmed-stripe'],
+                 members=[objects[1]], bbox=objects[1]['bbox'], area=200, aspect=2.0,
+                 source_span=[10, 10]),
+        ]
+        first = decision(车身=['G001'], 彩条=['G002'])
+        audit, total = residual_surface_candidates(objects, candidates, first, limit=2)
+        proposed_ids = [c['member_ids'][0] for c in audit]
+        self.assertEqual(proposed_ids, ['matching-corner', 'other-color-piece'])
+        self.assertEqual(total, 5)
+
+    def test_first_pass_distinguishes_decorative_rear_blocks_from_base_paint(self):
+        response = json.dumps({'choices': [{'finish_reason': 'stop', 'message': {
+            'content': json.dumps(decision())}}]}).encode()
+        with patch('vision._image_part', return_value={'type': 'image_url'}), \
+                patch('vision._request_bytes', return_value=response) as send:
+            recognize(dict(objects=[dict(id='G001', bbox=[0, 0, 20, 1], score=1)],
+                           component_mode=True, group_metadata=[]),
+                      'source.png', 'atlas.png', dict(enabled=True, base_url='https://example.invalid/v1',
+                                                    model='vision', api_key='test'))
+        prompt = json.loads(send.call_args.args[0].data)['messages'][1]['content'][0]['text']
+        self.assertIn('成套蓝黄装饰块应归彩条', prompt)
+        self.assertIn('不按是否采用喷漆工艺区分', prompt)
+        self.assertIn('覆盖保险杠或与底色同色', prompt)
 
 
 if __name__ == '__main__':
     unittest.main()
+
+

@@ -32,6 +32,14 @@ def hex_color(value):
     return value.upper()
 
 
+def color_is_neutral(fill):
+    """Return True if hex color is neutral (grey/black/white)."""
+    if not isinstance(fill, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", fill):
+        return False
+    r, g, b = int(fill[1:3], 16), int(fill[3:5], 16), int(fill[5:7], 16)
+    return max(r, g, b) - min(r, g, b) <= 18
+
+
 def style_capability(obj):
     gradient = obj.get('gradient')
     if gradient:

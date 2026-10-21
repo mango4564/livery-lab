@@ -116,19 +116,77 @@ class VectorImage:
         nodes = []
         changed = False
         identifiers = set()
+        defs_map = {elem.get('id'): elem for elem in root.iter() if elem.get('id')}
+        parent_map = {child: parent for parent in root.iter() for child in parent}
+
         def visit(parent, matrix):
             nonlocal changed
             for node in parent:
                 tag = node.tag.rsplit('}', 1)[-1]
-                if tag in ('metadata', 'defs'):
+                if tag in ('metadata', 'defs', 'title', 'desc'):
                     continue
-                if tag == 'g' and not (set(node.attrib) - {'transform'}):
+                if tag == 'g':
+                    disallowed = {'style', 'clip-path', 'mask', 'opacity', 'filter', 'fill', 'stroke'}
+                    if any(k in disallowed or k.endswith('style') or k.endswith('clip-path') or k.endswith('mask') or k.endswith('opacity') or k.endswith('filter') for k in node.attrib):
+                        raise ValueError('Unsupported group attribute')
                     visit(node, skia.Matrix.Concat(matrix, self._matrix(node.get('transform', ''))))
                     continue
+                if tag == 'use':
+                    href = node.get('href') or node.get('{http://www.w3.org/1999/xlink}href')
+                    if not href or not href.startswith('#'):
+                        raise ValueError('Unsupported use href')
+                    target = defs_map.get(href[1:])
+                    if target is None:
+                        raise ValueError(f'Target not found: {href}')
+                    disallowed = {'style', 'clip-path', 'mask', 'opacity', 'filter', 'fill', 'stroke'}
+                    if any(k in disallowed or k.endswith('style') or k.endswith('clip-path') or k.endswith('mask') or k.endswith('opacity') or k.endswith('filter') for k in node.attrib):
+                        raise ValueError('Unsupported use attribute')
+                    use_matrix = matrix
+                    if node.get('transform'):
+                        use_matrix = skia.Matrix.Concat(use_matrix, self._matrix(node.get('transform')))
+                    if node.get('x') or node.get('y'):
+                        x = float(node.get('x', 0))
+                        y = float(node.get('y', 0))
+                        use_matrix = skia.Matrix.Concat(use_matrix, skia.Matrix.Translate(x, y))
+
+                    ancestor = parent_map.get(target)
+                    defs_matrix = skia.Matrix()
+                    while ancestor is not None and ancestor.tag.rsplit('}', 1)[-1] not in ('defs', 'svg'):
+                        if ancestor.tag.rsplit('}', 1)[-1] == 'g' and ancestor.get('transform'):
+                            defs_matrix = skia.Matrix.Concat(self._matrix(ancestor.get('transform')), defs_matrix)
+                        ancestor = parent_map.get(ancestor)
+                    use_matrix = skia.Matrix.Concat(use_matrix, defs_matrix)
+
+                    target_tag = target.tag.rsplit('}', 1)[-1]
+                    if target_tag == 'g':
+                        visit(target, use_matrix)
+                        continue
+                    non_data_target = {k for k in target.attrib if not k.startswith('data-') and not k.startswith('{')}
+                    if (target_tag == 'rect' and not (non_data_target - {'x', 'y', 'width', 'height', 'fill', 'id'})
+                            and re.fullmatch(r'#[0-9a-fA-F]{6}', target.get('fill', ''))):
+                        nodes.append((target, use_matrix, 'rect'))
+                        continue
+                    if target_tag != 'path' or 'style' in target.attrib or 'clip-path' in target.attrib:
+                        raise ValueError(f'Unsupported target tag: {target_tag}')
+                    hairline = target.get('data-fs-hairline') == 'true'
+                    path = None
+                    if hairline:
+                        allowed = {'id', 'd', 'transform', 'fill', 'fill-rule', 'stroke', 'stroke-width',
+                                   'vector-effect', 'data-fs-hairline'}
+                        if (not re.fullmatch(r'none|#[0-9a-fA-F]{6}', target.get('fill', ''))
+                                or non_data_target - allowed):
+                            raise ValueError('Unsupported cosmetic stroke')
+                        if not re.fullmatch(r'#[0-9a-fA-F]{6}', target.get('stroke', '')):
+                            raise ValueError('Unsupported stroke color')
+                        path = self._path(target.get('d', ''))
+                    nodes.append((target, use_matrix, path))
+                    continue
+
                 if tag not in ('path', 'rect') or 'style' in node.attrib or 'clip-path' in node.attrib:
                     raise ValueError('Unsupported SVG node')
                 # renderNode deliberately omits ancestors; apply their matrices.
-                if (tag == 'rect' and not (set(node.attrib) - {'x', 'y', 'width', 'height', 'fill'})
+                non_data_node = {k for k in node.attrib if not k.startswith('data-') and not k.startswith('{')}
+                if (tag == 'rect' and not (non_data_node - {'x', 'y', 'width', 'height', 'fill', 'id'})
                         and re.fullmatch(r'#[0-9a-fA-F]{6}', node.get('fill', ''))):
                     nodes.append((node, matrix, 'rect'))
                     continue
@@ -146,7 +204,7 @@ class VectorImage:
                     allowed = {'id', 'd', 'transform', 'fill', 'fill-rule', 'stroke', 'stroke-width',
                                'vector-effect', 'data-fs-hairline'}
                     if (tag != 'path' or not re.fullmatch(r'none|#[0-9a-fA-F]{6}', node.get('fill', ''))
-                            or set(node.attrib) - allowed):
+                            or non_data_node - allowed):
                         raise ValueError('Unsupported cosmetic stroke')
                     if not re.fullmatch(r'#[0-9a-fA-F]{6}', node.get('stroke', '')):
                         raise ValueError('Unsupported stroke color')

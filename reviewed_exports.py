@@ -88,7 +88,8 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
     reviewed_patterns = {}
     regions = result.get('source_regions', [])
     assignments = object_regions(result['objects'], regions,
-                                 partial_ids=selected['彩条']+selected['logo']+selected['门徽'])
+                                 partial_ids=selected['彩条']+selected['logo']+selected['门徽'],
+                                 paint_ids=selected['车漆'])
     if patterns is not None:
         if set(patterns) != set(LABELS):
             raise ValueError('图案记录须包含全部类别。')
@@ -114,7 +115,8 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
                 kept = [i for i in ids if i not in excluded]
                 if not kept:
                     raise ValueError('图案扣除其他类别后为空，请重新选择。')
-                groups = split_by_region(kept, assignments)
+                groups = split_by_region(kept, assignments,
+                                         objects=result['objects'] if name == '车漆' else None)
                 for group in groups:
                     pattern = {'source_view': entry['source_view'], 'selected_ids': group}
                     region = region_for_ids(group, assignments, regions)
@@ -208,7 +210,8 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
                 placement_patterns = {}
                 for name in LABELS:
                     entries = []
-                    for group in split_by_region(selected[name], assignments):
+                    for group in split_by_region(selected[name], assignments,
+                            objects=result['objects'] if name == '车漆' else None):
                         entry = {'selected_ids': group, 'files': manifest['categories'][LABELS[name]]['files']}
                         region = region_for_ids(group, assignments, regions)
                         if region:

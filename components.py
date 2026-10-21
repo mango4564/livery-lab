@@ -409,6 +409,19 @@ def wordmark_candidates(native_candidates):
     return result
 
 
+def attach_native_contexts(selected, native):
+    """Keep the smallest complete native group around each partial proposal."""
+    groups = [(c, set(c['member_ids'])) for c in native
+              if c['native_type'] == 'AGroup' and 2 <= len(c['member_ids']) <= 80]
+    for candidate in selected:
+        ids = set(candidate['member_ids'])
+        owners = [c for c, members in groups if ids < members]
+        if owners:
+            owner = min(owners, key=lambda c: (len(c['member_ids']), c['area']))
+            candidate['native_context'] = {k: owner[k] for k in
+                                          ('member_ids', 'bbox', 'area', 'aspect', 'source_span')}
+
+
 def build_candidates(objects, containers, limit=120):
     """Keep native ownership, deduplicate nested copies and expose omissions."""
     objects = sorted(objects, key=lambda o: o['source_offset'])
@@ -504,6 +517,7 @@ def build_candidates(objects, containers, limit=120):
         leftovers.extend(local[cap:])
     leftovers.sort(key=lambda c: c['native_type'] not in priority_types)
     selected.extend(leftovers[:max(0, limit-len(selected))])
+    attach_native_contexts(selected, candidates)
     for i, c in enumerate(selected):
         c.update(id=f'G{i+1:03d}', score=1, fill='none')
     return selected, {'native_candidates': len(candidates), 'loose_graphic_candidates': len(loose),
@@ -614,7 +628,7 @@ def residual_surface_candidates(objects, candidates, decision, limit=120):
     remain in it for visual rejection; no colour rule removes them from body.
     Omitted sibling decorations precede residual structure within each region.
     """
-    from core.paint import style_capability
+    from core.paint import style_capability, color_is_neutral
     resolved = resolve_categories(objects, candidates, decision)
     body_ids = set(resolved['车身'])
     reserved = {i for name, ids in resolved.items() if name != '车身' for i in ids}
@@ -623,8 +637,66 @@ def residual_surface_candidates(objects, candidates, decision, limit=120):
     text_ids = {i for c in candidates if c['native_type'] in ('AText', 'AArcText', 'TextBlock')
                 for i in c['member_ids']}
     queues = [[] for _ in bodies]
+    by_id = {o['id']: o for o in objects}
+    stripe_ids = set(resolved['彩条'])
+    protected = reserved-stripe_ids
+    grouped_ids, seen_groups = set(), set()
+    known_colors = set()
+    for name in ('彩条', '车漆'):
+        for oid in resolved.get(name, []):
+            obj = by_id.get(oid)
+            if not obj:
+                continue
+            fill = obj.get('fill')
+            if fill and not color_is_neutral(fill):
+                known_colors.add(fill.lower())
+            gradient = obj.get('gradient')
+            if gradient:
+                for stop in gradient.get('definition', {}).get('stops', []):
+                    color = stop.get('color')
+                    if color and not color_is_neutral(color):
+                        known_colors.add(color.lower())
+
+    def color_tier(candidate):
+        members = candidate.get('members') or [
+            by_id[mid] for mid in candidate.get('member_ids', []) if mid in by_id
+        ]
+        has_gradient = any(m.get('gradient') for m in members)
+        fills = [m['fill'].lower() for m in members
+                 if m.get('fill') and m['fill'] != 'none']
+        if has_gradient or any(f in known_colors for f in fills):
+            return 0
+        if any(not color_is_neutral(f) for f in fills):
+            return 1
+        return 2
+    for seed in candidates:
+        context = seed.get('native_context')
+        if not context or not set(seed['member_ids']) <= stripe_ids:
+            continue
+        ids = set(context['member_ids'])
+        if ids & (protected | text_ids) or frozenset(ids) in seen_groups:
+            continue
+        # Identify the vehicle from the selected seed, not the wider group's
+        # bounds: full native stripes can deliberately extend past the shell.
+        b = seed['bbox']
+        owners = [(i, c) for i, c in enumerate(bodies)
+                  if c['bbox'][0] <= b[0] and c['bbox'][1] <= b[1]
+                  and b[2] <= c['bbox'][2] and b[3] <= c['bbox'][3]]
+        if len(owners) != 1:
+            continue
+        index, owner = owners[0]
+        a, b = owner['bbox'], context['bbox']
+        overlap = max(0, min(a[2], b[2])-max(a[0], b[0])) * max(
+            0, min(a[3], b[3])-max(a[1], b[1]))
+        if overlap/max(context['area'], 1e-6) < .8:
+            # A native group spanning two views is not a single decoration.
+            continue
+        queues[index].append(dict(context, members=[by_id[i] for i in context['member_ids']],
+                                 native_type='NativeDecorationGroup', body_anchor_id=owner['id'],
+                                 omitted_decoration=True))
+        grouped_ids.update(ids);seen_groups.add(frozenset(ids))
     for obj in objects:
-        if (obj['id'] in reserved or obj['id'] in text_ids
+        if (obj['id'] in reserved or obj['id'] in text_ids or obj['id'] in grouped_ids
                 or obj.get('details', {}).get('closed') is False
                 or style_capability(obj) == 'unsupported'):
             continue
@@ -647,7 +719,10 @@ def residual_surface_candidates(objects, candidates, decision, limit=120):
                                  area=w*h, aspect=w/h, body_anchor_id=owner['id'],
                                  omitted_decoration=obj['id'] not in body_ids))
     for queue in queues:
-        queue.sort(key=lambda c: (not c['omitted_decoration'], -c['area']))
+        queue.sort(key=lambda c: (c['native_type'] != 'NativeDecorationGroup',
+                                  not c['omitted_decoration'],
+                                  color_tier(c),
+                                  -c['area']))
     # Round robin prevents a detailed side view from displacing end-view paint.
     ordered = [queue[i] for i in range(max(map(len, queues), default=0))
                for queue in queues if i < len(queue)]

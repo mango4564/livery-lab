@@ -69,6 +69,28 @@ class RetainedVectorTests(TkTestCase):
         actual = vector.render(1, (0, 0), (100, 100))[0]
         self.assertIsNone(ImageChops.difference(actual, expected).getbbox(alpha_only=False))
 
+    def test_use_references_to_hairline_paths_record_and_match_direct_render(self):
+        svg_path = ('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150" viewBox="0 0 200 150">'
+                    '<g transform="translate(10 140) scale(1 -1)">'
+                    '<path id="p1" d="M10 20 L180 120" stroke="#ff0000" stroke-width="1" '
+                    'vector-effect="non-scaling-stroke" data-fs-hairline="true" fill="none"/>'
+                    '</g></svg>')
+        svg_use = ('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150" viewBox="0 0 200 150">'
+                   '<defs><g id="layer-defs">'
+                   '<path id="p1" d="M10 20 L180 120" stroke="#ff0000" stroke-width="1" '
+                   'vector-effect="non-scaling-stroke" data-fs-hairline="true" fill="none"/>'
+                   '</g></defs>'
+                   '<g transform="translate(10 140) scale(1 -1)">'
+                   '<use href="#p1"/>'
+                   '</g></svg>')
+        v_path = VectorImage(svg_path)
+        v_use = VectorImage(svg_use)
+        self.assertIsNotNone(v_path._picture)
+        self.assertIsNotNone(v_use._picture)
+        im_path = v_path.render(1, (0, 0), (200, 150))[0]
+        im_use = v_use.render(1, (0, 0), (200, 150))[0]
+        self.assertIsNone(ImageChops.difference(im_path, im_use).getbbox(alpha_only=False))
+
 
 class VisibleInteractionTests(TkTestCase):
     def setUp(self):

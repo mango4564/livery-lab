@@ -166,6 +166,18 @@ class PaintLayersTests(unittest.TestCase):
         recolored[1]['fill'] = '#00ff00'
         self.assertTrue(_same_render(svg_document(recolored), ET.tostring(root, encoding='unicode')))
 
+    def test_source_order_fallback_with_hairline_strokes_passes_same_render(self):
+        obj0 = rectangle('0', '#ff0000')
+        obj0['stroke_hairline'] = True
+        obj1 = rectangle('1', '#0000ff')
+        obj1['stroke_hairline'] = True
+        objects = [obj0, obj1]
+        svg, info = layered_svg(objects, {'车身': ['0'], '车漆': ['1']},
+                                layer_names=('车漆', '车身'), source_order_fallback=True)
+        self.assertEqual(info['rendering'], 'source_order_references')
+        self.assertTrue(info['exportable'])
+        self.assertTrue(_same_render(svg_document(objects), svg))
+
     def test_final_base_and_individual_exports_have_machine_readable_layers(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
