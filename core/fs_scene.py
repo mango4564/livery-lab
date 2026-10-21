@@ -2,6 +2,7 @@
 from pathlib import Path
 import hashlib
 import re
+import traceback
 
 import olefile
 
@@ -51,7 +52,8 @@ def source_preview_pages(result):
             objects = source_preview_objects(result, page=name, verify=False)
             previews.append({'name':name, 'objects':objects, 'error':None})
         except Exception as exc:
-            previews.append({'name':name, 'objects':[], 'error':str(exc)})
+            previews.append({'name':name, 'objects':[], 'error':str(exc),
+                             'error_type':type(exc).__name__, 'error_details':traceback.format_exc()})
     if hashlib.sha256(source.read_bytes()).hexdigest() != digest:
         raise ValueError('读取期间源 FS 已变化，请重新处理该文件。')
     return previews

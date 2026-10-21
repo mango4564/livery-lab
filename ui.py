@@ -626,7 +626,8 @@ class LiveryApp:
                 assets = self._prepare_previews(result, source, vector, result_only=result_only,
                                                 prepared_images=(images, image_messages))
                 key = assets[0]
-                if assets[1] is not None:
+                if assets[1] is not None and not any(page.get('error') is not None
+                                                    for page in assets[1].pages):
                     cache[key] = assets[1]
                     cache.move_to_end(key)
                     while len(cache) > 3:
@@ -663,6 +664,11 @@ class LiveryApp:
                 messages.append(f"原文件无法读取：{exc}")
         source_key = (result.get('source'), result.get('source_sha256'))
         vectors, images = {}, {}
+        # Failed pages are placeholders, not reusable parsed documents. A new
+        # task result must retry reading instead of retaining a cached failure.
+        if source_vector is not None and any(page.get('error') is not None
+                                             for page in source_vector.pages):
+            source_vector = None
         if result.get('source') and result.get('source_sha256'):
             try:
                 if source_vector is None:
@@ -676,7 +682,10 @@ class LiveryApp:
                         pages.append(dict(page, label=label, image=VectorImage(
                             svg_document(page['objects'], background='#ffffff'))))
                         if page['error']:
-                            messages.append(f"{label}：{page['error']}")
+                            reason = f"{page.get('error_type', 'Error')}: {page['error']}"
+                            messages.append(f"{label}：{reason}")
+                            if page.get('error_details'):
+                                messages.append(page['error_details'])
                     source_vector = VectorDocument(pages)
                 vectors['preview_png'] = source_vector
             except Exception as exc:

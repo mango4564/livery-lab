@@ -1,7 +1,7 @@
 """Read-only FS reference attribute decoding, independently researched this run.
 
 Supports 32-bit reference streams with counted, sentinel-terminated object lists.
-RGB is the stored display RGB, not an ICC physical print color conversion.
+RGB/spot use stored display RGB; CMYK is converted from its source channels.
 """
 from __future__ import annotations
 import struct
@@ -38,6 +38,23 @@ def _u32(raw):
     return int.from_bytes(raw,'little')
 
 
+def cmyk_display_color(fields):
+    """Decode ACMYKColorItem field 1 (C,M,Y,K bytes), not its RGB cache.
+
+    Native ACMYKColorItem::getColor converts these channels instead of using
+    AColorItem's cache, which can be all zero even for white/red/orange.
+    Use a device-independent CMYK approximation without requiring FlexiSIGN
+    or its proprietary ICC profiles. This does not reproduce ICC soft proofing.
+    """
+    raw = fields[1]
+    if len(raw) != 4:
+        raise ValueError('unsupported CMYK channel encoding')
+    c, m, y, k = raw
+    rgb = [((255 - channel) * (255 - k) + 127) // 255 for channel in (c, m, y)]
+    return {'hex': '#' + bytes(rgb).hex(), 'rgb': rgb, 'cmyk': list(raw),
+            'status': 'source_cmyk_approximation'}
+
+
 def decode_references(ole):
     """ole is open olefile.OleFileIO. Return serializable attribute tables."""
     def read(name):
@@ -55,7 +72,12 @@ def decode_references(ole):
             'rgb':list(rgb) if rgb is not None and len(rgb)==3 else None,
             'hex':'#'+rgb.hex() if rgb is not None and len(rgb)==3 else None,
             'spot_tint':f.get(1,b'')[0] if classes.get(r['class_id'])=='ASpotColorItem' and f.get(1) else None}
-        if rgb is None and classes.get(r['class_id']) != 'ASpotColorItem':
+        if classes.get(r['class_id']) == 'ACMYKColorItem':
+            try:
+                colors[oid].update(cmyk_display_color(f))
+            except (ValueError, KeyError) as exc:
+                colors[oid].update(status='unsupported_cmyk', error=str(exc))
+        elif rgb is None and classes.get(r['class_id']) != 'ASpotColorItem':
             from .fs_gradients import display_color
             try:
                 colors[oid].update(display_color(common[2]))
@@ -284,14 +306,15 @@ def scan_container_ranges(data,classes,word=8):
 def load_appearances(ole,objects,word=8):
     """Annotate geometry records without modifying inputs.
 
-    Returns (annotated_records, refs). Unknown fills are explicit and never
-    replaced with black. An empty appearance list is not proven no-fill.
+    Returns (annotated_records, refs). A serialized null brush means no fill;
+    missing or unsupported appearance data remains explicitly unknown.
     """
     refs=decode_references(ole);out=[]
     for original in objects:
         obj=dict(original)
         try:
-            appearances=resolve_appearance(bytes.fromhex(obj.get('appearance_hex','')),refs,word)
+            raw_appearance = bytes.fromhex(obj.get('appearance_hex',''))
+            appearances=resolve_appearance(raw_appearance,refs,word)
             obj['appearances']=appearances
             solid=[a for a in appearances if a.get('color',{} ) and a['color'].get('hex')]
             if len(appearances)==1 and len(solid)==1:
@@ -300,7 +323,12 @@ def load_appearances(ole,objects,word=8):
                     obj.update(fill_status='wireframe_only', fill='none',
                                stroke=color, stroke_hairline=True)
                 else:
-                    obj.update(fill_status='stored_display_rgb',fill=color)
+                    obj.update(fill_status=solid[0]['color'].get('status', 'stored_display_rgb'),fill=color)
+            elif raw_appearance == b'\0\0\0\0':
+                # AFigure stores a null ABrush pointer here. In normal drawing
+                # AObject::getDrawPenAndBrush leaves it null; there is no group
+                # fill inheritance. A diagnostic grey would cover real artwork.
+                obj.update(fill_status='source_no_fill', fill='none')
             elif not appearances:obj.update(fill_status='empty_appearance_inheritance_unknown',fill=None)
             else:obj.update(fill_status='unsupported_appearance',fill=None)
             if len(appearances) == 1 and refs['classes'].get(appearances[0]['class_id']) == 'AGradientBrush':

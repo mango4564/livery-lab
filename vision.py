@@ -26,6 +26,10 @@ class VisionError(RuntimeError):
     """User-readable provider failure without secrets or raw server responses."""
 
 
+class VisionProtocolError(VisionError):
+    """A complete response failed the local output contract."""
+
+
 def _boolean(value, name):
     if isinstance(value, bool):
         return value
@@ -448,7 +452,7 @@ def recognize(scene: dict, preview_path: Path, candidates_path: Path, config: di
         prompt = (
             '本轮是首轮分类后的车身残留面复核，不是重新分类整车。'
             '第一张是完整原稿；第二张是车身残留面及同一区域内首轮漏分类的独立源对象及其G编号；'
-            '第三张是扣除首轮已分类车漆和彩条后的车身，供查找残留底色。'
+            '第三张是扣除首轮已分类对象后的车身与未分类源对象，供查找残留底色；局部复核时第一张为当前区域原稿。'
             'NativeDecorationGroup是首轮只选了部分成员的完整原生组合；如果整体确为彩条，优先选择完整组合编号，保留所有颜色和宽曲线，不能再只选其中一根。'
             '逐区域对照原稿，把漏掉的可喷漆外壳面归车漆，把漏掉的装饰条归彩条。'
             '彩条必须包含一整套车身装饰：逐一选全多色细曲线、衬色曲线和与曲线组成图案的椰树等植物/图形，不能只选最长或最显眼的一根蓝线。'
@@ -518,6 +522,22 @@ def recognize(scene: dict, preview_path: Path, candidates_path: Path, config: di
                 '只判断本次迁移，不因其他类别或其他候选页的未修复问题拒绝本次局部复验。'
                 '无法看清本次迁移是否正确也填review，不得猜测通过。'
                 '本次只返回pass或review，patches必须为空。局部通过不代表整份文件验收通过。')
+    if scene.get('component_mode') and not scene.get('component_audit'):
+        from components import CATEGORIES
+        example = {'categories': {name: [] for name in CATEGORIES},
+                   'source_views': {}, 'source_regions': [], 'reason': '说明判断依据与不确定项', 'confidence': 0.0}
+        prompt += ('\n输出结构示例（空数组仅示意结构，实际按图选择）：'
+                   + json.dumps(example, ensure_ascii=False)
+                   + '\n数组只能填候选G编号，不能填颜色、类别名或说明。不同G编号也可能包含相同源曲线，'
+                   '不要把重叠的父子候选分配给不同非车身类别。')
+    if scene.get('_protocol_feedback'):
+        prompt += '\n上次输出未通过本地校验，请重新完整判断并纠正：' + scene['_protocol_feedback']
+    if scene.get('source_overlaps'):
+        prompt += ('\n以下不同编号共享源曲线，格式为[候选A,候选B,共享路径数]。'
+                   '不能将这些候选分别放入互斥类别；应选择干净子组，不确定时留空。'
+                   '车身父组允许包含其他类别；logo与门徽允许共享，文字中的logo会扣除。'
+                   '这不是外接框相交，而是同一源对象：'
+                   + json.dumps(scene['source_overlaps'], ensure_ascii=False))
     body = {"model": model.strip(), "messages": [
         {"role": "system", "content": "你是矢量图对象分类助手。只选择已提供对象的 ID，输出严格 JSON。"},
         {"role": "user", "content": [{"type": "text", "text": prompt}, _image_part(preview_path), _image_part(candidates_path)]}],
@@ -529,9 +549,17 @@ def recognize(scene: dict, preview_path: Path, candidates_path: Path, config: di
     data = json.dumps(body, ensure_ascii=False, allow_nan=False).encode("utf-8")
     req = request.Request(endpoint, data=data, headers={"Content-Type": "application/json", "Accept": "text/event-stream", "Authorization": "Bearer " + key.strip()}, method="POST")
     request_options = {'use_system_proxy': config.get('use_system_proxy', True)}
-    if scene.get('component_audit'):
+    if scene.get('component_audit') or config.get('_strict_deadline'):
         request_options['strict_deadline'] = True
     raw = _request_bytes(req, timeout, 2 * 1024 * 1024, **request_options)
+    try:
+        return _validate_response(raw, scene, allowed)
+    except VisionError as exc:
+        raise VisionProtocolError(str(exc)) from None
+
+
+def _validate_response(raw, scene, allowed):
+    """Validate model output independently of HTTP/transport failures."""
     try:
         envelope = _response_envelope(raw)
         choice = envelope["choices"][0]
