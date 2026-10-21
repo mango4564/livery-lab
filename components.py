@@ -488,8 +488,12 @@ def build_candidates(objects, containers, limit=120):
             details.append(dict(c, native_type='DetailGraphic'))
     buckets = [[], [], badges+text_blocks+wordmarks+details, loose, paint]
     for c in candidates:
-        body = 2.2 < c['aspect'] < 5.5 and c['area'] > max_area * .025 and len(c['members']) > 100
-        bucket = 0 if body else 1 if c['native_type'] in ('AText','AArcText') else 2
+        # Reserve complete source groups before generated surface/detail pools.
+        # End views and multi-part decorations can have fewer than 100 paths;
+        # neither their orientation nor colour count measures completeness.
+        large_group = (c['native_type'] == 'AGroup'
+                       and .4 < c['aspect'] < 5.5 and c['area'] > max_area * .025)
+        bucket = 0 if large_group else 1 if c['native_type'] in ('AText','AArcText') else 2
         buckets[bucket].append(c)
     selected = []
     leftovers = []
@@ -499,17 +503,23 @@ def build_candidates(objects, containers, limit=120):
     for index, (bucket, cap) in enumerate(zip(buckets, caps)):
         if index not in (3, 4):
             bucket.sort(key=lambda c: (c['native_type'] not in priority_types,
-                                       -c['area'], len(c['members'])))
+                                       -c['area'], -len(c['members']) if c['native_type']=='AGroup'
+                                       else len(c['members'])))
         local = []
         for c in bucket:
             ids = set(c['member_ids'])
-            if any(len(ids & set(other['member_ids'])) / max(len(ids), len(other['member_ids'])) > .92
+            # A near-identical child can still omit fine outlines. Only an
+            # actually contained membership is redundant; for equal bounds
+            # sort the complete parent ahead of its partial children.
+            if any((ids <= set(other['member_ids'])
+                    if c['native_type'] == other['native_type'] == 'AGroup'
+                    else len(ids & set(other['member_ids'])) /
+                         max(len(ids), len(other['member_ids'])) > .92)
                    for other in local):
                 continue
             local.append(c)
         if index == 2:
-            # End views also live in this bucket. Keep their large native
-            # anchors available when a complex page has many small graphics.
+            # Preserve additional large groups outside the primary aspect range.
             anchors = [c for c in local if len(c['members']) > 100
                        and c['area'] > max_area*.025]
             local = anchors + [c for c in local if c not in anchors]
@@ -563,8 +573,8 @@ def detail_candidates(candidates):
         w, h = box[2]-box[0], box[3]-box[1]
         native_graphic = (
             c['native_type'] in ('AGroup', 'AComposite')
-            and 2 <= len(c['members']) <= 30
-            and w >= page_width*.1 and w >= 1.8*h
+            and 2 <= len(c['members']) <= 80
+            and w >= page_width*.08 and w >= h
             and any(o.get('fill') not in (None, 'none') for o in c['members']))
         if (native_graphic or c.get('coverage_anchor')
                 or c['native_type'] in ('DetailGraphic', 'CompactGraphic', 'TextBlock', 'DoorEmblem', 'EmblemLogo', 'SpatialPaths', 'SourcePath')):

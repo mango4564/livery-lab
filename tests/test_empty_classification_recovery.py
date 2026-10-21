@@ -97,6 +97,29 @@ class EmptyRecoveryTests(unittest.TestCase):
         self.assertIn('source_regions必须为空数组', prompt)
         self.assertIn('本批允许的全部编号：["G118"]', prompt)
 
+    def test_body_template_does_not_require_colour_decoration_or_lettering(self):
+        # Desert first batch had complete side/front/rear templates, but the
+        # model rejected them all for being grey and lacking decoration.
+        for model in ('qwen-test', 'gemini-test'):
+            with self.subTest(model=model):
+                checked = (dict(labels={'G009': '车身'}, source_regions=[],
+                                source_views={'G009': '前视图'}, reason='结构模板', confidence=.9)
+                           if model.startswith('qwen') else decision(车身=['G009']))
+                response = json.dumps({'choices': [{'finish_reason': 'stop', 'message': {
+                    'content': json.dumps(checked)}}]}).encode()
+                with patch('vision._image_part', return_value={'type': 'image_url'}), \
+                     patch('vision._request_bytes', return_value=response) as send:
+                    result = recognize(dict(objects=[dict(id='G009', bbox=[0, 0, 10, 20])],
+                                            component_mode=True, classification_batch=True,
+                                            group_metadata=[]),
+                                       'source.png', 'atlas.png', dict(enabled=True,
+                                           base_url='https://example.invalid/v1',
+                                           model=model, api_key='test'))
+                prompt = json.loads(send.call_args.args[0].data)['messages'][1]['content'][0]['text']
+                self.assertIn('结构模板', prompt)
+                self.assertIn('灰度、黑白', prompt)
+                self.assertEqual(result['categories']['车身'], ['G009'])
+
     def test_overlapping_source_groups_get_one_joint_review(self):
         self.candidates[20]['member_ids'] = ['p1', 'p21']
         def classify(batch, path, config, **kwargs):
