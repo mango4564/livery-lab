@@ -8,7 +8,7 @@ from tests.tk_lifecycle import TkTestCase
 import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
-from core.source_regions import build_source_regions, object_regions, region_for_ids, split_by_region
+from core.source_regions import build_source_regions, object_regions, region_for_ids, split_by_region, normalize_source_regions
 from review_gallery import ReviewGallery
 from reviewed_exports import LABELS, export_reviewed
 from test_reviewed_exports import fixture
@@ -43,6 +43,31 @@ def paint_view_fixture(root):
 
 
 class PaintRegionGeometryTests(unittest.TestCase):
+    def test_duplicate_body_and_structural_anchors_share_one_region(self):
+        regions = [dict(id='R1', name='左视图', source_view='左视图', bbox=[0, 0, 100, 40],
+                        selected_ids=['body', 'shell'], anchor_ids=['G1']),
+                   dict(id='R2', name='整体视图', source_view='整体视图', bbox=[0, 3, 100, 40],
+                        selected_ids=['shell', 'trim'], anchor_ids=['G2'])]
+        original = copy.deepcopy(regions)
+        merged = normalize_source_regions(regions)
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0]['anchor_ids'], ['G1', 'G2'])
+        self.assertEqual(merged[0]['selected_ids'], ['body', 'shell', 'trim'])
+        self.assertEqual(merged[0]['source_view'], '左视图')
+        self.assertEqual(regions, original)
+        self.assertEqual(normalize_source_regions(merged), merged)
+        self.assertEqual(object_regions([dict(id='stripe', bbox=[10, 5, 90, 30])], merged), {'stripe': 'R1'})
+        # Explicitly conflicting directions and separate source copies stay ambiguous.
+        conflicting = copy.deepcopy(regions); conflicting[1]['source_view'] = '右视图'
+        self.assertEqual(len(normalize_source_regions(conflicting)), 2)
+        distinct = copy.deepcopy(regions); distinct[1]['selected_ids'] = ['other']
+        self.assertEqual(len(normalize_source_regions(distinct)), 2)
+
+    def test_duplicate_end_view_bounds_merge_even_for_disjoint_parent_leaves(self):
+        regions = [dict(id=f'R{i}', name=f'前视图{i}', source_view='前视图', bbox=[100, 0, 130, 40],
+                        selected_ids=[str(i)], anchor_ids=[f'G{i}']) for i in (1, 2)]
+        self.assertEqual(len(normalize_source_regions(regions)), 1)
+
     def test_classified_paint_drift_has_bounded_tolerance_and_rejects_ambiguity(self):
         region = dict(id='R1', bbox=[0, 0, 100, 100], selected_ids=['body'])
         objects = [dict(id='paint', bbox=[0, 10, 100.15, 100.15]),
@@ -68,6 +93,47 @@ class PaintRegionGeometryTests(unittest.TestCase):
 
 
 class SourceRegionTests(TkTestCase):
+    def test_duplicate_regions_and_unassigned_stripes_split_in_review_and_export(self):
+        from components import render_stripe_views
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            result = fixture(base)
+            ids = ['0', '1', '3', '4', '5']
+            result['component_categories'] = {n: [] for n in LABELS}
+            result['component_categories']['彩条'] = ids
+            result['source_regions'] = [
+                dict(id='R1', name='左视图', source_view='左视图', bbox=[0, 0, 35, 8],
+                     selected_ids=['0'], anchor_ids=['G1']),
+                dict(id='R2', name='整体视图', source_view='整体视图', bbox=[0, 0, 35, 8],
+                     selected_ids=['0', '1'], anchor_ids=['G2']),
+                dict(id='R3', name='右视图', source_view='右视图', bbox=[55, 0, 75, 8],
+                     selected_ids=['3'], anchor_ids=['G3'])]
+            original = copy.deepcopy(result)
+            expected = [['0', '1'], ['3'], ['4'], ['5']]
+            root = tk.Tk(); root.withdraw(); self.addCleanup(root.destroy)
+            gallery = ReviewGallery(root, result, base/'out'); gallery.withdraw()
+            self.addCleanup(gallery.destroy)
+            gallery._switch_category('彩条')
+            self.assertEqual([c['selected_ids'] for c in gallery.filtered], expected)
+            gallery._add_pattern('彩条', ids)
+            self.assertEqual([e['selected_ids'] for e in gallery.patterns['彩条']], expected)
+            choices = {n: None for n in LABELS}; choices['彩条'] = ids
+            patterns = {n: [] for n in LABELS}
+            patterns['彩条'] = [dict(selected_ids=ids, source_view='混合视图')]
+            exported = export_reviewed(result, choices, base/'out', patterns=patterns)
+            entries = exported['manifest']['categories']['彩条']['patterns']
+            self.assertEqual([e['selected_ids'] for e in entries], expected)
+            self.assertEqual([e['source_view'] for e in entries],
+                             ['左视图', '右视图', '待确认视图', '待确认视图'])
+            previews = render_stripe_views(result['objects'], ids, result['source_regions'],
+                                           base/'previews', result['source_sha256'])
+            self.assertEqual([e['selected_ids'] for e in previews], expected)
+            for entry in previews:
+                svg = ET.fromstring(Path(entry['svg']).read_text(encoding='utf8'))
+                self.assertEqual(len(svg.findall('.//{http://www.w3.org/2000/svg}path')), len(entry['selected_ids']))
+                self.assertTrue(Path(entry['png']).is_file())
+            self.assertEqual(result, original)
+
     def setUp(self):
         # These tests exercise region review, not the independent locator worker.
         worker = patch.object(ReviewGallery, '_locator_worker', return_value=None)

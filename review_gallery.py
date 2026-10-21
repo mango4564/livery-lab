@@ -13,7 +13,7 @@ from image_preview import ImagePreview
 from reviewed_exports import LABELS, SOURCE_VIEWS, export_reviewed, infer_source_view
 from vector_preview import VectorImage
 from source_locator import source_rectangle, SourceLocator, SourceLocatorRenderer
-from core.source_regions import object_regions, region_for_ids, split_by_region, valid_region_name
+from core.source_regions import object_regions, region_for_ids, split_by_region, valid_region_name, normalize_source_regions
 import xml.etree.ElementTree as ET
 
 
@@ -239,7 +239,7 @@ class ReviewGallery(tk.Toplevel):
 
     def __init__(self, parent, result, output_root, manual_candidate=None):
         super().__init__(parent)
-        self.result = dict(result, source_regions=[dict(r) for r in result.get('source_regions', [])])
+        self.result = dict(result, source_regions=normalize_source_regions(result.get('source_regions', [])))
         self.regions = self.result['source_regions']
         graphic_ids = set()
         for name in ('彩条', 'logo', '门徽'):
@@ -427,11 +427,12 @@ class ReviewGallery(tk.Toplevel):
         for candidate in self.candidates:
             paint = ('车漆' in candidate.get('category_hints', [])
                      or candidate.get('native_type') in ('PaintSurface', 'PaintRegion'))
-            if not self.regions and not paint:
+            spatial = paint or '彩条' in candidate.get('category_hints', [])
+            if not self.regions and not spatial:
                 candidates.append(candidate)
                 continue
             for index, ids in enumerate(split_by_region(candidate['selected_ids'], self.region_assignments,
-                    objects=self.result['objects'] if paint else None)):
+                    objects=self.result['objects'] if spatial else None)):
                 candidates.append(dict(candidate, id=candidate.get('id', 'region')+f'-region-{index}',
                                        selected_ids=ids))
         self.candidates = candidates
@@ -695,7 +696,7 @@ class ReviewGallery(tk.Toplevel):
             self.region_assignments.update(object_regions(
                 [self.by_id[i] for i in ids], self.regions, paint_ids=ids))
         groups = split_by_region(ids, self.region_assignments,
-                                 objects=self.result['objects'] if category == '车漆' else None)
+                                 objects=self.result['objects'] if category in ('车漆', '彩条') else None)
         if len(groups) > 1:
             direction = self.source_view.get()
             for group in groups:

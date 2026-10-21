@@ -36,7 +36,46 @@ def build_source_regions(candidates, decision):
         regions.append(dict(proposal, bbox=union_bounds(anchors),
                             selected_ids=list(dict.fromkeys(
                                 i for c in anchors for i in c['member_ids']))))
-    return regions
+    return normalize_source_regions(regions)
+
+
+def normalize_source_regions(regions):
+    """Coalesce duplicate vehicle anchors, without merging distinct directions.
+
+    Batched labels can select both the full body and its structural parent.
+    Require shared source paths and nearly identical extents, or coincident
+    bounds. Ordinary spatial overlap alone is not evidence of a duplicate.
+    """
+    result = []
+    generic = {'待确认视图', '整体视图', '混合视图'}
+    for original in regions:
+        region = dict(original)
+        for old in result:
+            a, b = old['bbox'], region['bbox']
+            widths = [a[2]-a[0], b[2]-b[0]]
+            heights = [a[3]-a[1], b[3]-b[1]]
+            if min(widths+heights) <= 0:
+                continue
+            overlap = max(0, min(a[2], b[2])-max(a[0], b[0])) * max(
+                0, min(a[3], b[3])-max(a[1], b[1]))
+            same_extent = (min(widths)/max(widths) >= .85
+                           and min(heights)/max(heights) >= .85
+                           and overlap/min(widths[0]*heights[0], widths[1]*heights[1]) >= .98)
+            shared = set(old['selected_ids']) & set(region['selected_ids'])
+            exact = all(abs(x-y) <= max(widths+heights)*1e-6 for x, y in zip(a, b))
+            v1, v2 = old['source_view'], region['source_view']
+            if (not same_extent or not (shared or exact)
+                    or (v1 != v2 and v1 not in generic and v2 not in generic)):
+                continue
+            old['selected_ids'] = list(dict.fromkeys(old['selected_ids']+region['selected_ids']))
+            old['anchor_ids'] = list(dict.fromkeys(old.get('anchor_ids', [])+region.get('anchor_ids', [])))
+            old['bbox'] = union_bounds([old, region])
+            if v1 in generic and v2 not in generic:
+                old.update(name=region['name'], source_view=v2)
+            break
+        else:
+            result.append(region)
+    return result
 
 
 def object_regions(objects, regions, *, partial_ids=(), paint_ids=()):

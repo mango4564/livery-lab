@@ -38,7 +38,7 @@ from core.fs_geometry import extract_geometry
 from core.fs_attributes import load_appearances, scan_container_ranges
 from geometry import IDENTITY, candidate_image, candidate_sheet, rasterize, svg_document, union_bounds
 from recognition import rank_candidates, candidate_groups
-from vision import read_config, recognize, VisionError
+from vision import read_config, recognize, VisionError, TUNING_KEYS
 from runtime import APP_DIR, FROZEN
 
 VERSION='0.4.0-paint-layers'
@@ -62,7 +62,7 @@ def _fingerprint(options):
         raise RuntimeError('运行中的引擎代码已发生变化，请重新启动工具后处理，避免混用版本。')
     config=read_config()
     # Never persist secrets, even hashed credentials, in manifests or cache keys.
-    selected={k:config.get(k) for k in ('enabled','base_url','model','max_candidates','use_system_proxy')}
+    selected={k:config.get(k) for k in ('enabled','base_url','model','max_candidates','use_system_proxy')+TUNING_KEYS}
     return hashlib.sha256((code+json.dumps({'use_ai':bool(options.get('use_ai')), 'config':selected,
         'extraction_mode':options.get('extraction_mode','stripes'),
         'recognition_policy':'independent_no_references'},sort_keys=True)).encode()).hexdigest()
@@ -97,6 +97,8 @@ def _artifact_paths(result):
         paths.append(result['report_json'])
     if result.get('candidate_sheet_png'):
         paths.append(result['candidate_sheet_png'])
+    if result.get('ai_requests_json'):
+        paths.append(result['ai_requests_json'])
     for view in result.get('views',[]):
         paths.extend(view[k] for k in ('svg','png'))
     paths.extend(result.get('layer_artifacts', {}).values())
@@ -279,6 +281,11 @@ def process_file(source, output_root, options=None, progress=None, cancel_event=
     _check_cancel(cancel_event)
     result=_commit_version(result)
     report(f'解析 {len(result["objects"])} 条曲线，{len(result["selected_ids"])} 条进入当前结果；状态：待复核。')
+    stats = result.get('ai_request_summary', {})
+    if stats.get('logical_requests'):
+        report(f'AI 请求：{stats["logical_requests"]} 批，HTTP {stats["http_attempts"]} 次，'
+               f'重试 {stats["retries"]} 次，模型请求累计 {stats["elapsed_seconds"]:g} 秒。'
+               '选择任务后可打开“AI 请求明细”。')
     return result
 
 
@@ -344,10 +351,18 @@ def _render_selection(result, ids, directory):
 
 def _render_component_artifacts(result, directory):
     from core.svg_layers import layered_svg
+    from components import render_stripe_views
+    from core.source_regions import normalize_source_regions
     categories = result['component_categories']
     ids = {i for members in categories.values() for i in members}
     bounds = union_bounds([o for o in result['objects'] if o['id'] in ids])
     result['layer_artifacts'] = {}
+    result['source_regions'] = normalize_source_regions(result.get('source_regions', []))
+    result['stripe_patterns'] = render_stripe_views(result['objects'], categories.get('彩条', []),
+        result['source_regions'], directory, result['source_sha256'])
+    for index, pattern in enumerate(result['stripe_patterns'], 1):
+        for suffix in ('svg', 'png'):
+            result['layer_artifacts'][f'stripes_{index:02d}_{suffix}'] = pattern[suffix]
     selected = {n: members if n in ('车身', '车漆') else [] for n, members in categories.items()}
     svg, info = layered_svg(result['objects'], selected, bounds=bounds, strict=False,
         metadata={'source_sha256': result['source_sha256'], 'human_reviewed': False},
@@ -465,6 +480,8 @@ def _run_components_worker(source,directory,digest,fingerprint,use_ai,reference_
             'source_regions':components_report.get('source_regions',[]),
             'component_coverage':components_report['coverage'],
             'ai_result':components_report['decision'],
+            'ai_request_summary':{k: v for k, v in components_report.get('ai_request_summary', {}).items() if k != 'requests'},
+            'ai_requests_json':components_report.get('ai_requests_json'),
             'warnings':['六类为待复核候选，须逐类核对；模型自报置信度不是准确率。',
                         '未识别的类别保持为空；候选有数量上限，可能漏掉拆散、转曲或未解码对象。',
                         '车身只扣除已分类的重叠子对象，未识别的运营元素仍可能混入。',
@@ -473,6 +490,10 @@ def _run_components_worker(source,directory,digest,fingerprint,use_ai,reference_
             'elapsed_seconds':round(time.monotonic()-started,3)}
     result['result_svg'],result['result_png']=_render_selection(result,result['selected_ids'],directory)
     _render_component_artifacts(result, directory)
+    if use_ai and not chosen:
+        result['warnings'].append('AI 首轮及分批复核均未选中任何对象；这不代表原稿没有彩条。请显示全部组合或在原稿上手动补选。')
+    if components_report['coverage'].get('empty_recovery_unresolved_groups'):
+        result['warnings'].append('分批复核的部分候选存在源对象跨类冲突，已撤出自动推荐；请显示全部组合后手工归类。')
     if _file_sha(source)!=digest:
         raise RuntimeError('处理过程中源文件发生变化。')
     _check_pipeline(fingerprint,use_ai,reference_directory,'components')

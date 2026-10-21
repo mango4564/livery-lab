@@ -7,5 +7,12 @@
   "timeout_seconds": 90,
   "max_candidates": 150,
   "allow_insecure": false,
-  "use_system_proxy": true
+  "use_system_proxy": true,
+  "component_batch_size": "auto",
+  "prompt_style": "auto",
+  "reasoning_effort": "",
+  "max_output_tokens": 0,
+  "temperature": null,
+  "top_p": null,
+  "include_usage": false
 }

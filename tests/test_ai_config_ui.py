@@ -81,6 +81,36 @@ class PlainConfigTests(TkTestCase):
         self.assertEqual(vision._endpoint({'base_url': 'http://offline.invalid/v1'}),
                          'http://offline.invalid/v1/chat/completions')
 
+    def test_tuning_dialog_saves_only_options_preserving_connection(self):
+        original={'model':'qwen-test','api_key':'keep-key','custom_option':'keep'}
+        self.path.write_text(json.dumps(original),encoding='utf8')
+        self.app._configure_ai_tuning()
+        dialog=next(w for w in self.root.winfo_children() if isinstance(w,tk.Toplevel))
+        fields=[w for w in descendants(dialog) if isinstance(w,ttk.Combobox)]
+        self.assertEqual(len(fields),6)
+        fields[0].set('8');fields[3].set('8192')
+        next(w for w in descendants(dialog) if isinstance(w,ttk.Button)
+             and w.cget('text')=='保存调优配置').invoke()
+        actual=json.loads(self.path.read_text(encoding='utf8'))
+        self.assertEqual(actual['component_batch_size'],8)
+        self.assertEqual(actual['max_output_tokens'],8192)
+        for key,value in original.items(): self.assertEqual(actual[key],value)
+
+    def test_request_dialog_displays_batch_dimensions_and_details_offline(self):
+        log=self.path.parent/'ai_requests.json'
+        log.write_text(json.dumps(dict(logical_requests=1,http_attempts=2,retries=1,elapsed_seconds=20,
+            requests=[dict(stage='classification',batch='01',candidate_count=12,
+                images=[dict(width=800,height=1140)],attempts=[{},{}],elapsed_seconds=20,
+                status='accepted',parameters={'max_tokens':8192})])),encoding='utf8')
+        self.app.current='task'
+        self.app.results['task']={'ai_requests_json':str(log),'source':'fixture.fs'}
+        self.app._show_ai_requests()
+        dialog=next(w for w in self.root.winfo_children() if isinstance(w,tk.Toplevel))
+        table=next(w for w in descendants(dialog) if isinstance(w,ttk.Treeview))
+        self.assertIn('800×1140',str(table.item('0','values')))
+        text=next(w for w in descendants(dialog) if isinstance(w,tk.Text))
+        self.assertIn('8192',text.get('1.0','end'))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,121 @@
+{
+  "date": "2026-10-21",
+  "source_sha256": "63e0ae3e26c3483006ebf3491b0daafb8cec84f83c1f1935f58a46aa259e8a37",
+  "source_unchanged": true,
+  "model": "qwen3.8-27b",
+  "sampling": {
+    "temperature": 0,
+    "top_p": 1
+  },
+  "max_tokens": 8192,
+  "development_sample_not_holdout": true,
+  "reused_prior_qwen_body_anchors": true,
+  "application_integrated": false,
+  "stage_metrics": {
+    "associated_initial": {
+      "reference_hit": 37,
+      "reference_missing": 1,
+      "reference_extra": 3,
+      "complete_patterns": 4,
+      "paths": 40
+    },
+    "associated_plus_audit": {
+      "reference_hit": 37,
+      "reference_missing": 1,
+      "reference_extra": 39,
+      "complete_patterns": 4,
+      "paths": 76
+    },
+    "local_split": {
+      "reference_hit": 37,
+      "reference_missing": 1,
+      "reference_extra": 54,
+      "complete_patterns": 4,
+      "paths": 91
+    }
+  },
+  "guarded_metrics": {
+    "reference_hit": 38,
+    "reference_missing": 0,
+    "reference_extra": 0,
+    "complete_patterns": 5,
+    "paths": 38,
+    "protected_source_overlap": 0
+  },
+  "repeat_guarded_metrics": {
+    "reference_hit": 38,
+    "reference_missing": 0,
+    "reference_extra": 0,
+    "complete_patterns": 5,
+    "paths": 38,
+    "protected_source_overlap": 0
+  },
+  "repeat_sources_identical": true,
+  "incomplete_context_excluded": {
+    "associated_initial": {
+      "requests": 14,
+      "http_attempts": 14,
+      "retries": 0,
+      "failed": 0,
+      "seconds": 181.39,
+      "input_tokens": 75418,
+      "output_tokens": 2892
+    }
+  },
+  "full_context_stages": {
+    "associated_initial": {
+      "requests": 14,
+      "http_attempts": 14,
+      "retries": 0,
+      "failed": 0,
+      "seconds": 179.003,
+      "input_tokens": 75586,
+      "output_tokens": 2888
+    },
+    "associated_audit": {
+      "requests": 7,
+      "http_attempts": 7,
+      "retries": 0,
+      "failed": 0,
+      "seconds": 115.769,
+      "input_tokens": 50832,
+      "output_tokens": 1888
+    },
+    "local_split": {
+      "requests": 7,
+      "http_attempts": 7,
+      "retries": 0,
+      "failed": 0,
+      "seconds": 142.013,
+      "input_tokens": 59080,
+      "output_tokens": 2125
+    },
+    "guarded_local": {
+      "requests": 10,
+      "http_attempts": 10,
+      "retries": 0,
+      "failed": 0,
+      "seconds": 167.041,
+      "input_tokens": 81613,
+      "output_tokens": 2555
+    }
+  },
+  "repeat_guarded_stages": {
+    "guarded_local": {
+      "requests": 10,
+      "http_attempts": 10,
+      "retries": 0,
+      "failed": 0,
+      "seconds": 166.556,
+      "input_tokens": 81613,
+      "output_tokens": 2555
+    }
+  },
+  "unresolved": [
+    {
+      "group": "G004",
+      "owner": "G004",
+      "reason": "whole_vehicle_not_atomic_decoration"
+    }
+  ]
+}

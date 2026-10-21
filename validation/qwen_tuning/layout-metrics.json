@@ -1,0 +1,283 @@
+{
+  "source_sha256": "63e0ae3e26c3483006ebf3491b0daafb8cec84f83c1f1935f58a46aa259e8a37",
+  "sampling": {
+    "temperature": 0,
+    "top_p": 1
+  },
+  "results": [
+    {
+      "method": "long",
+      "combined": {
+        "reference_hit": 30,
+        "reference_missing": 8,
+        "reference_extra": 10,
+        "stripe_paths": 40
+      },
+      "complete_patterns": 4,
+      "phase_metrics": {
+        "initial": {
+          "stripe_groups": [
+            "G067",
+            "G068",
+            "G069",
+            "G070",
+            "G071",
+            "G072",
+            "G075",
+            "G076",
+            "G077",
+            "G078",
+            "G079",
+            "G080",
+            "G081",
+            "G082",
+            "G083",
+            "G084",
+            "G085",
+            "G118",
+            "G119",
+            "G120"
+          ],
+          "stripe_paths": 36,
+          "reference_hit": 27,
+          "reference_missing": 11,
+          "reference_extra": 9,
+          "source_conflict_groups": []
+        },
+        "audit": {
+          "stripe_groups": [
+            "G121",
+            "G122",
+            "G123",
+            "G125",
+            "G129",
+            "G156",
+            "G162",
+            "G168"
+          ],
+          "stripe_paths": 31,
+          "reference_hit": 30,
+          "reference_missing": 8,
+          "reference_extra": 1,
+          "source_conflict_groups": []
+        }
+      },
+      "phase_totals": {
+        "initial": {
+          "logical_requests": 1,
+          "http_attempts": 1,
+          "retries": 0,
+          "failed_requests": 0,
+          "pending_requests": 0,
+          "elapsed_seconds": 89.835,
+          "stages": {
+            "initial": 1
+          }
+        },
+        "audit": {
+          "logical_requests": 1,
+          "http_attempts": 1,
+          "retries": 0,
+          "failed_requests": 0,
+          "pending_requests": 0,
+          "elapsed_seconds": 89.909,
+          "stages": {
+            "audit": 1
+          }
+        }
+      },
+      "input_tokens": 51878,
+      "output_tokens": 3197,
+      "single_call_usage": {
+        "initial": {
+          "prompt_tokens": 26645,
+          "completion_tokens": 1609,
+          "total_tokens": 28254,
+          "prompt_tokens_details": {},
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "text_tokens": 1609
+          }
+        },
+        "audit": {
+          "prompt_tokens": 25233,
+          "completion_tokens": 1588,
+          "total_tokens": 26821,
+          "prompt_tokens_details": {},
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "text_tokens": 1588
+          }
+        }
+      }
+    },
+    {
+      "method": "multi",
+      "combined": {
+        "reference_hit": 32,
+        "reference_missing": 6,
+        "reference_extra": 43,
+        "stripe_paths": 75
+      },
+      "complete_patterns": 4,
+      "phase_metrics": {
+        "initial": {
+          "stripe_groups": [
+            "G070",
+            "G084",
+            "G085",
+            "G110",
+            "G111",
+            "G112",
+            "G113",
+            "G118",
+            "G120"
+          ],
+          "stripe_paths": 60,
+          "reference_hit": 18,
+          "reference_missing": 20,
+          "reference_extra": 42,
+          "source_conflict_groups": [
+            "G071",
+            "G120"
+          ]
+        },
+        "audit": {
+          "stripe_groups": [
+            "G121",
+            "G122",
+            "G123",
+            "G125",
+            "G129",
+            "G132",
+            "G138",
+            "G156",
+            "G162",
+            "G168"
+          ],
+          "stripe_paths": 33,
+          "reference_hit": 32,
+          "reference_missing": 6,
+          "reference_extra": 1,
+          "source_conflict_groups": []
+        }
+      },
+      "phase_totals": {
+        "initial": {
+          "logical_requests": 1,
+          "http_attempts": 1,
+          "retries": 0,
+          "failed_requests": 0,
+          "pending_requests": 0,
+          "elapsed_seconds": 92.855,
+          "stages": {
+            "initial": 1
+          }
+        },
+        "audit": {
+          "logical_requests": 1,
+          "http_attempts": 1,
+          "retries": 0,
+          "failed_requests": 0,
+          "pending_requests": 0,
+          "elapsed_seconds": 90.229,
+          "stages": {
+            "audit": 1
+          }
+        }
+      },
+      "input_tokens": 52114,
+      "output_tokens": 3250,
+      "single_call_usage": {
+        "initial": {
+          "prompt_tokens": 26763,
+          "completion_tokens": 1639,
+          "total_tokens": 28402,
+          "prompt_tokens_details": {},
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "text_tokens": 1639
+          }
+        },
+        "audit": {
+          "prompt_tokens": 25351,
+          "completion_tokens": 1611,
+          "total_tokens": 26962,
+          "prompt_tokens_details": {},
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "text_tokens": 1611
+          }
+        }
+      }
+    },
+    {
+      "method": "batch",
+      "combined": {
+        "reference_hit": 37,
+        "reference_missing": 1,
+        "reference_extra": 3,
+        "stripe_paths": 40
+      },
+      "complete_patterns": 4,
+      "phase_metrics": {
+        "initial": {
+          "stripe_groups": [
+            "G024",
+            "G070",
+            "G071",
+            "G072",
+            "G085",
+            "G118",
+            "G119",
+            "G120"
+          ],
+          "stripe_paths": 40,
+          "reference_hit": 37,
+          "reference_missing": 1,
+          "reference_extra": 3,
+          "source_conflict_groups": []
+        },
+        "audit": {
+          "stripe_groups": [
+            "G121",
+            "G122",
+            "G123",
+            "G129"
+          ],
+          "stripe_paths": 27,
+          "reference_hit": 27,
+          "reference_missing": 11,
+          "reference_extra": 0,
+          "source_conflict_groups": []
+        }
+      },
+      "phase_totals": {
+        "initial": {
+          "logical_requests": 10,
+          "http_attempts": 10,
+          "retries": 0,
+          "failed_requests": 0,
+          "pending_requests": 0,
+          "elapsed_seconds": 150.916,
+          "stages": {
+            "initial": 10
+          }
+        },
+        "audit": {
+          "logical_requests": 10,
+          "http_attempts": 10,
+          "retries": 0,
+          "failed_requests": 0,
+          "pending_requests": 0,
+          "elapsed_seconds": 150.058,
+          "stages": {
+            "audit": 10
+          }
+        }
+      },
+      "input_tokens": 89962,
+      "output_tokens": 5596
+    }
+  ]
+}

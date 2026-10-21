@@ -49,6 +49,15 @@ def load_profile(path, name):
         if not isinstance(profile['use_system_proxy'], bool):
             raise ValueError('use_system_proxy 必须为布尔值。')
         updates['use_system_proxy'] = profile['use_system_proxy']
+    # Reset profile-specific tuning on switches so Qwen settings cannot bleed
+    # into Gemini. Import only local validation, never resolve keys or connect.
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from vision import tuning_options, VisionError
+    try:
+        updates.update(tuning_options(profile))
+    except VisionError as exc:
+        raise ValueError(str(exc)) from None
     return updates
 
 

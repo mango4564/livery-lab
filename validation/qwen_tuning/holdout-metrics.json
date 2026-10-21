@@ -1,0 +1,303 @@
+{
+  "protocol": "structural-holdout-v1",
+  "reference_status": "assistant_source_visual_reference_not_user_confirmed",
+  "initial_candidates_per_case": 120,
+  "prompt_sha256": "b36e13ac02b823b35c4c9cda3bb91b5e3d1a483256141ed4da38806c5a6c635c",
+  "actual_experiment_cost_unique_requests": {
+    "logical_requests": 137,
+    "http_attempts": 139,
+    "failed_requests": 1,
+    "elapsed_request_seconds": 3477.696
+  },
+  "notes": [
+    "Each method ran once; no statistical accuracy or general superiority claim.",
+    "Qwen case 03 includes a network failure: three attempts and 160.364 seconds; successful cached results were reused.",
+    "Case 03 structural Qwen removes two black structural paths but adds two brown end pieces outside the reference; their intended category needs user confirmation.",
+    "Gemini case 03 raw proposal is diagnostic only; cross-category source conflict prevented a valid export."
+  ],
+  "cases": [
+    {
+      "id": "case_01",
+      "source_name": "凯旋 6118凯旋纯电 3242091 激变复杂-.fs",
+      "source_sha256": "85bee75bd03ca03647a833041229c9e28cc19d959c256a909bc4c4bcaeb3b5f4",
+      "source_unchanged": true,
+      "methods": {
+        "qwen_baseline": {
+          "status": "ok",
+          "stripe_paths": 15,
+          "requests": 21,
+          "http_attempts": 21,
+          "retries": 0,
+          "failed_requests": 0,
+          "request_stages": {
+            "classification": 10,
+            "conflict_review": 1,
+            "body_surface_audit": 10
+          },
+          "seconds": 346.222,
+          "bootstrap_requests": 0,
+          "bootstrap_http_attempts": 0,
+          "bootstrap_failed_requests": 0,
+          "including_bootstrap_seconds": 346.222,
+          "agreement_with_gemini_not_accuracy": {
+            "intersection": 15,
+            "only_this": 0,
+            "only_other": 0,
+            "jaccard": 1.0
+          },
+          "source_visual_review": {
+            "complete_units": 3,
+            "expected_units": 3,
+            "missing_units": 0,
+            "extra_source_paths": 0,
+            "missing_paths_minimum_across_alternatives": 0,
+            "reference_status": "assistant_source_visual_reference_not_user_confirmed"
+          },
+          "unresolved_count": 0
+        },
+        "qwen_structural": {
+          "status": "experimental_review",
+          "stripe_paths": 15,
+          "requests": 19,
+          "http_attempts": 19,
+          "retries": 0,
+          "failed_requests": 0,
+          "request_stages": {
+            "associated_initial": 11,
+            "associated_audit": 6,
+            "guarded_local": 2
+          },
+          "seconds": 287.519,
+          "bootstrap_requests": 11,
+          "bootstrap_http_attempts": 11,
+          "bootstrap_failed_requests": 0,
+          "including_bootstrap_seconds": 501.864,
+          "agreement_with_gemini_not_accuracy": {
+            "intersection": 15,
+            "only_this": 0,
+            "only_other": 0,
+            "jaccard": 1.0
+          },
+          "source_visual_review": {
+            "complete_units": 3,
+            "expected_units": 3,
+            "missing_units": 0,
+            "extra_source_paths": 0,
+            "missing_paths_minimum_across_alternatives": 0,
+            "reference_status": "assistant_source_visual_reference_not_user_confirmed"
+          },
+          "unresolved_count": 0
+        },
+        "gemini": {
+          "status": "ok",
+          "stripe_paths": 15,
+          "requests": 2,
+          "http_attempts": 2,
+          "retries": 0,
+          "failed_requests": 0,
+          "request_stages": {
+            "initial": 1,
+            "body_surface_audit": 1
+          },
+          "seconds": 205.353,
+          "bootstrap_requests": 0,
+          "bootstrap_http_attempts": 0,
+          "bootstrap_failed_requests": 0,
+          "including_bootstrap_seconds": 205.353,
+          "source_visual_review": {
+            "complete_units": 3,
+            "expected_units": 3,
+            "missing_units": 0,
+            "extra_source_paths": 0,
+            "missing_paths_minimum_across_alternatives": 0,
+            "reference_status": "assistant_source_visual_reference_not_user_confirmed"
+          },
+          "unresolved_count": 0
+        }
+      }
+    },
+    {
+      "id": "case_02",
+      "source_name": "凯旋 6112凯旋纯电 3251518 海南旅游客运细线多色+复杂标识-.fs",
+      "source_sha256": "a8a4da81dd46a0ae1d796d9bb81e889251c6bc42eca06ae785abb1172be396a0",
+      "source_unchanged": true,
+      "methods": {
+        "qwen_baseline": {
+          "status": "ok",
+          "stripe_paths": 25,
+          "requests": 21,
+          "http_attempts": 21,
+          "retries": 0,
+          "failed_requests": 0,
+          "request_stages": {
+            "classification": 10,
+            "conflict_review": 1,
+            "body_surface_audit": 10
+          },
+          "seconds": 402.718,
+          "bootstrap_requests": 0,
+          "bootstrap_http_attempts": 0,
+          "bootstrap_failed_requests": 0,
+          "including_bootstrap_seconds": 402.718,
+          "agreement_with_gemini_not_accuracy": {
+            "intersection": 22,
+            "only_this": 3,
+            "only_other": 4,
+            "jaccard": 0.7586206896551724
+          },
+          "source_visual_review": {
+            "complete_units": 2,
+            "expected_units": 5,
+            "missing_units": 3,
+            "extra_source_paths": 3,
+            "missing_paths_minimum_across_alternatives": 9,
+            "reference_status": "assistant_source_visual_reference_not_user_confirmed"
+          },
+          "unresolved_count": 0
+        },
+        "qwen_structural": {
+          "status": "experimental_review",
+          "stripe_paths": 23,
+          "requests": 27,
+          "http_attempts": 27,
+          "retries": 0,
+          "failed_requests": 0,
+          "request_stages": {
+            "associated_initial": 12,
+            "associated_audit": 8,
+            "guarded_local": 7
+          },
+          "seconds": 408.822,
+          "bootstrap_requests": 11,
+          "bootstrap_http_attempts": 11,
+          "bootstrap_failed_requests": 0,
+          "including_bootstrap_seconds": 643.323,
+          "agreement_with_gemini_not_accuracy": {
+            "intersection": 18,
+            "only_this": 5,
+            "only_other": 8,
+            "jaccard": 0.5806451612903226
+          },
+          "source_visual_review": {
+            "complete_units": 2,
+            "expected_units": 5,
+            "missing_units": 3,
+            "extra_source_paths": 5,
+            "missing_paths_minimum_across_alternatives": 13,
+            "reference_status": "assistant_source_visual_reference_not_user_confirmed"
+          },
+          "unresolved_count": 4
+        },
+        "gemini": {
+          "status": "ok",
+          "stripe_paths": 26,
+          "requests": 2,
+          "http_attempts": 2,
+          "retries": 0,
+          "failed_requests": 0,
+          "request_stages": {
+            "initial": 1,
+            "body_surface_audit": 1
+          },
+          "seconds": 398.44,
+          "bootstrap_requests": 0,
+          "bootstrap_http_attempts": 0,
+          "bootstrap_failed_requests": 0,
+          "including_bootstrap_seconds": 398.44,
+          "source_visual_review": {
+            "complete_units": 4,
+            "expected_units": 5,
+            "missing_units": 1,
+            "extra_source_paths": 0,
+            "missing_paths_minimum_across_alternatives": 7,
+            "reference_status": "assistant_source_visual_reference_not_user_confirmed"
+          },
+          "unresolved_count": 0
+        }
+      }
+    },
+    {
+      "id": "case_03",
+      "source_name": "6132凯歌双玻(新13)特 3211308 面积大多色-.fs",
+      "source_sha256": "932389d35f5354e9e370610ef42ef8715604c54fe906638deeaacd718adb093b",
+      "source_unchanged": true,
+      "methods": {
+        "qwen_baseline": {
+          "status": "ok",
+          "stripe_paths": 25,
+          "requests": 21,
+          "http_attempts": 23,
+          "retries": 2,
+          "failed_requests": 1,
+          "request_stages": {
+            "classification": 11,
+            "body_surface_audit": 10
+          },
+          "seconds": 714.682,
+          "bootstrap_requests": 0,
+          "bootstrap_http_attempts": 0,
+          "bootstrap_failed_requests": 0,
+          "including_bootstrap_seconds": 714.682,
+          "source_visual_review": {
+            "complete_units": 3,
+            "expected_units": 4,
+            "missing_units": 1,
+            "extra_source_paths": 2,
+            "missing_paths_minimum_across_alternatives": 1,
+            "reference_status": "assistant_source_visual_reference_not_user_confirmed"
+          },
+          "unresolved_count": 0
+        },
+        "qwen_structural": {
+          "status": "experimental_review",
+          "stripe_paths": 25,
+          "requests": 23,
+          "http_attempts": 23,
+          "retries": 0,
+          "failed_requests": 0,
+          "request_stages": {
+            "associated_initial": 11,
+            "associated_audit": 6,
+            "guarded_local": 6
+          },
+          "seconds": 539.968,
+          "bootstrap_requests": 11,
+          "bootstrap_http_attempts": 13,
+          "bootstrap_failed_requests": 1,
+          "including_bootstrap_seconds": 1022.522,
+          "source_visual_review": {
+            "complete_units": 3,
+            "expected_units": 4,
+            "missing_units": 1,
+            "extra_source_paths": 2,
+            "missing_paths_minimum_across_alternatives": 1,
+            "reference_status": "assistant_source_visual_reference_not_user_confirmed"
+          },
+          "unresolved_count": 0
+        },
+        "gemini": {
+          "status": "failed",
+          "error_type": "ValueError",
+          "requests": 1,
+          "http_attempts": 1,
+          "retries": 0,
+          "failed_requests": 0,
+          "request_stages": {
+            "initial": 1
+          },
+          "seconds": 173.972,
+          "raw_proposal_source_visual_review": {
+            "complete_units": 3,
+            "expected_units": 4,
+            "missing_units": 1,
+            "extra_source_paths": 0,
+            "missing_paths_minimum_across_alternatives": 1,
+            "reference_status": "assistant_source_visual_reference_not_user_confirmed"
+          },
+          "unresolved_count": 0,
+          "raw_proposal_path_count": 23
+        }
+      }
+    }
+  ]
+}

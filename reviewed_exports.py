@@ -8,7 +8,7 @@ from pathlib import Path
 
 from geometry import rasterize
 from core.svg_layers import layered_svg
-from core.source_regions import object_regions, region_for_ids, split_by_region
+from core.source_regions import object_regions, region_for_ids, split_by_region, normalize_source_regions
 
 LABELS = {'车身': '车身', '彩条': '彩条', '文字': '文字', 'logo': 'logo', '门徽': '徽章', '车漆': '车漆'}
 SOURCE_VIEWS = ('待确认视图', '左视图', '右视图', '前视图', '后视图', '顶视图', '底视图', '整体视图', '独立图案', '混合视图')
@@ -86,7 +86,7 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
     # Legacy callers retain their filenames; direction-aware reviews publish each
     # confirmed pattern separately, while category IDs remain a coverage summary.
     reviewed_patterns = {}
-    regions = result.get('source_regions', [])
+    regions = normalize_source_regions(result.get('source_regions', []))
     assignments = object_regions(result['objects'], regions,
                                  partial_ids=selected['彩条']+selected['logo']+selected['门徽'],
                                  paint_ids=selected['车漆'])
@@ -116,7 +116,7 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
                 if not kept:
                     raise ValueError('图案扣除其他类别后为空，请重新选择。')
                 groups = split_by_region(kept, assignments,
-                                         objects=result['objects'] if name == '车漆' else None)
+                                         objects=result['objects'] if name in ('车漆', '彩条') else None)
                 for group in groups:
                     pattern = {'source_view': entry['source_view'], 'selected_ids': group}
                     region = region_for_ids(group, assignments, regions)
@@ -211,7 +211,7 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
                 for name in LABELS:
                     entries = []
                     for group in split_by_region(selected[name], assignments,
-                            objects=result['objects'] if name == '车漆' else None):
+                            objects=result['objects'] if name in ('车漆', '彩条') else None):
                         entry = {'selected_ids': group, 'files': manifest['categories'][LABELS[name]]['files']}
                         region = region_for_ids(group, assignments, regions)
                         if region:

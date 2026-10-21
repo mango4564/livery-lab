@@ -85,6 +85,22 @@ class AIProfileSwitchingTests(unittest.TestCase):
             with self.subTest(extra=extra), self.assertRaises(ValueError):
                 switch_ai.load_profile(path, 'internal')
 
+    def test_tuning_resets_between_profiles_and_rejects_invalid_values(self):
+        path=self.root/'profiles.json'
+        profiles={'internal':dict(self.updates,component_batch_size=12,prompt_style='compact',
+                                  max_output_tokens=8192,include_usage=True),
+                  'gemini':dict(self.updates,model='gemini')}
+        path.write_text(json.dumps(profiles),encoding='utf8')
+        internal=switch_ai.load_profile(path,'internal')
+        gemini=switch_ai.load_profile(path,'gemini')
+        self.assertEqual(internal['max_output_tokens'],8192)
+        self.assertEqual(gemini['max_output_tokens'],0)
+        self.assertEqual(gemini['component_batch_size'],'auto')
+        self.assertFalse(gemini['include_usage'])
+        profiles['internal']['component_batch_size']=-2
+        path.write_text(json.dumps(profiles),encoding='utf8')
+        with self.assertRaises(ValueError):switch_ai.load_profile(path,'internal')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -96,6 +96,9 @@ class LiveryApp:
         ai_row.pack(fill="x", pady=(4, 0))
         self.ai_config_button = ttk.Button(ai_row, text="AI 接口配置…", command=self._configure_ai)
         self.ai_config_button.pack(side="left")
+        self.ai_tuning_button = ttk.Button(ai_row, text="AI 调优…", command=self._configure_ai_tuning)
+        self.ai_tuning_button.pack(side='left', padx=(6, 0))
+        ttk.Button(ai_row, text="AI 请求明细…", command=self._show_ai_requests).pack(side='left', padx=(6, 0))
         ttk.Label(ai_row, textvariable=self.ai_status).pack(side="left", padx=8)
         reference_row = ttk.Frame(outer)
         reference_row.pack(fill="x", pady=(4, 0))
@@ -289,6 +292,93 @@ class LiveryApp:
         self.reference_directory.set(directory)
         self.reference_status.set(directory or "自动查找：素材同目录 / 导出彩条参考")
         self.status.set("参考库目录已保存；后续提取将使用新参考。")
+
+    def _configure_ai_tuning(self):
+        if self.busy:
+            return
+        from vision import CONFIG_PATH, read_config, tuning_options
+        try:
+            config = read_config()
+        except (OSError, ValueError, RuntimeError) as exc:
+            messagebox.showerror('AI 配置错误', str(exc))
+            return
+        dialog = tk.Toplevel(self.root)
+        dialog.title('AI 请求调优')
+        dialog.transient(self.root)
+        dialog.grab_set()
+        frame = ttk.Frame(dialog, padding=16); frame.pack(fill='both', expand=True)
+        fields = {}
+        options = (
+            ('component_batch_size', '每批候选（0=整张；auto=Qwen 12）', ('auto', '0', '8', '12', '16', '20')),
+            ('prompt_style', '提示方式', ('auto', 'compact', 'detailed')),
+            ('reasoning_effort', '思考强度（空白=服务端默认）', ('', 'low', 'medium', 'high')),
+            ('max_output_tokens', '输出 token 上限（0=服务端默认）', ('0', '4096', '8192', '16384')),
+            ('temperature', 'temperature（空白=服务端默认）', ('', '0.7', '1.0')),
+            ('top_p', 'top_p（空白=服务端默认）', ('', '0.8', '0.95')))
+        for row, (key, label, choices) in enumerate(options):
+            ttk.Label(frame, text=label).grid(row=row, column=0, sticky='w', pady=5)
+            value = config.get(key)
+            fields[key] = tk.StringVar(value='' if value is None else str(value))
+            ttk.Combobox(frame, textvariable=fields[key], values=choices, width=18).grid(row=row, column=1, padx=8)
+        include_usage = tk.BooleanVar(value=config.get('include_usage', False))
+        ttk.Checkbutton(frame, text='请求服务端返回 token 用量（需接口支持）', variable=include_usage).grid(row=6, column=0, columnspan=2, sticky='w')
+        ttk.Label(frame, text='auto：Qwen 从首轮小批次识别，使用简洁的逐候选分类；其他模型沿用原方式。\n'
+                  '社内接口实测不接受 reasoning_effort=high，请留空。参数是否生效需看请求明细及服务端配置。\n'
+                  '更多批次会增加调用量。保存不发起请求；重新提取后生效。', wraplength=600,
+                  foreground='#666666').grid(row=7, column=0, columnspan=2, pady=12, sticky='w')
+        def save():
+            try:
+                data = {k: v.get().strip() for k, v in fields.items()}
+                for key in ('temperature', 'top_p'):
+                    if not data[key]: data[key] = None
+                data['include_usage'] = include_usage.get()
+                data = tuning_options(data)
+                existing = json.loads(CONFIG_PATH.read_text(encoding='utf-8-sig')) if CONFIG_PATH.exists() else {}
+                if not isinstance(existing, dict): raise ValueError('settings.json 必须为 JSON 对象。')
+                existing.update(data)
+                temporary = CONFIG_PATH.with_suffix('.json.tmp')
+                temporary.write_text(json.dumps(existing, ensure_ascii=False, indent=2)+'\n', encoding='utf8')
+                temporary.replace(CONFIG_PATH)
+            except (OSError, ValueError, RuntimeError) as exc:
+                messagebox.showerror('无法保存调优配置', str(exc), parent=dialog)
+                return
+            dialog.destroy()
+            self._append_log('AI 调优配置已保存，重新提取后生效。')
+        ttk.Button(frame, text='保存调优配置', command=save).grid(row=8, column=1, sticky='e')
+
+    def _show_ai_requests(self):
+        result = self.results.get(self.current, {})
+        path = result.get('ai_requests_json')
+        if not path or not Path(path).is_file():
+            messagebox.showinfo('AI 请求明细', '当前任务没有请求记录。旧任务无法追溯 HTTP 重试和服务端用量，请用新版重新提取。')
+            return
+        try:
+            data = json.loads(Path(path).read_text(encoding='utf8'))
+        except (OSError, ValueError) as exc:
+            messagebox.showerror('无法读取请求明细', str(exc)); return
+        dialog = tk.Toplevel(self.root); dialog.title('AI 请求明细 · '+Path(result.get('source', '')).name)
+        dialog.geometry('1080x680')
+        frame = ttk.Frame(dialog, padding=12); frame.pack(fill='both', expand=True)
+        ttk.Label(frame, text=f"逻辑请求 {data['logical_requests']} 批 · HTTP {data['http_attempts']} 次 · "
+                  f"重试 {data['retries']} 次 · 累计 {data['elapsed_seconds']:g} 秒\n记录：{path}", wraplength=1020).pack(anchor='w')
+        columns = ('stage', 'count', 'http', 'time', 'images', 'status')
+        table = ttk.Treeview(frame, columns=columns, show='headings', height=10)
+        for key, title, width in zip(columns, ('阶段 / 批次', '候选数', 'HTTP次数', '秒', '发送图片尺寸', '结果'), (220, 70, 80, 75, 380, 85)):
+            table.heading(key, text=title); table.column(key, width=width)
+        table.pack(fill='x', pady=10)
+        detail = tk.Text(frame, wrap='word', state='disabled'); detail.pack(fill='both', expand=True)
+        records = data.get('requests', [])
+        for index, record in enumerate(records):
+            images = ' + '.join(f"{im.get('width', '?')}×{im.get('height', '?')}" for im in record['images'])
+            table.insert('', 'end', iid=str(index), values=(record['stage']+'/'+record['batch'], record['candidate_count'],
+                         len(record['attempts']), record.get('elapsed_seconds', '?'), images, record['status']))
+        def selected(event=None):
+            selection = table.selection()
+            if selection:
+                detail.configure(state='normal'); detail.delete('1.0', 'end')
+                detail.insert('end', json.dumps(records[int(selection[0])], ensure_ascii=False, indent=2)); detail.configure(state='disabled')
+        table.bind('<<TreeviewSelect>>', selected)
+        if records: table.selection_set('0'); selected()
 
     def _configure_ai(self):
         if self.busy:

@@ -533,8 +533,8 @@ def build_candidates(objects, containers, limit=120):
                       'candidate_limit': limit, 'reference_library_used': False}
 
 
-def candidate_atlas(candidates, path):
-    columns, tw, th = 4, 400, 190
+def candidate_atlas(candidates, path, *, columns=4):
+    tw, th = 400, 190
     sheet = Image.new('RGB', (columns*tw, max(1, math.ceil(len(candidates)/columns))*th), '#e5e7eb')
     draw = ImageDraw.Draw(sheet)
     font = ImageFont.truetype('C:/Windows/Fonts/arial.ttf', 16)
@@ -585,19 +585,56 @@ def prepare(source, directory, limit=120):
     return objects, candidates, coverage
 
 
-def recognize_groups(candidates, directory, config, *, surface_audit=False):
-    from vision import recognize
+def recognize_groups(candidates, directory, config, *, surface_audit=False, classification_batch=False):
+    from vision import recognize, CompactLabelError, _validate_components
     directory = Path(directory)
     metadata = [{k: c[k] for k in ('id', 'bbox', 'native_type', 'source_span')} |
                 {'path_count': len(c['member_ids'])} for c in candidates]
+    if classification_batch:
+        for item, candidate in zip(metadata, candidates):
+            ids = set(candidate['member_ids'])
+            item['shared_source_candidates'] = [c['id'] for c in candidates
+                if c['id'] != candidate['id'] and ids.intersection(c['member_ids'])]
     scene = {'objects': candidates, 'component_mode': True, 'group_metadata': metadata}
+    stage = ('body_surface_audit' if surface_audit else 'conflict_review' if directory.name == 'conflicts'
+             else 'empty_recovery' if directory.parent.name == 'empty_recovery'
+             else 'classification' if classification_batch else 'initial')
+    scene.update(request_trace_dir=config.get('_trace_root', str(directory/'ai_requests')),
+                 request_stage=stage, request_batch=directory.name)
+    if directory.parent.name == 'protocol_repair':
+        scene['request_batch'] = f'{directory.parent.parent.name}/protocol_repair/{directory.name}'
+    if classification_batch:
+        scene['classification_batch'] = True
     if surface_audit:
         scene['body_surface_audit'] = True
     if (directory/'group_details.png').exists():
         scene['candidate_sheet_png'] = str(directory/'group_details.png')
-    return recognize(scene,
-                     directory/'source_scene.png', directory/'group_atlas.png',
-                     dict(config, max_candidates=max(len(candidates), 1)))
+    try:
+        return recognize(scene, directory/'source_scene.png', directory/'group_atlas.png',
+                         dict(config, max_candidates=max(len(candidates), 1)))
+    except CompactLabelError:
+        # Never silently treat omitted labels as negatives. Retry each half once;
+        # a second protocol failure still stops the task with its saved trace.
+        if config.get('_label_repair_depth', 0) or len(candidates) < 2:
+            raise
+        merged = {'categories': {name: [] for name in CATEGORIES}, 'source_regions': [],
+                  'source_views': {}, 'reason': '', 'confidence': 1.0}
+        size = (len(candidates)+1)//2
+        for start in range(0, len(candidates), size):
+            batch = candidates[start:start+size]
+            local = directory/'protocol_repair'/f'{start//size+1:02d}'
+            batch_inputs(batch, local, directory, config)
+            if surface_audit and (directory/'group_details.png').exists():
+                import shutil
+                shutil.copyfile(directory/'group_details.png', local/'group_details.png')
+            checked = recognize_groups(batch, local, dict(config, _label_repair_depth=1),
+                                       surface_audit=surface_audit, classification_batch=classification_batch)
+            for name in CATEGORIES:
+                merged['categories'][name].extend(checked['categories'][name])
+            merged['source_views'].update(checked.get('source_views', {}))
+            merged['reason'] = (merged['reason']+'；'+checked['reason'])[:5000]
+            merged['confidence'] = min(merged['confidence'], checked['confidence'])
+        return _validate_components(merged, {c['id'] for c in candidates})
 
 
 def resolve_categories(objects, candidates, decision):
@@ -619,6 +656,109 @@ def resolve_categories(objects, candidates, decision):
     from core.paint import normalize_categories
     return normalize_categories(objects, {
         name: [o['id'] for o in objects if o['id'] in ids] for name, ids in categories.items()})
+
+
+def batch_inputs(candidates, directory, source_directory, config):
+    """Bounded, readable sheets; never resize or change source geometry."""
+    import shutil
+    from vision import compact_prompt
+    directory.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(Path(source_directory)/'source_scene.png', directory/'source_scene.png')
+    compact = compact_prompt(config)
+    candidate_atlas(candidates, directory/'group_atlas.png', columns=2 if compact else 4)
+    if not compact:
+        detail = detail_candidates(candidates)
+        if detail:
+            candidate_atlas(detail, directory/'group_details.png')
+
+
+def recover_empty_classification(candidates, decision, directory, config, *, batch_size=20, phase='empty_recovery'):
+    """Retry an all-empty long atlas at readable scale, using the same provider.
+
+    Keep original G IDs and require explicit model labels. Geometry proposals
+    alone never become classified results. Each candidate is retried once.
+    """
+    import copy
+    from vision import _validate_components
+    coverage = {'empty_recovery_batches': 0, 'empty_recovery_classified': 0,
+                'empty_recovery_conflict_groups': 0, 'empty_recovery_unresolved_groups': 0}
+    if any(decision['categories'].values()) or not candidates:
+        return decision, coverage
+    merged = copy.deepcopy(decision)
+    merged.update(source_regions=[], source_views={})
+    reasons, confidences = [], []
+    for start in range(0, len(candidates), batch_size):
+        batch = candidates[start:start+batch_size]
+        path = Path(directory)/phase/f'{start//batch_size+1:02d}'
+        batch_inputs(batch, path, directory, config)
+        checked = recognize_groups(batch, path, config, classification_batch=True)
+        _validate_components(checked, {c['id'] for c in batch})
+        (path/'decision.json').write_text(json.dumps(checked, ensure_ascii=False, indent=2), encoding='utf8')
+        coverage['empty_recovery_batches'] += 1
+        for name in CATEGORIES:
+            merged['categories'][name].extend(checked['categories'][name])
+            coverage['empty_recovery_classified'] += len(checked['categories'][name])
+        merged['source_views'].update(checked.get('source_views', {}))
+        for region in checked.get('source_regions', []):
+            number = len(merged['source_regions'])+1
+            suffix = f'（复核{number}）'
+            merged['source_regions'].append(dict(region, id=f'R{number}',
+                                                  name=region['name'][:40-len(suffix)]+suffix))
+        if not checked.get('source_regions'):
+            for gid in checked['categories']['车身']:
+                number = len(merged['source_regions'])+1
+                view = checked.get('source_views', {}).get(gid, '待确认视图')
+                merged['source_regions'].append(dict(id=f'R{number}', name=f'{view}{number}',
+                                                     source_view=view, anchor_ids=[gid]))
+        reasons.append(checked['reason'])
+        confidences.append(checked['confidence'])
+    merged['reason'] += '；全空结果分批复核：'+'；'.join(reasons)
+    # Confidence is not accuracy; preserve the most cautious batch assessment.
+    merged['confidence'] = min(confidences)
+    _validate_components(merged, {c['id'] for c in candidates})
+    # Different G IDs can own the same source paths. Bring contradictory
+    # labels together once; do not resolve semantics by batch order or colour.
+    conflicts = recovery_conflicts(candidates, merged)
+    if conflicts:
+        path = Path(directory)/phase/'conflicts'
+        review = [c for c in candidates if c['id'] in conflicts]
+        batch_inputs(review, path, directory, config)
+        checked = recognize_groups(review, path, config, classification_batch=True)
+        _validate_components(checked, conflicts)
+        (path/'decision.json').write_text(json.dumps(checked, ensure_ascii=False, indent=2), encoding='utf8')
+        for name in CATEGORIES:
+            if name == '车身':
+                continue
+            merged['categories'][name] = [g for g in merged['categories'][name] if g not in conflicts]
+            merged['categories'][name].extend(checked['categories'][name])
+        # If the focused call still disagrees, retain these groups only in
+        # the manual pool. Never pick a winning category automatically.
+        unresolved = recovery_conflicts(candidates, merged)
+        for name in CATEGORIES:
+            if name != '车身':
+                merged['categories'][name] = [g for g in merged['categories'][name] if g not in unresolved]
+        coverage['empty_recovery_conflict_groups'] = len(conflicts)
+        retained = {gid for ids in merged['categories'].values() for gid in ids}
+        coverage['empty_recovery_unresolved_groups'] = len(conflicts-retained)
+        merged['reason'] += '；跨候选源对象冲突复核：'+checked['reason']
+        merged['confidence'] = min(merged['confidence'], checked['confidence'])
+    _validate_components(merged, {c['id'] for c in candidates})
+    coverage['empty_recovery_classified'] = sum(len(ids) for ids in merged['categories'].values())
+    return merged, coverage
+
+
+def recovery_conflicts(candidates, decision):
+    """Return whole groups with contradictory nonbody source ownership."""
+    members = {c['id']: set(c['member_ids']) for c in candidates}
+    owners = [(name, gid) for name, ids in decision['categories'].items()
+              if name != '车身' for gid in ids]
+    conflicts = set()
+    for index, (name, gid) in enumerate(owners):
+        for other_name, other_gid in owners[index+1:]:
+            if (name != other_name and {name, other_name} != {'logo', '门徽'}
+                    and members[gid].intersection(members[other_gid])):
+                conflicts.update((gid, other_gid))
+    return conflicts
 
 
 def residual_surface_candidates(objects, candidates, decision, limit=120):
@@ -747,7 +887,28 @@ def refine_body_surfaces(objects, candidates, decision, directory, config):
     body_ids = set(resolve_categories(objects, candidates, decision)['车身'])
     rasterize(svg_document([o for o in objects if o['id'] in body_ids], width=2000,
                            background='#bbbbbb'), path/'group_details.png')
-    checked = recognize_groups(audit, path, config, surface_audit=True)
+    from vision import component_batch_size, compact_prompt
+    size = component_batch_size(config)
+    if size and len(audit) > size:
+        checked = {'categories': {name: [] for name in CATEGORIES}, 'source_regions': [],
+                   'source_views': {}, 'reason': '', 'confidence': 1.0}
+        for start in range(0, len(audit), size):
+            batch = audit[start:start+size]
+            local = path/'batches'/f'{start//size+1:02d}'
+            batch_inputs(batch, local, path, config)
+            if compact_prompt(config):
+                anchors = {c['body_anchor_id'] for c in batch}
+                context = [c for c in candidates if c['id'] in anchors]
+                if context:
+                    candidate_atlas(context, local/'group_details.png', columns=2)
+            response = recognize_groups(batch, local, config, surface_audit=True)
+            (local/'decision.json').write_text(json.dumps(response, ensure_ascii=False, indent=2), encoding='utf8')
+            for name in ('车漆', '彩条'):
+                checked['categories'][name].extend(response['categories'][name])
+            checked['reason'] += response['reason']+'；'
+            checked['confidence'] = min(checked['confidence'], response['confidence'])
+    else:
+        checked = recognize_groups(audit, path, config, surface_audit=True)
     (path/'decision.json').write_text(json.dumps(checked, ensure_ascii=False, indent=2), encoding='utf8')
     merged = copy.deepcopy(decision)
     for name in ('车漆', '彩条'):
@@ -761,22 +922,66 @@ def refine_body_surfaces(objects, candidates, decision, directory, config):
     return merged, coverage
 
 
+def render_stripe_views(objects, ids, regions, directory, digest):
+    """Write one source-coordinate SVG/PNG pair per stripe region."""
+    from core.source_regions import normalize_source_regions, object_regions, split_by_region, region_for_ids
+    from core.svg_layers import layered_svg
+    regions = normalize_source_regions(regions)
+    assignments = object_regions(objects, regions, partial_ids=ids)
+    records = []
+    for number, group in enumerate(split_by_region(ids, assignments, objects=objects), 1):
+        region = region_for_ids(group, assignments, regions)
+        name = region['name'] if region else '待确认区域'
+        view = region['source_view'] if region else '待确认视图'
+        selected = set(group)
+        metadata = dict(source_sha256=digest, selected_ids=group, human_reviewed=False,
+                        source_view=view, source_region=region['id'] if region else None)
+        svg, _ = layered_svg([o for o in objects if o['id'] in selected], {'彩条': group},
+                             width=2000, layer_names=('彩条',), metadata=metadata)
+        folder = Path(directory)/'stripe_views'
+        folder.mkdir(parents=True, exist_ok=True)
+        # Numeric filenames keep untrusted region names out of filesystem paths.
+        svg_path, png_path = folder/f'{number:02d}.svg', folder/f'{number:02d}.png'
+        svg_path.write_text(svg, encoding='utf8')
+        rasterize(svg, png_path, max_width=2000)
+        records.append(dict(metadata, region_name=name, svg=str(svg_path.resolve()), png=str(png_path.resolve())))
+    return records
+
+
 def run(source, directory, config, *, use_ai=True):
     source, directory = Path(source), Path(directory)
+    config = dict(config, _trace_root=str(directory/'ai_requests'))
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     objects, candidates, coverage = prepare(source, directory, min(config['max_candidates'], 120))
-    decision = (recognize_groups(candidates, directory, config) if use_ai else
-                {'categories': {name: [] for name in CATEGORIES},
-                 'reason': '手工复核模式，尚未分类；未调用 AI。', 'confidence': 0.0})
+    from vision import component_batch_size, request_summary
+    size = component_batch_size(config)
+    decision = {'categories': {name: [] for name in CATEGORIES},
+                'reason': '手工复核模式，尚未分类；未调用 AI。', 'confidence': 0.0}
+    if use_ai and size:
+        decision['reason'] = '按当前模型配置，从首轮分批识别。'
+        decision, initial_coverage = recover_empty_classification(
+            candidates, decision, directory, config, batch_size=size, phase='classification')
+        coverage.update(initial_coverage)
+        coverage['initial_classification_batches'] = initial_coverage['empty_recovery_batches']
+        coverage['empty_recovery_batches'] = 0
+    elif use_ai:
+        decision = recognize_groups(candidates, directory, config)
     if use_ai:
+        if not size:
+            decision, recovery_coverage = recover_empty_classification(candidates, decision, directory, config)
+            coverage.update(recovery_coverage)
         decision, audit_coverage = refine_body_surfaces(objects, candidates, decision, directory, config)
         coverage.update(audit_coverage)
     categories = resolve_categories(objects, candidates, decision)
     report = {'source': str(source.resolve()), 'source_sha256': digest, 'coverage': coverage,
               'decision': decision, 'categories': categories, 'status': 'review', 'views': []}
+    report['ai_request_summary'] = request_summary(directory/'ai_requests')
+    report['ai_requests_json'] = str((directory/'ai_requests.json').resolve())
+    (directory/'ai_requests.json').write_text(json.dumps(report['ai_request_summary'], ensure_ascii=False, indent=2), encoding='utf8')
     report['candidates'] = review_candidates(candidates, decision)
     from core.source_regions import build_source_regions
     report['source_regions'] = build_source_regions(candidates, decision)
+    report['stripe_patterns'] = render_stripe_views(objects, categories['彩条'], report['source_regions'], directory, digest)
     for name, ids in categories.items():
         selected = set(ids)
         from core.svg_layers import layered_svg
