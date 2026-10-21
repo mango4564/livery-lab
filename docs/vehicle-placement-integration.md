@@ -10,11 +10,11 @@
 
 | 文件 | 内容与读取入口 |
 | --- | --- |
-| `vehicle-base.svg` | 车漆和结构车身；根 `metadata` JSON 内的 `placements` 字段 |
-| `vehicle-base.png` | 同一底图的透明栅格预览；PNG `iTXt` 关键字 `livery-lab.placements` |
-| `vehicle-base.placements.json` | 独立槽位协议，UTF-8；内容与上述两处反序列化后的对象一致 |
-| `复核记录.json` | 现有复核记录，新增 `placements` 摘要；`artifact_sha256` 包含上述三个最终文件的 SHA-256 |
-| 各图案 SVG/PNG | 继续单独导出，槽位的 `files` 指向对应文件 |
+| `整车底图/vehicle-base.svg` | 车漆和结构车身；根 `metadata` JSON 内的 `placements` 字段 |
+| `整车底图/vehicle-base.png` | 同一底图的透明栅格预览；PNG `iTXt` 关键字 `livery-lab.placements` |
+| `整车底图/vehicle-base.placements.json` | 独立槽位协议，UTF-8；内容与上述两处反序列化后的对象一致 |
+| `复核记录.json` | 现有复核记录，位于车名根目录，包含 `placements` 摘要；`artifact_sha256` 包含上述文件的相对路径 SHA-256 |
+| 各图案 SVG/PNG | 按类别分别保存在 `车身/`、`车漆/`、`彩条/`、`文字/`、`logo/`、`门徽/` 子目录，槽位的 `files` 指向带子目录的相对路径 |
 
 SVG 与 PNG 都可以独立携带槽位信息；建议以 SVG 作为可编辑底图，独立 JSON 作为通用交接入口。PNG 文本内容不参与像素绘制，需要解析文件字节中的 `iTXt`，普通 `<img>` 或 canvas 不会自动给出这份 JSON。PNG 的 iTXt 使用 zlib 压缩，解码器需要支持压缩文本与 UTF-8。
 

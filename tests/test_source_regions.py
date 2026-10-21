@@ -263,8 +263,8 @@ class SourceRegionTests(TkTestCase):
             exported = export_reviewed(result, choices, Path(temp)/'out', patterns=patterns)
             entries = exported['manifest']['categories']['彩条']['patterns']
             self.assertEqual([e['selected_ids'] for e in entries], [['0', '1', '2'], ['3', '4', '5']])
-            self.assertTrue(entries[0]['files'][0].startswith('左视图_彩条_01_'))
-            self.assertTrue(entries[1]['files'][0].startswith('右视图_彩条_02_'))
+            self.assertTrue(Path(entries[0]['files'][0]).name.startswith('左视图_彩条_01_'))
+            self.assertTrue(Path(entries[1]['files'][0]).name.startswith('右视图_彩条_02_'))
 
     def test_gallery_split_rename_export_layers_and_restore(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -328,7 +328,7 @@ class SourceRegionTests(TkTestCase):
             self.assertEqual([e['source_view'] for e in entries], ['待确认视图', '后视图'])
             self.assertEqual([e['selected_ids'] for e in entries], [['1'], ['5']])
             self.assertIn('侧面区域A', entries[0]['files'][0])
-            self.assertTrue(entries[0]['files'][0].startswith('侧面区域A_彩条_01_'))
+            self.assertTrue(Path(entries[0]['files'][0]).name.startswith('侧面区域A_彩条_01_'))
             self.assertEqual(patterns['彩条'][0]['selected_ids'], ['1', '5'])
 
     def test_manual_multiregion_selection_splits_without_changing_geometry(self):

@@ -32,13 +32,13 @@ class VehiclePlacementsTests(unittest.TestCase):
         result = export_reviewed(self.result, self.choices, self.root/'out',
                                  patterns=self.patterns if patterns else None)
         folder = Path(result['output_dir'])
-        data = json.loads((folder/'vehicle-base.placements.json').read_text(encoding='utf8'))
+        data = json.loads((folder/'整车底图'/'vehicle-base.placements.json').read_text(encoding='utf8'))
         return result, folder, data
 
     def test_three_carriers_match_and_manifest_hashes_cover_all_files(self):
         published, folder, data = self.publish()
-        embedded = json.loads(ET.parse(folder/'vehicle-base.svg').find(f'{{{SVG}}}metadata').text)
-        with Image.open(folder/'vehicle-base.png') as image:
+        embedded = json.loads(ET.parse(folder/'整车底图'/'vehicle-base.svg').find(f'{{{SVG}}}metadata').text)
+        with Image.open(folder/'整车底图'/'vehicle-base.png') as image:
             self.assertEqual(json.loads(image.info[PNG_KEY]), data)
             self.assertEqual(list(image.size), data['canvas']['png_size'])
             self.assertEqual(image.mode, 'RGBA')
@@ -47,7 +47,7 @@ class VehiclePlacementsTests(unittest.TestCase):
         self.assertTrue(all(s['placement_status'] == 'suggested' for s in data['slots']))
         self.assertTrue(all(len(s['files']) == 2 for s in data['slots']))
         self.assertTrue(all((folder/f).exists() for s in data['slots'] for f in s['files']))
-        self.assertIn('vehicle-base.placements.json', published['manifest']['artifact_sha256'])
+        self.assertIn('整车底图/vehicle-base.placements.json', published['manifest']['artifact_sha256'])
         self.assertEqual(published['manifest']['placements']['template_id'], data['template_id'])
         import hashlib
         for filename, digest in published['manifest']['artifact_sha256'].items():
@@ -149,7 +149,7 @@ class VehiclePlacementsTests(unittest.TestCase):
         self.choices['车漆'] = None
         self.patterns['车漆'] = []
         published = export_reviewed(self.result, self.choices, self.root/'out', patterns=self.patterns)
-        self.assertEqual(list(Path(published['output_dir']).glob('vehicle-base*')), [])
+        self.assertEqual(list(Path(published['output_dir']).rglob('vehicle-base*')), [])
 
     def test_empty_graphics_produce_empty_slots(self):
         for name in ('彩条', '文字', 'logo', '门徽'):
@@ -160,16 +160,16 @@ class VehiclePlacementsTests(unittest.TestCase):
 
     def test_bad_bounds_and_embedding_failure_keep_previous_exports(self):
         _, folder, _ = self.publish()
-        before = {p.name: p.read_bytes() for p in folder.iterdir()}
+        before = {p.relative_to(folder).as_posix(): p.read_bytes() for p in folder.rglob('*') if p.is_file()}
         self.result['objects'][1]['bbox'] = [0, 0, float('nan'), 8]
         with self.assertRaises(ValueError):
             self.publish()
-        self.assertEqual(before, {p.name: p.read_bytes() for p in folder.iterdir()})
+        self.assertEqual(before, {p.relative_to(folder).as_posix(): p.read_bytes() for p in folder.rglob('*') if p.is_file()})
         self.result['objects'][1]['bbox'] = [20, 0, 30, 8]
         with patch('core.placements.PngImagePlugin.PngInfo.add_itxt', side_effect=OSError('write failed')):
             with self.assertRaises(OSError):
                 self.publish()
-        self.assertEqual(before, {p.name: p.read_bytes() for p in folder.iterdir()})
+        self.assertEqual(before, {p.relative_to(folder).as_posix(): p.read_bytes() for p in folder.rglob('*') if p.is_file()})
         self.assertEqual(list((self.root/'out').glob('.review_stage_*')), [])
 
 

@@ -68,7 +68,7 @@ class DirectionalExportTests(TkTestCase):
             self.assertEqual(len(entry['files']), 2)
             for filename in entry['files']:
                 self.assertIn(expected['source_view'], filename)
-                self.assertTrue(filename.startswith(expected['source_view']+'_彩条_'))
+                self.assertTrue(Path(filename).name.startswith(expected['source_view']+'_彩条_'))
                 self.assertTrue((folder/filename).is_file())
             svg = (folder/entry['files'][0]).read_text(encoding='utf8')
             self.assertIn(expected['source_view'], svg)
@@ -152,7 +152,7 @@ class DirectionalExportTests(TkTestCase):
     def test_failed_second_pattern_keeps_previous_products(self):
         first = export_reviewed(self.result, self.choices, self.output, patterns=self.patterns)
         folder = Path(first['output_dir'])
-        before = {p.name: p.read_bytes() for p in folder.iterdir()}
+        before = {p.relative_to(folder).as_posix(): p.read_bytes() for p in folder.rglob('*') if p.is_file()}
         from reviewed_exports import rasterize
         calls = []
 
@@ -166,7 +166,7 @@ class DirectionalExportTests(TkTestCase):
             with self.assertRaises(RuntimeError):
                 export_reviewed(self.result, self.choices, self.output, patterns=self.patterns)
         self.assertTrue(any('左视图' in name for name in calls))
-        self.assertEqual(before, {p.name: p.read_bytes() for p in folder.iterdir()})
+        self.assertEqual(before, {p.relative_to(folder).as_posix(): p.read_bytes() for p in folder.rglob('*') if p.is_file()})
         self.assertFalse(list(self.output.glob('.review_stage_*')))
 
     def test_gallery_add_update_remove_restore_and_absence(self):

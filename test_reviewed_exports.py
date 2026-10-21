@@ -33,9 +33,20 @@ class ReviewedExportTests(unittest.TestCase):
         folder=Path(published['output_dir'])
         stem=Path(self.result['source']).stem
         self.assertEqual(folder,self.output/stem)
-        names={label+'_'+stem+suffix for name,label in LABELS.items() if self.choices[name] for suffix in ('.svg','.png')}
-        self.assertEqual({p.name for p in folder.iterdir()},names|{'复核记录.json'})
-        for p in folder.glob('*.png'):
+        from reviewed_exports import CATEGORY_DIRS
+        expected_dirs = {CATEGORY_DIRS[name] for name in LABELS if self.choices[name]}
+        self.assertEqual({p.name for p in folder.iterdir()}, expected_dirs | {'复核记录.json'})
+        for name, label in LABELS.items():
+            if not self.choices[name]:
+                continue
+            dir_path = folder / CATEGORY_DIRS[name]
+            self.assertTrue(dir_path.is_dir())
+            for suffix in ('.svg', '.png'):
+                file_path = dir_path / (label + '_' + stem + suffix)
+                self.assertTrue(file_path.is_file())
+                rel_path = f"{CATEGORY_DIRS[name]}/{label}_{stem}{suffix}"
+                self.assertIn(rel_path, published['manifest']['artifact_sha256'])
+        for p in folder.rglob('*.png'):
             with Image.open(p) as im:
                 self.assertEqual(im.mode,'RGBA')
                 self.assertEqual(im.getextrema()[3][0],0)
@@ -50,16 +61,18 @@ class ReviewedExportTests(unittest.TestCase):
     def test_explicit_absence_has_no_empty_files(self):
         self.choices['logo']=None
         p=export_reviewed(self.result,self.choices,self.output)
-        self.assertFalse(list(Path(p['output_dir']).glob('logo*')))
+        self.assertFalse((Path(p['output_dir'])/'logo').exists())
+        self.assertFalse(list(Path(p['output_dir']).rglob('logo*')))
         self.assertEqual(p['manifest']['categories']['logo']['status'],'confirmed_absent')
 
     def test_failed_png_keeps_previous_final_files_and_cleans_staging(self):
         first=export_reviewed(self.result,self.choices,self.output)
-        folder=Path(first['output_dir']); before={p.name:p.read_bytes() for p in folder.iterdir()}
+        folder=Path(first['output_dir'])
+        before={p.relative_to(folder).as_posix():p.read_bytes() for p in folder.rglob('*') if p.is_file()}
         self.choices['彩条']=['5']
         with patch('reviewed_exports.rasterize',side_effect=RuntimeError('PNG failed')):
             with self.assertRaises(RuntimeError):export_reviewed(self.result,self.choices,self.output)
-        self.assertEqual(before,{p.name:p.read_bytes() for p in folder.iterdir()})
+        self.assertEqual(before,{p.relative_to(folder).as_posix():p.read_bytes() for p in folder.rglob('*') if p.is_file()})
         self.assertFalse(list(self.output.glob('.review_stage_*')))
 
     def test_reexport_archives_old_and_removes_now_absent_pair(self):
@@ -68,8 +81,9 @@ class ReviewedExportTests(unittest.TestCase):
         self.choices['彩条']=['5']
         second=export_reviewed(self.result,self.choices,self.output)
         self.assertEqual(first['output_dir'],second['output_dir'])
-        self.assertTrue(list(Path(second['previous_version']).glob('logo*.svg')))
-        self.assertFalse(list(Path(second['output_dir']).glob('logo*.svg')))
+        self.assertTrue((Path(second['previous_version'])/'logo').is_dir())
+        self.assertTrue(list(Path(second['previous_version']).rglob('logo*.svg')))
+        self.assertFalse((Path(second['output_dir'])/'logo').exists())
         self.assertEqual(second['manifest']['categories']['彩条']['selected_ids'],['5'])
 
     def test_same_name_different_source_cannot_merge(self):
