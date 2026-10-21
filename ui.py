@@ -25,7 +25,7 @@ from runtime import APP_DIR
 class LiveryApp:
     def __init__(self, root: tk.Tk):
         self.root = root
-        root.title("全车矢量提取工作台")
+        root.title(os.environ.get("LIVERY_WINDOW_TITLE") or "全车矢量提取工作台")
         root.geometry("1280x880")
         root.minsize(960, 680)
         self.events: queue.Queue = queue.Queue()
@@ -45,7 +45,7 @@ class LiveryApp:
         self._preview_requests = queue.Queue(maxsize=1)
         self._preview_thread = None
         self._displayed_task = None
-        self.output = tk.StringVar(value=str(APP_DIR / "output"))
+        self.output = tk.StringVar(value=os.environ.get("LIVERY_OUTPUT_DIR") or str(APP_DIR / "output"))
         self.five_components = tk.BooleanVar(value=True)
         self.concurrency = tk.IntVar(value=min(os.cpu_count() or 4, 32))
         self.use_ai = tk.BooleanVar(value=False)

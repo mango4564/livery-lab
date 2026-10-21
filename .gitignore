@@ -123,3 +123,6 @@ Desktop.ini
 $RECYCLE.BIN/
 .DS_Store
 ._*
+
+# Local AI endpoint and credential notes
+/视觉识别ai配置.txt

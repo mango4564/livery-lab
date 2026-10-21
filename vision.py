@@ -14,7 +14,7 @@ from runtime import APP_DIR
 from credentials import load_api_key, CredentialError
 from urllib import error, parse, request
 
-CONFIG_PATH = APP_DIR / "settings.json"
+CONFIG_PATH = Path(os.environ.get("LIVERY_CONFIG_PATH") or APP_DIR / "settings.json")
 DEFAULTS = {"enabled": False, "base_url": "", "model": "", "api_key_env": "LIVERY_API_KEY",
             "timeout_seconds": 90, "max_candidates": 150, "allow_insecure": False,
             "use_system_proxy": True}
