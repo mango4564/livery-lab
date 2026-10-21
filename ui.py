@@ -677,11 +677,11 @@ class LiveryApp:
                     pages = []
                     for page in source_preview_pages(result):
                         number = page['name'].split()[-1]
-                        suffix = '（读取失败，详见日志）' if page['error'] else '（空白）' if not page['objects'] else ''
+                        suffix = '（读取失败，详见日志）' if page['error'] is not None else '（空白）' if not page['objects'] else ''
                         label = f'第 {number} 页{suffix}'
                         pages.append(dict(page, label=label, image=VectorImage(
                             svg_document(page['objects'], background='#ffffff'))))
-                        if page['error']:
+                        if page['error'] is not None:
                             reason = f"{page.get('error_type', 'Error')}: {page['error']}"
                             messages.append(f"{label}：{reason}")
                             if page.get('error_details'):
