@@ -7,5 +7,10 @@
   "timeout_seconds": 90,
   "max_candidates": 150,
   "allow_insecure": false,
-  "use_system_proxy": true
+  "use_system_proxy": true,
+  "audit_enabled": true,
+  "audit_page_size": 12,
+  "audit_max_requests": 16,
+  "audit_repair_rounds": 2,
+  "audit_timeout_seconds": 240
 }

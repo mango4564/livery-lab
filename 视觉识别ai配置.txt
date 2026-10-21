@@ -1,0 +1,9 @@
+视觉识别ai配置
+社内：
+http://192.168.173.74:3001/llm/v1
+qwen3.8-27b
+sk-kgohSeABwLQHlIMoPY07FA
+Gemini：
+http://176.122.133.180:8045/v1
+sk-71aa441bf4b64b3e81d6cd75a24106bf
+gemini-3.8-flash-high

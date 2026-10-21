@@ -323,6 +323,17 @@ class ReviewGallery(tk.Toplevel):
         ttk.Label(left, text='每类选择一套图案。\n候选可能是相同图案的\n不同侧面、版本或组合。\n\n灰白棋盘格表示透明，\n白色徽章可放大查看。', foreground='#666666').pack(anchor='w', pady=18)
         self.heading = ttk.Label(middle, font=('Microsoft YaHei UI', 12, 'bold'))
         self.heading.pack(anchor='w')
+        gate = self.result.get('quality_gate', {})
+        if gate.get('status') in ('passed', 'review', 'stale'):
+            summary = ('人工修改后原自动门禁结论已过期' if gate['status'] == 'stale' else
+                       '自动门禁已通过，待人工确认' if gate['status'] == 'passed' else
+                       f"自动门禁仍有待复核项（{gate.get('verified_pages', 0)}/{gate.get('total_pages', 0)} 页通过）")
+            summary += f"；已保留 {gate.get('accepted_repairs', 0)} 次复验通过的修复。"
+            problems = gate.get('unresolved', [])
+            if problems and gate['status'] != 'stale':
+                summary += '\n'+problems[0].get('evidence', '请检查运行日志中的门禁详情。')
+            ttk.Label(middle, text=summary, wraplength=420,
+                      foreground='#166534' if gate['status'] == 'passed' else '#9a3412').pack(anchor='w', pady=4)
         ttk.Checkbutton(middle, text='显示全部组合（手动归类）', variable=self.show_all,
                         command=lambda:self._switch_category(self.category)).pack(anchor='w', pady=6)
         ttk.Label(middle, text='默认展示已分类图案；补选可显示全部组合或从原稿选取。',

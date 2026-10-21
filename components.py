@@ -422,7 +422,65 @@ def attach_native_contexts(selected, native):
                                           ('member_ids', 'bbox', 'area', 'aspect', 'source_span')}
 
 
-def build_candidates(objects, containers, limit=120):
+def spatial_body_candidates(objects, native_candidates):
+    """Propose ungrouped end views at the scale of native side views.
+
+    Bounding-box connectivity is only a review proposal, not a semantic label.
+    Keep source objects intact, including open/unfilled structure and glass.
+    """
+    sides = [c for c in native_candidates if c['native_type'] == 'AGroup'
+             and 2.2 < c['aspect'] < 5.5 and len(c['member_ids']) > 100]
+    if not sides:
+        return []
+    heights = [c['bbox'][3]-c['bbox'][1] for c in sides]
+    # Use only rounding tolerance: larger gaps can connect technical captions
+    # below a vehicle to its tyres, or merge neighbouring views.
+    eps = min(heights)*1e-5
+    parent = list(range(len(objects)))
+
+    def root(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    active = []
+    for i in sorted(range(len(objects)), key=lambda i: objects[i]['bbox'][0]):
+        a = objects[i]['bbox']
+        active = [j for j in active if objects[j]['bbox'][2]+eps >= a[0]]
+        for j in active:
+            b = objects[j]['bbox']
+            if b[1] <= a[3]+eps and a[1] <= b[3]+eps:
+                parent[root(i)] = root(j)
+        active.append(i)
+    clusters = {}
+    for i, obj in enumerate(objects):
+        clusters.setdefault(root(i), []).append(obj)
+    result = []
+    for members in clusters.values():
+        if len(members) < 20:
+            continue
+        box = union_bounds(members)
+        w, h = box[2]-box[0], box[3]-box[1]
+        if h <= 0 or not .4 < w/h < 1.2:
+            continue
+        if not any(.75*height <= h <= 1.25*height for height in heights):
+            continue
+        ids = {o['id'] for o in members}
+        # A complete native end-view assembly already supplies this proposal.
+        if any(len(ids & set(c['member_ids'])) >= len(ids)*.8
+               for c in native_candidates if len(c['member_ids']) > 100
+               and .4 < c['aspect'] < 1.2):
+            continue
+        members = sorted(members, key=lambda o: o['source_offset'])
+        result.append(dict(members=members, member_ids=[o['id'] for o in members],
+                           bbox=box, aspect=w/h, area=w*h, native_type='SpatialBody',
+                           source_span=[members[0]['source_offset'], members[-1]['source_offset']],
+                           coverage_anchor=True))
+    return sorted(result, key=lambda c: (c['bbox'][0], c['bbox'][1]))
+
+
+def build_candidates(objects, containers, limit=120, *, include_omitted=False):
     """Keep native ownership, deduplicate nested copies and expose omissions."""
     objects = sorted(objects, key=lambda o: o['source_offset'])
     offsets = [o['source_offset'] for o in objects]
@@ -455,6 +513,7 @@ def build_candidates(objects, containers, limit=120):
     badges = emblem_candidates(candidates)
     wordmarks = wordmark_candidates(candidates)
     text_blocks = text_block_candidates(candidates)
+    spatial_bodies = spatial_body_candidates(objects, candidates)
     # Compact graphics, including gradients and unlettered marks, otherwise
     # lose to vehicle parts in area ranking. Preserve separate placements.
     # This only reserves visual proposals; the model must classify them.
@@ -491,6 +550,7 @@ def build_candidates(objects, containers, limit=120):
         body = 2.2 < c['aspect'] < 5.5 and c['area'] > max_area * .025 and len(c['members']) > 100
         bucket = 0 if body else 1 if c['native_type'] in ('AText','AArcText') else 2
         buckets[bucket].append(c)
+    buckets[0].extend(spatial_bodies)
     selected = []
     leftovers = []
     priority_types = ('DoorEmblem', 'EmblemLogo', 'TextBlock', 'WordmarkText', 'WordmarkLogo',
@@ -517,19 +577,27 @@ def build_candidates(objects, containers, limit=120):
         leftovers.extend(local[cap:])
     leftovers.sort(key=lambda c: c['native_type'] not in priority_types)
     selected.extend(leftovers[:max(0, limit-len(selected))])
+    initial_count = len(selected)
+    if include_omitted:
+        chosen = {id(c) for c in selected}
+        selected.extend(c for c in leftovers if id(c) not in chosen)
     attach_native_contexts(selected, candidates)
     for i, c in enumerate(selected):
         c.update(id=f'G{i+1:03d}', score=1, fill='none')
+        if include_omitted:
+            c['initial_candidate'] = i < initial_count
     return selected, {'native_candidates': len(candidates), 'loose_graphic_candidates': len(loose),
                       'provided_emblem_candidates': sum(c['native_type'] in ('DoorEmblem', 'EmblemLogo') for c in selected),
                       'provided_wordmark_candidates': sum(c['native_type'] in ('WordmarkText', 'WordmarkLogo') for c in selected),
                       'provided_text_blocks': sum(c['native_type']=='TextBlock' for c in selected),
                       'paint_surface_candidates': sum(c['native_type']=='PaintSurface' for c in paint),
                       'paint_region_candidates': sum(c['native_type']=='PaintRegion' for c in paint),
+                      'spatial_body_candidates': len(spatial_bodies),
                       'provided_paint_surfaces': sum(c['native_type']=='PaintSurface' for c in selected),
                       'provided_paint_regions': sum(c['native_type']=='PaintRegion' for c in selected),
-                      'provided_candidates': len(selected),
-                      'omitted_or_deduplicated_candidates': len(candidates)+len(badges)+len(text_blocks)+len(wordmarks)+len(loose)+len(paint)-len(selected),
+                      'provided_candidates': initial_count,
+                      'audit_available_candidates': len(selected),
+                      'omitted_or_deduplicated_candidates': len(candidates)+len(spatial_bodies)+len(badges)+len(text_blocks)+len(wordmarks)+len(loose)+len(paint)-len(selected),
                       'candidate_limit': limit, 'reference_library_used': False}
 
 
@@ -576,9 +644,10 @@ def prepare(source, directory, limit=120):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     objects, containers = load_scene(source)
-    candidates, coverage = build_candidates(objects, containers, limit)
-    candidate_atlas(candidates, directory/'group_atlas.png')
-    detail = detail_candidates(candidates)
+    candidates, coverage = build_candidates(objects, containers, limit, include_omitted=True)
+    initial = [c for c in candidates if c['initial_candidate']]
+    candidate_atlas(initial, directory/'group_atlas.png')
+    detail = detail_candidates(initial)
     if detail:
         candidate_atlas(detail, directory/'group_details.png')
     rasterize(svg_document(objects, width=1800, background='#ffffff'), directory/'source_scene.png')
@@ -613,7 +682,7 @@ def resolve_categories(objects, candidates, decision):
     arcs = [set(c['member_ids']) for c in candidates if c['native_type']=='AArcText'
             and set(c['member_ids']) <= categories['门徽']]
     if arcs:
-        complete = [set(c['member_ids']) for c in candidates if c['native_type']=='DoorEmblem'
+        complete = [set(c['member_ids']) for c in candidates if c['native_type'] in ('DoorEmblem', 'AuditSelection')
                     and set(c['member_ids']) <= categories['门徽']]
         categories['门徽'] = set().union(*arcs, *complete)
     from core.paint import normalize_categories
@@ -765,15 +834,21 @@ def run(source, directory, config, *, use_ai=True):
     source, directory = Path(source), Path(directory)
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     objects, candidates, coverage = prepare(source, directory, min(config['max_candidates'], 120))
-    decision = (recognize_groups(candidates, directory, config) if use_ai else
+    initial = [c for c in candidates if c.get('initial_candidate', True)]
+    decision = (recognize_groups(initial, directory, config) if use_ai else
                 {'categories': {name: [] for name in CATEGORIES},
                  'reason': '手工复核模式，尚未分类；未调用 AI。', 'confidence': 0.0})
     if use_ai:
         decision, audit_coverage = refine_body_surfaces(objects, candidates, decision, directory, config)
         coverage.update(audit_coverage)
+        from core.candidate_audit import audit_components
+        decision, quality_gate = audit_components(source, objects, candidates, decision, directory, config)
+    else:
+        quality_gate = {'status': 'not_run', 'reason': '手工模式未调用 AI 检验门禁。'}
     categories = resolve_categories(objects, candidates, decision)
     report = {'source': str(source.resolve()), 'source_sha256': digest, 'coverage': coverage,
-              'decision': decision, 'categories': categories, 'status': 'review', 'views': []}
+              'decision': decision, 'categories': categories, 'status': 'review', 'views': [],
+              'quality_gate': quality_gate}
     report['candidates'] = review_candidates(candidates, decision)
     from core.source_regions import build_source_regions
     report['source_regions'] = build_source_regions(candidates, decision)
@@ -813,7 +888,7 @@ def review_candidates(candidates, decision):
                 hints = ['文字']
             elif c['native_type'] == 'AText':
                 hints = ['文字']
-            elif c['area'] > largest*.025 and 2.2 < c['aspect'] < 5.5 and len(c['member_ids']) > 100:
+            elif c['native_type'] == 'SpatialBody' or (c['area'] > largest*.025 and 2.2 < c['aspect'] < 5.5 and len(c['member_ids']) > 100):
                 hints = ['车身']
         result.append({'id':c['id'], 'label':c['id']+' · '+c['native_type'],
                        'native_type': c['native_type'],
