@@ -47,8 +47,9 @@ class LiveryApp:
         self._displayed_task = None
         self.output = tk.StringVar(value=str(APP_DIR / "output"))
         self.five_components = tk.BooleanVar(value=True)
-        self.concurrency = tk.IntVar(value=min(os.cpu_count() or 4, 32))
+        self.concurrency = tk.IntVar(value=1)
         self.use_ai = tk.BooleanVar(value=False)
+        self.force_reextract = tk.BooleanVar(value=False)
         self.ai_status = tk.StringVar(value="AI 未配置")
         self.reference_directory = tk.StringVar()
         self.reference_status = tk.StringVar(value="独立识别：直接分析源曲线，不使用参考库")
@@ -97,6 +98,9 @@ class LiveryApp:
         self.ai_config_button = ttk.Button(ai_row, text="AI 接口配置…", command=self._configure_ai)
         self.ai_config_button.pack(side="left")
         ttk.Label(ai_row, textvariable=self.ai_status).pack(side="left", padx=8)
+        self.force_check = ttk.Checkbutton(ai_row, text='强制重新识别（不复用已有结果）',
+                                           variable=self.force_reextract)
+        self.force_check.pack(side='left', padx=8)
         reference_row = ttk.Frame(outer)
         reference_row.pack(fill="x", pady=(4, 0))
         self.reference_button = ttk.Button(reference_row, text="参考库文件夹…", command=self._configure_reference)
@@ -414,6 +418,7 @@ class LiveryApp:
             button.configure(state="disabled" if busy else "normal")
         if hasattr(self, "concurrency_spin"):
             self.concurrency_spin.configure(state="disabled" if busy else "normal")
+        self.force_check.configure(state='disabled' if busy else 'normal')
         self.group_choice.configure(state="disabled" if busy else "readonly")
         self.stop_button.configure(state="normal" if busy else "disabled")
         self._update_retry_button()
@@ -444,7 +449,7 @@ class LiveryApp:
         try:
             concurrency = max(1, int(self.concurrency.get()))
         except (ValueError, tk.TclError):
-            concurrency = os.cpu_count() or 4
+            concurrency = 1
             self.concurrency.set(concurrency)
         output = Path(self.output.get()).expanduser().resolve()
         self._refresh_ai()
@@ -459,7 +464,8 @@ class LiveryApp:
         self._set_busy(True)
         self.status.set(f"正在启动 {min(concurrency, len(jobs))} 个并发任务…")
         mode = 'components' if self.five_components.get() else 'stripes'
-        threading.Thread(target=self._batch_worker, args=(jobs, output, True, use_ai, reference_directory, concurrency, mode), daemon=True).start()
+        force = retry_failed or self.force_reextract.get()
+        threading.Thread(target=self._batch_worker, args=(jobs, output, force, use_ai, reference_directory, concurrency, mode), daemon=True).start()
 
     def _batch_worker(self, jobs, output, force=False, use_ai=False, reference_directory="", concurrency=1, extraction_mode='stripes'):
         try:

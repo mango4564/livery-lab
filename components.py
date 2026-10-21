@@ -597,7 +597,7 @@ def build_candidates(objects, containers, limit=120, *, include_omitted=False):
                       'provided_paint_surfaces': sum(c['native_type']=='PaintSurface' for c in selected),
                       'provided_paint_regions': sum(c['native_type']=='PaintRegion' for c in selected),
                       'provided_candidates': initial_count,
-                      'audit_available_candidates': len(selected),
+                      'available_candidates': len(selected),
                       'omitted_or_deduplicated_candidates': len(candidates)+len(spatial_bodies)+len(badges)+len(text_blocks)+len(wordmarks)+len(loose)+len(paint)-len(selected),
                       'candidate_limit': limit, 'reference_library_used': False}
 
@@ -655,66 +655,29 @@ def prepare(source, directory, limit=120):
     return objects, candidates, coverage
 
 
-def recognize_groups(candidates, directory, config, *, surface_audit=False):
-    from vision import recognize, VisionError, VisionProtocolError
+def recognize_groups(candidates, directory, config):
+    """Classify once, then check source ownership locally without AI correction."""
+    from vision import recognize
     directory = Path(directory)
     metadata = [{k: c[k] for k in ('id', 'bbox', 'native_type', 'source_span')} |
                 {'path_count': len(c['member_ids'])} for c in candidates]
-    scene = {'objects': candidates, 'component_mode': True, 'group_metadata': metadata}
-    # Describe containment using candidate IDs, rather than sending thousands
-    # of source IDs. Different G numbers can still refer to the same curves.
     memberships = {c['id']: set(c['member_ids']) for c in candidates}
-    scene['source_overlaps'] = [
-        [a['id'], b['id'], len(memberships[a['id']] & memberships[b['id']])]
-        for i, a in enumerate(candidates) for b in candidates[i+1:]
-        if memberships[a['id']] & memberships[b['id']]]
-    if surface_audit:
-        scene['body_surface_audit'] = True
+    scene = {'objects': candidates, 'component_mode': True, 'group_metadata': metadata,
+             'source_overlaps': [
+                 [a['id'], b['id'], len(memberships[a['id']] & memberships[b['id']])]
+                 for i, a in enumerate(candidates) for b in candidates[i+1:]
+                 if memberships[a['id']] & memberships[b['id']]]}
     if (directory/'group_details.png').exists():
         scene['candidate_sheet_png'] = str(directory/'group_details.png')
-    # Resolve source ownership before refinement, where conflicting parent/child
-    # choices previously aborted the file. Never guess which class should win.
-    source_ids = {oid for c in candidates for oid in c['member_ids']}
-    source_objects = [{'id': oid} for oid in source_ids]
-    settings = dict(config, max_candidates=max(len(candidates), 1), _strict_deadline=True)
-    deadline = time.monotonic() + float(config.get('timeout_seconds', 90))
-    for attempt in range(2):
-        remaining = deadline - time.monotonic()
-        if remaining < 1:
-            raise VisionError('六类识别纠错已达到总超时，未采用无效结果。')
-        try:
-            decision = recognize(scene, directory/'source_scene.png', directory/'group_atlas.png',
-                                 dict(settings, timeout_seconds=min(600, remaining)))
-        except VisionProtocolError as exc:
-            if attempt:
-                raise
-            # No raw model response is replayed or persisted.
-            scene['_protocol_feedback'] = str(exc)
-            continue
-        try:
-            resolve_categories(source_objects, candidates, decision)
-        except ValueError as exc:
-            if attempt:
-                if config.get('_review_on_conflict'):
-                    return defer_source_conflicts(source_objects, candidates, decision)
-                raise VisionError('六类识别纠错后源对象归属仍冲突，未采用结果。') from None
-            members = {c['id']: set(c['member_ids']) for c in candidates}
-            selected = [(name, gid) for name, ids in decision['categories'].items()
-                        if name != '车身' for gid in ids]
-            overlaps = []
-            for index, (name, gid) in enumerate(selected):
-                for other, other_gid in selected[index+1:]:
-                    if name == other or {name, other} in ({'logo', '门徽'}, {'文字', 'logo'}):
-                        continue
-                    if members[gid] & members[other_gid] and len(overlaps) < 24:
-                        overlaps.append([name, gid, other, other_gid])
-            scene['_protocol_feedback'] = (str(exc) + ' 上次选择（只含已校验的候选编号）：'
-                                          + json.dumps(decision['categories'], ensure_ascii=False)
-                                          + ' 共享源曲线的跨类候选（最多列24对）：'
-                                          + json.dumps(overlaps, ensure_ascii=False)
-                                          + ' 请改选干净子组或将不确定项留空，不能通过删除原始曲线解决。')
-            continue
-        return decision
+    decision = recognize(scene, Path(config.get('_source_scene_png', directory/'source_scene.png')),
+                         directory/'group_atlas.png', dict(config,
+                             max_candidates=max(len(candidates), 1), _strict_deadline=True))
+    objects = [{'id': oid} for oid in {oid for c in candidates for oid in c['member_ids']}]
+    try:
+        resolve_categories(objects, candidates, decision)
+    except ValueError:
+        return defer_source_conflicts(objects, candidates, decision)
+    return decision
 
 
 def defer_source_conflicts(objects, candidates, decision):
@@ -738,9 +701,103 @@ def defer_source_conflicts(objects, candidates, decision):
         staged['categories'][name].remove(gid)
     staged.setdefault('classification_unresolved', []).append(dict(
         kind='source_conflict', candidates=[list(pair) for pair in sorted(blocked)],
-        evidence='纠错后仍有跨类源对象冲突；相关候选保留在手工池，未自动决定类别。'))
+        evidence='首轮分类存在跨类源对象冲突；相关候选单列为待人工归类，源曲线仍保留。'))
     resolve_categories(objects, candidates, staged)
     return staged
+
+
+def recognize_initial_groups(objects, candidates, directory, config):
+    """Classify readable pages within one deadline, preserving partial evidence."""
+    from copy import deepcopy
+    from vision import VisionError
+    page_size = 24
+    if len(candidates) <= page_size:
+        return recognize_groups(candidates, directory, config)
+    root = Path(directory)/'classification_pages'
+    root.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic()+float(config.get('timeout_seconds', 90))
+    merged = dict(categories={n: [] for n in CATEGORIES}, source_views={},
+                  source_regions=[], reason='分批核对源候选。', confidence=0.0)
+    confidences = []
+    # Spatial coverage must survive a slow service: do not leave every paint
+    # surface until page three behind native text and hardware proposals.
+    seeds = sorted((c for c in candidates if c['native_type'] in ('AGroup', 'SpatialBody')
+                    and len(c['member_ids']) > 100), key=lambda c: -c['area'])[:8]
+    seed_ids = {c['id'] for c in seeds}
+    anchors = seeds+[c for c in candidates if c['id'] not in seed_ids and
+                     (c.get('coverage_anchor') or c['native_type'] == 'SpatialBody')]
+    anchor_ids = {c['id'] for c in anchors}
+    ordered = anchors+[c for c in candidates if c['id'] not in anchor_ids]
+    pages = [ordered[i:i+page_size] for i in range(0, len(ordered), page_size)]
+    by_id = {c['id']: c for c in candidates}
+    for index, page in enumerate(pages):
+        if deadline-time.monotonic() < 1:
+            merged.setdefault('classification_unresolved', []).append(dict(
+                kind='classification_budget', remaining_pages=len(pages)-index,
+                evidence='首轮分批识别达到总预算，剩余候选保留手工复核。'))
+            break
+        path = root/f'page_{index:03d}'
+        path.mkdir(parents=True, exist_ok=True)
+        bounds = union_bounds(page)
+        local = [o for o in objects if o['bbox'][0] <= bounds[2] and o['bbox'][2] >= bounds[0]
+                 and o['bbox'][1] <= bounds[3] and o['bbox'][3] >= bounds[1]]
+        rasterize(svg_document(local, bounds=bounds, width=1400, background='#ffffff'), path/'source_scene.png')
+        candidate_atlas(page, path/'group_atlas.png')
+        # The 24-item sheet already shows each candidate at full tile size;
+        # a second detail atlas would duplicate visual tokens.
+        try:
+            remaining = deadline-time.monotonic()
+            if remaining < 1:
+                raise VisionError('首轮分批识别总预算耗尽。')
+            checked = recognize_groups(page, path, dict(config, timeout_seconds=min(600, remaining),
+                                                        _classification_page=True))
+            (path/'decision.json').write_text(json.dumps(checked, ensure_ascii=False, indent=2), encoding='utf8')
+            for name in CATEGORIES:
+                merged['categories'][name] = list(dict.fromkeys(
+                    merged['categories'][name]+checked['categories'][name]))
+            merged['source_views'].update(checked.get('source_views', {}))
+            for proposal in checked.get('source_regions', []):
+                if (proposal['source_view'] != '独立图案' and
+                        not any(gid in merged['categories']['车身'] for gid in proposal['anchor_ids'])):
+                    # A paint patch or badge cannot anchor a whole vehicle
+                    # region merely because a later page guesses its view.
+                    continue
+                b = union_bounds([by_id[gid] for gid in proposal['anchor_ids']])
+                def contains(region):
+                    a = union_bounds([by_id[gid] for gid in region['anchor_ids']])
+                    return (region['source_view'] == proposal['source_view'] and (
+                        (a[0] <= b[0] and a[1] <= b[1] and b[2] <= a[2] and b[3] <= a[3]) or
+                        (b[0] <= a[0] and b[1] <= a[1] and a[2] <= b[2] and a[3] <= b[3])))
+                existing = next((r for r in merged['source_regions'] if contains(r)), None)
+                if existing:
+                    a = union_bounds([by_id[gid] for gid in existing['anchor_ids']])
+                    if b[0] <= a[0] and b[1] <= a[1] and a[2] <= b[2] and a[3] <= b[3]:
+                        existing['anchor_ids'] = list(proposal['anchor_ids'])
+                    continue
+                if len(merged['source_regions']) >= 64:
+                    continue
+                region = deepcopy(proposal)
+                number = len(merged['source_regions'])+1
+                region['id'] = f'R{number}'
+                if any(r['name'] == region['name'] for r in merged['source_regions']):
+                    region['name'] = region['name'][:32]+f' {number}'
+                merged['source_regions'].append(region)
+            merged.setdefault('classification_unresolved', []).extend(checked.get('classification_unresolved', []))
+            merged['reason'] += '；'+checked['reason']
+            confidences.append(checked['confidence'])
+        except VisionError as exc:
+            merged.setdefault('classification_unresolved', []).append(dict(
+                kind='classification_page_failed', page=index,
+                candidates=[c['id'] for c in page], error_type=type(exc).__name__,
+                evidence='本页识别未完成，候选保留手工复核。'))
+    if not confidences:
+        raise VisionError('首轮分批识别没有有效页面，请检查接口、模型响应或总超时。')
+    try:
+        resolve_categories(objects, candidates, merged)
+    except ValueError:
+        merged = defer_source_conflicts(objects, candidates, merged)
+    merged['confidence'] = min(confidences)
+    return merged
 
 
 def resolve_categories(objects, candidates, decision):
@@ -756,7 +813,7 @@ def resolve_categories(objects, candidates, decision):
     arcs = [set(c['member_ids']) for c in candidates if c['native_type']=='AArcText'
             and set(c['member_ids']) <= categories['门徽']]
     if arcs:
-        complete = [set(c['member_ids']) for c in candidates if c['native_type'] in ('DoorEmblem', 'AuditSelection')
+        complete = [set(c['member_ids']) for c in candidates if c['native_type'] in ('DoorEmblem',)
                     and set(c['member_ids']) <= categories['门徽']]
         categories['门徽'] = set().union(*arcs, *complete)
     from core.paint import normalize_categories
@@ -764,228 +821,43 @@ def resolve_categories(objects, candidates, decision):
         name: [o['id'] for o in objects if o['id'] in ids] for name, ids in categories.items()})
 
 
-def residual_surface_candidates(objects, candidates, decision, limit=120):
-    """Expose residual and omitted filled paths at each body's local scale.
-
-    This is a review queue, not a paint detector. Windows, lamps and tyres
-    remain in it for visual rejection; no colour rule removes them from body.
-    Omitted sibling decorations precede residual structure within each region.
-    """
-    from core.paint import style_capability, color_is_neutral
+def inherit_source_views(objects, candidates, decision):
+    """Use unique full-view region membership over inconsistent part labels."""
+    from core.source_regions import build_source_regions, object_regions, region_for_ids
+    regions = build_source_regions(candidates, decision)
     resolved = resolve_categories(objects, candidates, decision)
-    body_ids = set(resolved['车身'])
-    reserved = {i for name, ids in resolved.items() if name != '车身' for i in ids}
-    selected = set(decision['categories']['车身'])
-    bodies = [c for c in candidates if c['id'] in selected]
-    if bodies:
-        # The first pass can miss an entire end view. Review uncovered large
-        # surface anchors too, without promoting them to a body/paint label.
-        for c in candidates:
-            if not c.get('coverage_anchor') or set(c['member_ids']) <= reserved:
-                continue
-            b = c['bbox']
-            if any(max(0, min(a['bbox'][2], b[2])-max(a['bbox'][0], b[0])) *
-                   max(0, min(a['bbox'][3], b[3])-max(a['bbox'][1], b[1])) /
-                   max(c['area'], 1e-6) >= .8 for a in bodies):
-                continue
-            bodies.append(c)
-    text_ids = {i for c in candidates if c['native_type'] in ('AText', 'AArcText', 'TextBlock')
-                for i in c['member_ids']}
-    queues = [[] for _ in bodies]
-    by_id = {o['id']: o for o in objects}
-    stripe_ids = set(resolved['彩条'])
-    protected = reserved-stripe_ids
-    grouped_ids, seen_groups = set(), set()
-    known_colors = set()
-    for name in ('彩条', '车漆'):
-        for oid in resolved.get(name, []):
-            obj = by_id.get(oid)
-            if not obj:
-                continue
-            fill = obj.get('fill')
-            if fill and not color_is_neutral(fill):
-                known_colors.add(fill.lower())
-            gradient = obj.get('gradient')
-            if gradient:
-                for stop in gradient.get('definition', {}).get('stops', []):
-                    color = stop.get('color')
-                    if color and not color_is_neutral(color):
-                        known_colors.add(color.lower())
-
-    def color_tier(candidate):
-        members = candidate.get('members') or [
-            by_id[mid] for mid in candidate.get('member_ids', []) if mid in by_id
-        ]
-        has_gradient = any(m.get('gradient') for m in members)
-        fills = [m['fill'].lower() for m in members
-                 if m.get('fill') and m['fill'] != 'none']
-        if has_gradient or any(f in known_colors for f in fills):
-            return 0
-        if any(not color_is_neutral(f) for f in fills):
-            return 1
-        return 2
-    for seed in candidates:
-        context = seed.get('native_context')
-        if not context or not set(seed['member_ids']) <= stripe_ids:
+    partial = {oid for n in ('彩条', '文字', 'logo', '门徽') for oid in resolved[n]}
+    assignments = object_regions(objects, regions, partial_ids=partial, paint_ids=resolved['车漆'])
+    views = decision.setdefault('source_views', {})
+    corrected = 0
+    for candidate in candidates:
+        region = region_for_ids(candidate['member_ids'], assignments, regions)
+        if not region or region['source_view'] == '待确认视图':
             continue
-        ids = set(context['member_ids'])
-        if ids & (protected | text_ids) or frozenset(ids) in seen_groups:
-            continue
-        # Identify the vehicle from the selected seed, not the wider group's
-        # bounds: full native stripes can deliberately extend past the shell.
-        b = seed['bbox']
-        owners = [(i, c) for i, c in enumerate(bodies)
-                  if c['bbox'][0] <= b[0] and c['bbox'][1] <= b[1]
-                  and b[2] <= c['bbox'][2] and b[3] <= c['bbox'][3]]
-        if len(owners) != 1:
-            continue
-        index, owner = owners[0]
-        a, b = owner['bbox'], context['bbox']
-        overlap = max(0, min(a[2], b[2])-max(a[0], b[0])) * max(
-            0, min(a[3], b[3])-max(a[1], b[1]))
-        if overlap/max(context['area'], 1e-6) < .8:
-            # A native group spanning two views is not a single decoration.
-            continue
-        queues[index].append(dict(context, members=[by_id[i] for i in context['member_ids']],
-                                 native_type='NativeDecorationGroup', body_anchor_id=owner['id'],
-                                 omitted_decoration=True))
-        grouped_ids.update(ids);seen_groups.add(frozenset(ids))
-    for obj in objects:
-        if (obj['id'] in reserved or obj['id'] in text_ids or obj['id'] in grouped_ids
-                or obj.get('details', {}).get('closed') is False
-                or style_capability(obj) == 'unsupported'):
-            continue
-        b = obj['bbox'];w, h = b[2]-b[0], b[3]-b[1]
-        owners = [(i, c) for i, c in enumerate(bodies) if obj['id'] in c['member_ids']]
-        # Decorations are frequently siblings of the structural body group.
-        # Review omitted source objects inside the same vehicle, too; selecting
-        # only body descendants silently drops complete motifs and other colours.
-        if not owners and obj['id'] not in body_ids:
-            owners = [(i, c) for i, c in enumerate(bodies)
-                      if b[0] >= c['bbox'][0] and b[1] >= c['bbox'][1]
-                      and b[2] <= c['bbox'][2] and b[3] <= c['bbox'][3]]
-        if not owners or min(w, h) <= 1e-5:
-            continue
-        index, owner = min(owners, key=lambda pair: pair[1]['area'])
-        if w*h < owner['area']*.001:
-            continue
-        queues[index].append(dict(members=[obj], member_ids=[obj['id']], bbox=b,
-                                 native_type='PaintSurface', source_span=[obj['source_offset']]*2,
-                                 area=w*h, aspect=w/h, body_anchor_id=owner['id'],
-                                 omitted_decoration=obj['id'] not in body_ids))
-    for queue in queues:
-        queue.sort(key=lambda c: (c['native_type'] != 'NativeDecorationGroup',
-                                  not c['omitted_decoration'],
-                                  color_tier(c),
-                                  -c['area']))
-    # Round robin prevents a detailed side view from displacing end-view paint.
-    ordered = [queue[i] for i in range(max(map(len, queues), default=0))
-               for queue in queues if i < len(queue)]
-    first = max((int(c['id'][1:]) for c in candidates), default=0)+1
-    for index, c in enumerate(ordered[:limit], first):
-        c['id'] = f'G{index:03d}'
-    return ordered[:limit], len(ordered)
-
-
-def refine_body_surfaces(objects, candidates, decision, directory, config):
-    """Visually audit residual body surfaces and merge only explicit labels."""
-    import copy
-    audit, total = residual_surface_candidates(objects, candidates, decision)
-    coverage = {'body_surface_audit_candidates': len(audit),
-                'body_surface_audit_omitted': total-len(audit),
-                'body_surface_audit_classified': 0}
-    if not audit:
-        return decision, coverage
-    merged = copy.deepcopy(decision)
-    root = Path(directory)/'body_surface_audit';root.mkdir(parents=True, exist_ok=True)
-    # Small requests with local vehicle context keep end-face details readable.
-    # Keep small scenes in one request for backwards compatibility.
-    pages = [audit]
-    if len(audit) > 24:
-        regions = {}
-        for c in audit:
-            regions.setdefault(c['body_anchor_id'], []).append(c)
-        selected_bodies = set(decision['categories']['车身'])
-        groups = sorted(regions.values(), key=lambda g: g[0]['body_anchor_id'] in selected_bodies)
-        # Missed views go first; then rotate regions instead of exhausting a
-        # detailed side before the front gets even one request.
-        pages = [group[i:i+24] for i in range(0, max(map(len, groups)), 24)
-                 for group in groups if i < len(group)]
-    deadline = time.monotonic()+float(config.get('timeout_seconds', 90))
-    coverage.update(body_surface_audit_pages=len(pages), body_surface_audit_checked_pages=0)
-    by_id = {c['id']: c for c in candidates}
-    from vision import VisionError
-    for index, page in enumerate(pages):
-        if deadline-time.monotonic() < 1:
-            merged.setdefault('classification_unresolved', []).append(dict(
-                kind='surface_audit_budget', remaining_pages=len(pages)-index,
-                evidence='残留面复核总预算耗尽，未检查候选保留手工复核。'))
-            break
-        path = root if len(pages) == 1 else root/f'page_{index:03d}'
-        path.mkdir(parents=True, exist_ok=True)
-        anchors = [by_id[c['body_anchor_id']] for c in page]
-        box = union_bounds(anchors)
-        context = [o for o in objects if box[0] <= o['bbox'][0] and box[1] <= o['bbox'][1]
-                   and o['bbox'][2] <= box[2] and o['bbox'][3] <= box[3]]
-        candidate_atlas(page, path/'group_atlas.png')
-        rasterize(svg_document(context, width=1600, background='#ffffff'), path/'source_scene.png')
-        resolved = resolve_categories(objects, candidates+audit, merged)
-        reserved = {oid for name, ids in resolved.items() if name != '车身' for oid in ids}
-        rasterize(svg_document([o for o in context if o['id'] not in reserved], width=1600,
-                               background='#bbbbbb'), path/'group_details.png')
-        try:
-            remaining = deadline-time.monotonic()
-            if remaining < 1:
-                raise VisionError('残留面分批复核总预算耗尽。')
-            checked = recognize_groups(page, path, dict(config, timeout_seconds=min(600, remaining)),
-                                       surface_audit=True)
-            (path/'decision.json').write_text(json.dumps(checked, ensure_ascii=False, indent=2), encoding='utf8')
-            staged = copy.deepcopy(merged)
-            for name in ('车漆', '彩条'):
-                staged['categories'][name] = list(dict.fromkeys(
-                    staged['categories'][name]+checked['categories'][name]))
-            # Audit selections must also be compatible with earlier pages and
-            # first-pass stripes; page-local validation alone is insufficient.
-            resolve_categories(objects, candidates+audit, staged)
-            staged.setdefault('source_views', {}).update(checked.get('source_views', {}))
-            staged.setdefault('classification_unresolved', []).extend(checked.get('classification_unresolved', []))
-            staged['reason'] += '；车身残留面复核：'+checked.get('reason', '')
-            merged = staged
-            coverage['body_surface_audit_classified'] += sum(len(checked['categories'][n]) for n in ('车漆', '彩条'))
-            coverage['body_surface_audit_checked_pages'] += 1
-        except (VisionError, ValueError) as exc:
-            merged.setdefault('classification_unresolved', []).append(dict(
-                kind='surface_audit_incomplete', page=index, candidates=[c['id'] for c in page],
-                error_type=type(exc).__name__,
-                evidence='本页残留面复核未完成或与已有分类冲突，保留已有结果和手工候选。'))
-    candidates.extend(audit)
-    return merged, coverage
+        view = region['source_view']
+        if views.get(candidate['id']) != view:
+            corrected += 1
+            views[candidate['id']] = view
+    return corrected
 
 
 def run(source, directory, config, *, use_ai=True):
     source, directory = Path(source), Path(directory)
+    started = time.monotonic()
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     objects, candidates, coverage = prepare(source, directory, min(config['max_candidates'], 120))
+    timings = {'prepare': round(time.monotonic()-started, 3)}
     initial = [c for c in candidates if c.get('initial_candidate', True)]
-    config = dict(config, _review_on_conflict=True)
-    decision = (recognize_groups(initial, directory, config) if use_ai else
+    stage_started = time.monotonic()
+    decision = (recognize_initial_groups(objects, initial, directory, config) if use_ai else
                 {'categories': {name: [] for name in CATEGORIES},
                  'reason': '手工复核模式，尚未分类；未调用 AI。', 'confidence': 0.0})
-    if use_ai:
-        decision, audit_coverage = refine_body_surfaces(objects, candidates, decision, directory, config)
-        coverage.update(audit_coverage)
-        from core.candidate_audit import audit_components
-        decision, quality_gate = audit_components(source, objects, candidates, decision, directory, config)
-        if decision.get('classification_unresolved'):
-            quality_gate['status'] = 'review'
-            quality_gate['semantic_status'] = 'review'
-            quality_gate.setdefault('unresolved', []).extend(decision['classification_unresolved'])
-    else:
-        quality_gate = {'status': 'not_run', 'reason': '手工模式未调用 AI 检验门禁。'}
+    timings['classification'] = round(time.monotonic()-stage_started, 3)
+    coverage['stage_seconds'] = timings
+    coverage['source_view_inherited_candidates'] = inherit_source_views(objects, candidates, decision)
     categories = resolve_categories(objects, candidates, decision)
     report = {'source': str(source.resolve()), 'source_sha256': digest, 'coverage': coverage,
-              'decision': decision, 'categories': categories, 'status': 'review', 'views': [],
-              'quality_gate': quality_gate}
+              'decision': decision, 'categories': categories, 'status': 'review', 'views': []}
     report['candidates'] = review_candidates(candidates, decision)
     from core.source_regions import build_source_regions
     report['source_regions'] = build_source_regions(candidates, decision)
@@ -1011,6 +883,8 @@ def run(source, directory, config, *, use_ai=True):
 def review_candidates(candidates, decision):
     """Compact source memberships for lazy visual review, without new geometry."""
     largest = max((c['area'] for c in candidates), default=1)
+    conflicts = {(name, gid) for issue in decision.get('classification_unresolved', [])
+                 if issue.get('kind') == 'source_conflict' for name, gid in issue['candidates']}
     result = []
     for c in candidates:
         recommended = [name for name, groups in decision['categories'].items() if c['id'] in groups]
@@ -1027,11 +901,14 @@ def review_candidates(candidates, decision):
                 hints = ['文字']
             elif c['native_type'] == 'SpatialBody' or (c['area'] > largest*.025 and 2.2 < c['aspect'] < 5.5 and len(c['member_ids']) > 100):
                 hints = ['车身']
+        conflict_categories = [name for name in CATEGORIES if (name, c['id']) in conflicts]
+        hints = list(dict.fromkeys(hints + conflict_categories))
         result.append({'id':c['id'], 'label':c['id']+' · '+c['native_type'],
                        'native_type': c['native_type'],
                        'selected_ids':list(c['member_ids']), 'bbox':c['bbox'],
                        'source_view': decision.get('source_views', {}).get(c['id'], '待确认视图'),
-                       'category_hints':hints, 'recommended_categories':recommended})
+                       'category_hints':hints, 'recommended_categories':recommended,
+                       'conflict_categories':conflict_categories})
     return result
 
 

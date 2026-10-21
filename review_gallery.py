@@ -323,17 +323,10 @@ class ReviewGallery(tk.Toplevel):
         ttk.Label(left, text='每类选择一套图案。\n候选可能是相同图案的\n不同侧面、版本或组合。\n\n灰白棋盘格表示透明，\n白色徽章可放大查看。', foreground='#666666').pack(anchor='w', pady=18)
         self.heading = ttk.Label(middle, font=('Microsoft YaHei UI', 12, 'bold'))
         self.heading.pack(anchor='w')
-        gate = self.result.get('quality_gate', {})
-        if gate.get('status') in ('passed', 'review', 'stale'):
-            summary = ('人工修改后原自动门禁结论已过期' if gate['status'] == 'stale' else
-                       '自动门禁已通过，待人工确认' if gate['status'] == 'passed' else
-                       f"自动门禁仍有待复核项（{gate.get('verified_pages', 0)}/{gate.get('total_pages', 0)} 页通过）")
-            summary += f"；已保留 {gate.get('accepted_repairs', 0)} 次复验通过的修复。"
-            problems = gate.get('unresolved', [])
-            if problems and gate['status'] != 'stale':
-                summary += '\n'+problems[0].get('evidence', '请检查运行日志中的门禁详情。')
-            ttk.Label(middle, text=summary, wraplength=420,
-                      foreground='#166534' if gate['status'] == 'passed' else '#9a3412').pack(anchor='w', pady=4)
+        conflicts = [c for c in self.candidates if c.get('conflict_categories')]
+        if conflicts:
+            ttk.Label(middle, text='首轮分类有源对象归属冲突；带“待归类”标记的候选需人工确认。',
+                      wraplength=420, foreground='#9a3412').pack(anchor='w', pady=4)
         ttk.Checkbutton(middle, text='显示全部组合（手动归类）', variable=self.show_all,
                         command=lambda:self._switch_category(self.category)).pack(anchor='w', pady=6)
         ttk.Label(middle, text='默认展示已分类图案；补选可显示全部组合或从原稿选取。',
@@ -536,7 +529,8 @@ class ReviewGallery(tk.Toplevel):
                 continue
             # Old manifests also contain broad, geometry-only hints. They
             # must not turn windows, tyres or loose surfaces into results.
-            if (compact_graphics and self.category not in c.get('recommended_categories', [])
+            if (compact_graphics and self.category not in c.get('conflict_categories', [])
+                    and self.category not in c.get('recommended_categories', [])
                     and not c.get('id', '').startswith(('current-', 'manual-', 'saved-', 'legacy-'))):
                 continue
             # Preview/export can remove paint or logos from a parent group.
@@ -555,6 +549,7 @@ class ReviewGallery(tk.Toplevel):
                         if c.get('id', '').startswith('current-')]
             self.filtered = [c for c in self.filtered
                              if c.get('id', '').startswith(('current-', 'manual-', 'saved-', 'legacy-'))
+                             or c.get('conflict_categories')
                              or not any(set(c['selected_ids']) < ids for ids in complete)]
         self.heading.configure(text=LABELS[self.category]+' · 候选图案')
         self._render_page()
@@ -608,7 +603,8 @@ class ReviewGallery(tk.Toplevel):
         for index in range(start, min(start+self.PAGE_SIZE, len(self.filtered))):
             c = self.filtered[index]
             photo = self._thumbnail(c); self.photos.append(photo)
-            prefix = '推荐 · ' if self.category in c.get('recommended_categories', []) else ''
+            prefix = ('待归类 · ' if self.category in c.get('conflict_categories', []) else
+                      '推荐 · ' if self.category in c.get('recommended_categories', []) else '')
             region = self._region(c['selected_ids'])
             region_label = ' · '+region['name'] if region else ''
             self.tree.insert('', 'end', iid=str(index), image=photo,

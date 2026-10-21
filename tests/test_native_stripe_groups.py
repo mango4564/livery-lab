@@ -1,8 +1,8 @@
 """Complete native decoration groups survive partial seeds and vehicle bounds."""
 import unittest
 
-from components import attach_native_contexts, residual_surface_candidates
-from tests.test_body_surface_audit import scene
+from components import attach_native_contexts
+from tests.test_internal_model_review import scene
 
 
 class NativeStripeGroupTests(unittest.TestCase):
@@ -25,16 +25,6 @@ class NativeStripeGroupTests(unittest.TestCase):
         first['categories']['彩条'] = ['G005']
         return objects, candidates, first, group
 
-    def test_complete_group_is_an_atomic_review_proposal_not_automatic_expansion(self):
-        objects, candidates, first, native = self.fixture()
-        attach_native_contexts(candidates, [native])
-        audit, _ = residual_surface_candidates(objects, candidates, first, limit=2)
-        group = next(c for c in audit if c['native_type']=='NativeDecorationGroup')
-        self.assertEqual(group['member_ids'], ['seed', 'wide'])
-        self.assertEqual(group['source_span'], [1400, 1700])
-        self.assertIs(group['members'][1], objects[-1])
-        self.assertEqual(first['categories']['彩条'], ['G005'])
-        self.assertEqual(candidates[-1]['member_ids'], ['seed'])
 
     def test_smallest_native_owner_is_used_and_whole_seed_is_not_rewrapped(self):
         objects, candidates, first, native = self.fixture()
@@ -44,19 +34,6 @@ class NativeStripeGroupTests(unittest.TestCase):
         complete = dict(native)
         attach_native_contexts([complete], [native])
         self.assertNotIn('native_context', complete)
-
-    def test_other_category_or_cross_view_group_cannot_expand_stripe(self):
-        for protected in (True, False):
-            with self.subTest(protected=protected):
-                objects, candidates, first, native = self.fixture()
-                if protected:
-                    first['categories']['logo'] = ['G006']
-                    candidates.append(dict(candidates[-1], id='G006', member_ids=['wide']))
-                else:
-                    native.update(bbox=[10, 0, 210, 50], area=10000)
-                attach_native_contexts(candidates, [native])
-                audit, _ = residual_surface_candidates(objects, candidates, first)
-                self.assertFalse(any(c['native_type']=='NativeDecorationGroup' for c in audit))
 
 
 if __name__ == '__main__':

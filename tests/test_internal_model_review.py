@@ -1,5 +1,6 @@
-"""Small-model recovery: local evidence, strict ownership and review status."""
+"""First-pass pagination, local conflict isolation and source directions."""
 from copy import deepcopy
+import json
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -7,11 +8,107 @@ from unittest.mock import patch
 import components
 from tests.test_component_protocol_repair import decision
 from tests import test_component_protocol_repair as protocol_tests
-from tests.test_body_surface_audit import scene
+def scene():
+    objects = []
+    for index, (name, box, fill) in enumerate((
+            ('base', [0, 0, 100, 50], '#ffffff'),
+            ('roof', [0, 49, 50, 51], '#cc0000'),
+            ('glass', [10, 20, 70, 40], '#ffffff'),
+            ('lamp', [95, 5, 99, 15], '#cc0000'),
+            ('tyre', [15, 0, 25, 10], '#000000'),
+            ('rear-blue', [200, 5, 203, 15], '#004488'),
+            ('rear-yellow', [203, 5, 207, 15], '#ffaa00'),
+            ('stripe', [207, 10, 209, 15], '#555555'),
+            ('caption', [201, 5, 207, 8], '#ffffff'))):
+        objects.append(dict(id=name, source_offset=index*100, bbox=box, fill=fill,
+                            details={'closed': True}, d='M0 0H5V5H0Z'))
+    def candidate(gid, ids, box, kind='AGroup'):
+        return dict(id=gid, member_ids=ids, members=[o for o in objects if o['id'] in ids],
+                    native_type=kind, bbox=box, area=(box[2]-box[0])*(box[3]-box[1]),
+                    aspect=(box[2]-box[0])/(box[3]-box[1]))
+    candidates = [candidate('G001', [o['id'] for o in objects[:5]], [0, 0, 100, 55]),
+                  candidate('G002', [o['id'] for o in objects[5:]], [200, 0, 210, 20]),
+                  candidate('G003', ['base'], [0, 0, 100, 50], 'PaintSurface'),
+                  candidate('G004', ['caption'], [201, 5, 207, 8], 'AText')]
+    return objects, candidates, decision(车身=['G001', 'G002'], 车漆=['G003'])
 from vision import VisionError
 
 
 class InternalModelReviewTests(unittest.TestCase):
+    def page_fixture(self):
+        objects = [dict(id=f'o{i}', source_offset=i, bbox=[i*2, 0, i*2+1, 1],
+                        fill='#ffffff', d=f'M{i*2} 0h1v1h-1z') for i in range(25)]
+        candidates = [dict(id=f'G{i}', native_type='PaintSurface', members=[o],
+            member_ids=[o['id']], bbox=o['bbox'], source_span=[i, i], area=1, aspect=1)
+            for i, o in enumerate(objects)]
+        candidates[-1]['coverage_anchor'] = True
+        return objects, candidates
+
+    def test_initial_pages_prioritize_unselected_surface_and_keep_deadline(self):
+        objects, candidates = self.page_fixture()
+        def classify(page, directory, config, **kwargs):
+            return decision(车漆=[page[0]['id']])
+        with tempfile.TemporaryDirectory() as directory, patch('components.candidate_atlas'), \
+                patch('components.rasterize'), patch('components.recognize_groups', side_effect=classify) as model:
+            merged = components.recognize_initial_groups(objects, candidates, directory, {'timeout_seconds': 90})
+        self.assertEqual([len(c.args[0]) for c in model.call_args_list], [24, 1])
+        self.assertEqual(model.call_args_list[0].args[0][0]['id'], 'G24')
+        self.assertTrue(all(0 < c.args[2]['timeout_seconds'] <= 90 for c in model.call_args_list))
+        self.assertIn('G24', merged['categories']['车漆'])
+
+    def test_initial_later_page_failure_preserves_valid_selection(self):
+        objects, candidates = self.page_fixture()
+        with tempfile.TemporaryDirectory() as directory, patch('components.candidate_atlas'), \
+                patch('components.rasterize'), patch('components.recognize_groups',
+                    side_effect=[decision(车漆=['G24']), VisionError('network')]):
+            merged = components.recognize_initial_groups(objects, candidates, directory, {})
+        self.assertEqual(merged['categories']['车漆'], ['G24'])
+        self.assertEqual(merged['classification_unresolved'][0]['kind'], 'classification_page_failed')
+
+    def test_initial_cross_page_source_conflict_is_isolated(self):
+        objects, candidates = self.page_fixture()
+        candidates[-2]['member_ids'] = candidates[-1]['member_ids'][:]
+        with tempfile.TemporaryDirectory() as directory, patch('components.candidate_atlas'), \
+                patch('components.rasterize'), patch('components.recognize_groups',
+                    side_effect=[decision(彩条=['G24']), decision(车漆=['G23'])]):
+            merged = components.recognize_initial_groups(objects, candidates, directory, {})
+        self.assertEqual(merged['categories']['车漆'], [])
+        self.assertEqual(merged['categories']['彩条'], [])
+        self.assertTrue(merged['classification_unresolved'])
+
+
+    def test_part_direction_inherits_unique_vehicle_region(self):
+        objects, candidates, first = scene()
+        candidates.append(dict(id='G005', native_type='PaintSurface', member_ids=['rear-blue'],
+            members=[objects[5]], bbox=objects[5]['bbox']))
+        first['source_views'] = {'G005': '右视图'}
+        first['source_regions'] = [dict(id='R1', name='前视图', source_view='前视图', anchor_ids=['G002'])]
+        before = deepcopy(first['categories'])
+        components.inherit_source_views(objects, candidates, first)
+        self.assertEqual(first['source_views']['G005'], '前视图')
+        self.assertEqual(first['categories'], before)
+
+    def test_ambiguous_region_does_not_invent_part_direction(self):
+        objects, candidates, first = scene()
+        first['source_views'] = {'G003': '待确认视图'}
+        first['source_regions'] = [
+            dict(id='R1', name='区域A', source_view='左视图', anchor_ids=['G001']),
+            dict(id='R2', name='区域B', source_view='右视图', anchor_ids=['G001'])]
+        components.inherit_source_views(objects, candidates, first)
+        self.assertEqual(first['source_views']['G003'], '待确认视图')
+
+    def test_later_full_region_replaces_contained_anchor_without_duplicates(self):
+        objects, candidates = self.page_fixture()
+        candidates[-2]['bbox'] = [-1, -1, 50, 2]
+        one, two = decision(车身=['G0']), decision(车身=['G23'])
+        for value, gid in ((one, 'G0'), (two, 'G23')):
+            value['source_regions'] = [dict(id='R1', name='左视图', source_view='左视图', anchor_ids=[gid])]
+        with tempfile.TemporaryDirectory() as directory, patch('components.candidate_atlas'), \
+                patch('components.rasterize'), patch('components.recognize_groups', side_effect=[one, two]):
+            merged = components.recognize_initial_groups(objects, candidates, directory, {})
+        self.assertEqual(len(merged['source_regions']), 1)
+        self.assertEqual(merged['source_regions'][0]['anchor_ids'], ['G23'])
+
     def test_persistent_source_conflict_defers_both_proposals_and_keeps_body(self):
         fixture = protocol_tests.ComponentProtocolRepairTests()
         fixture.setUp()
@@ -19,8 +116,8 @@ class InternalModelReviewTests(unittest.TestCase):
         before = deepcopy(bad)
         with patch('vision.recognize', return_value=bad) as model:
             result = components.recognize_groups(fixture.candidates, 'unused',
-                dict(fixture.config, _review_on_conflict=True))
-        self.assertEqual(model.call_count, 2)
+                fixture.config)
+        self.assertEqual(model.call_count, 1)
         self.assertEqual(bad, before)
         self.assertEqual(result['categories']['车身'], ['G1'])
         self.assertEqual(result['categories']['彩条'], [])
@@ -35,77 +132,6 @@ class InternalModelReviewTests(unittest.TestCase):
         with patch('vision.recognize', return_value=decision()) as model:
             fixture.run_groups()
         self.assertEqual(model.call_args.args[0]['source_overlaps'], [['G1', 'G2', 1]])
-
-    def test_unselected_front_surface_still_enters_residual_review(self):
-        objects, candidates, first = scene()
-        front = dict(id='front-base', bbox=[300, 0, 320, 30], fill='#c0b69d',
-                     source_offset=5000, d='M300 0H320V30H300Z')
-        objects.append(front)
-        candidates.append(dict(id='G005', native_type='PaintSurface', coverage_anchor=True,
-            member_ids=['front-base'], members=[front], bbox=front['bbox'], area=600, aspect=2/3))
-        audit, _ = components.residual_surface_candidates(objects, candidates, first)
-        self.assertTrue(any(c['member_ids']==['front-base'] for c in audit))
-        self.assertEqual(first['categories']['车漆'], ['G003'])
-
-    def test_cross_stage_conflict_rolls_back_page_instead_of_aborting_file(self):
-        objects, candidates, first = scene()
-        first['categories']['彩条'] = ['G002']
-        # A broader later proposal may include already-classified stripes.
-        proposal = dict(id='G100', native_type='PaintSurface', member_ids=['stripe'],
-            members=[objects[7]], bbox=objects[7]['bbox'], body_anchor_id='G002')
-        before = deepcopy(first)
-        with tempfile.TemporaryDirectory() as directory, \
-                patch('components.residual_surface_candidates', return_value=([proposal], 1)), \
-                patch('components.candidate_atlas'), patch('components.rasterize'), \
-                patch('components.recognize_groups', return_value=decision(车漆=['G100'])):
-            merged, coverage = components.refine_body_surfaces(objects, candidates, first, directory, {})
-        self.assertEqual(merged['categories'], before['categories'])
-        self.assertEqual(coverage['body_surface_audit_classified'], 0)
-        self.assertEqual(merged['classification_unresolved'][0]['kind'], 'surface_audit_incomplete')
-
-    def test_large_residual_queue_is_local_and_bounded(self):
-        objects, candidates, first = scene()
-        proposals = [dict(id=f'G{100+i}', native_type='PaintSurface', member_ids=['roof'],
-            members=[objects[1]], bbox=objects[1]['bbox'], body_anchor_id='G001') for i in range(25)]
-        with tempfile.TemporaryDirectory() as directory, \
-                patch('components.residual_surface_candidates', return_value=(proposals, 25)), \
-                patch('components.candidate_atlas'), patch('components.rasterize'), \
-                patch('components.recognize_groups', side_effect=[decision(), VisionError('timeout')]) as model:
-            merged, coverage = components.refine_body_surfaces(objects, candidates, first, directory, {})
-        self.assertEqual([len(c.args[0]) for c in model.call_args_list], [24, 1])
-        self.assertEqual(coverage['body_surface_audit_checked_pages'], 1)
-        self.assertEqual(merged['categories'], first['categories'])
-        self.assertTrue(merged['classification_unresolved'])
-
-    def test_incomplete_recognition_cannot_receive_passed_gate(self):
-        objects, candidates, first = scene()
-        first['classification_unresolved'] = [dict(kind='source_conflict')]
-        from pathlib import Path
-        with tempfile.TemporaryDirectory() as directory:
-            source = Path(directory)/'fixture.fs'
-            source.write_bytes(b'offline')
-            with patch('components.prepare', return_value=(objects, candidates, {})), \
-                    patch('components.recognize_groups', return_value=first), \
-                    patch('components.refine_body_surfaces', return_value=(first, {})), \
-                    patch('core.candidate_audit.audit_components', return_value=(first, dict(status='passed'))), \
-                    patch('components.rasterize'):
-                _, report = components.run(source, directory, {'max_candidates': 120})
-        self.assertEqual(report['quality_gate']['status'], 'review')
-        self.assertEqual(report['quality_gate']['semantic_status'], 'review')
-
-    def test_batch_rotation_checks_front_before_second_side_page(self):
-        objects, candidates, first = scene()
-        proposals = [dict(id=f'G{100+i}', native_type='PaintSurface', member_ids=['roof'],
-            members=[objects[1]], bbox=objects[1]['bbox'], body_anchor_id='G001') for i in range(30)]
-        proposals.append(dict(id='G200', native_type='PaintSurface', member_ids=['rear-blue'],
-            members=[objects[5]], bbox=objects[5]['bbox'], body_anchor_id='G002'))
-        with tempfile.TemporaryDirectory() as directory, \
-                patch('components.residual_surface_candidates', return_value=(proposals, 31)), \
-                patch('components.candidate_atlas'), patch('components.rasterize'), \
-                patch('components.recognize_groups', return_value=decision()) as model:
-            components.refine_body_surfaces(objects, candidates, first, directory, {})
-        self.assertEqual([c.args[0][0]['body_anchor_id'] for c in model.call_args_list],
-                         ['G001', 'G002', 'G001'])
 
 
 if __name__ == '__main__':

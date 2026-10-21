@@ -87,3 +87,13 @@ class RetryFailedTasksTests(TkTestCase):
         with patch('ui.threading.Thread') as thread:
             self.app._retry_failed()
             thread.assert_not_called()
+
+    def test_normal_start_reuses_cache_unless_force_is_selected(self):
+        self.add_task('sample.fs', '待处理')
+        for force in (False, True):
+            self.app._set_busy(False)
+            self.app.force_reextract.set(force)
+            with patch('ui.threading.Thread') as thread, patch.object(self.app, '_refresh_ai'):
+                self.app._start()
+            self.assertEqual(thread.call_args.kwargs['args'][2], force)
+            self.assertTrue(self.app.force_check.instate(['disabled']))

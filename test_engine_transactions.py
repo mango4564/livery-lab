@@ -114,7 +114,6 @@ class EngineTransactions(unittest.TestCase):
 
     def test_component_review_keeps_other_categories_and_version_integrity(self):
         original=self.process()
-        original['quality_gate']={'status':'passed','accepted_repairs':1}
         original.update(extraction_mode='components', component_categories={'车身':['a','b'],'彩条':[],
                         '文字':[],'logo':[],'门徽':[]})
         original['views']=[{'category':'车身','label':'body','selected_ids':['a','b'],
@@ -127,8 +126,6 @@ class EngineTransactions(unittest.TestCase):
         self.assertEqual(revised['component_categories']['彩条'],['b'])
         self.assertEqual(set(revised['selected_ids']),{'a','b'})
         self.assertEqual(revised['status'],'review')
-        self.assertEqual(revised['quality_gate']['status'],'stale')
-        self.assertEqual(original['quality_gate']['status'],'passed')
         self.assertEqual(revised['confirmed_categories'],['彩条'])
         self.assertEqual(self.process()['component_categories'],revised['component_categories'])
 

@@ -62,7 +62,8 @@ def _fingerprint(options):
         raise RuntimeError('运行中的引擎代码已发生变化，请重新启动工具后处理，避免混用版本。')
     config=read_config()
     # Never persist secrets, even hashed credentials, in manifests or cache keys.
-    selected={k:config.get(k) for k in ('enabled','base_url','model','max_candidates','use_system_proxy')}
+    selected={k:config.get(k) for k in ('enabled','base_url','model','max_candidates','use_system_proxy',
+        'timeout_seconds')}
     return hashlib.sha256((code+json.dumps({'use_ai':bool(options.get('use_ai')), 'config':selected,
         'extraction_mode':options.get('extraction_mode','stripes'),
         'recognition_policy':'independent_no_references'},sort_keys=True)).encode()).hexdigest()
@@ -279,6 +280,10 @@ def process_file(source, output_root, options=None, progress=None, cancel_event=
     _check_cancel(cancel_event)
     result=_commit_version(result)
     report(f'解析 {len(result["objects"])} 条曲线，{len(result["selected_ids"])} 条进入当前结果；状态：待复核。')
+    timings = result.get('component_coverage', {}).get('stage_seconds', {})
+    labels = {'prepare': '解析及候选准备', 'classification': '首轮分类'}
+    if timings:
+        report('阶段耗时：' + '；'.join(f'{labels.get(k, k)} {v:g} 秒' for k, v in timings.items()))
     return result
 
 
@@ -383,9 +388,6 @@ def export_selection(result, selected_ids, output_dir=None, *, category_name=Non
         categories=normalize_categories(result['objects'],categories)
         if not categories[category_name]:
             raise ValueError('所选类别扣除其他类别后为空，请重新选择。')
-        if result.get('quality_gate') and categories != result['component_categories']:
-            result['quality_gate'] = dict(result['quality_gate'], status='stale',
-                reason='用户已修改类别选择，原自动门禁结论仅适用于修改前版本。')
         result['component_categories']=categories
         result['confirmed_categories']=sorted(set(result.get('confirmed_categories',[])) | {category_name})
         union={oid for ids in categories.values() for oid in ids}
@@ -467,7 +469,6 @@ def _run_components_worker(source,directory,digest,fingerprint,use_ai,reference_
             'component_candidates':components_report.get('candidates',[]),
             'source_regions':components_report.get('source_regions',[]),
             'component_coverage':components_report['coverage'],
-            'quality_gate':components_report.get('quality_gate', {'status': 'not_run'}),
             'ai_result':components_report['decision'],
             'warnings':['六类为待复核候选，须逐类核对；模型自报置信度不是准确率。',
                         '未识别的类别保持为空；候选有数量上限，可能漏掉拆散、转曲或未解码对象。',
@@ -475,17 +476,8 @@ def _run_components_worker(source,directory,digest,fingerprint,use_ai,reference_
                         '已解码路径、椭圆和矩形等已支持原语；纹理及部分字体/裁剪效果仍可能缺失。',
                         '当前仅提取第1页。物理比例未验证。'],
             'elapsed_seconds':round(time.monotonic()-started,3)}
-    gate = result['quality_gate']
-    if use_ai:
-        result['warnings'].insert(0, '六类检验门禁：'+
-            ('配置关闭，本次未执行。' if gate.get('status') == 'not_run' else
-             '已通过本次自动检查（仍保留人工确认）。' if gate.get('status') == 'passed' else
-             f"仍有待复核项；已验证 {gate.get('verified_pages', 0)}/{gate.get('total_pages', 0)} 页，"
-             f"保留 {gate.get('accepted_repairs', 0)} 次复验通过的修复。"))
-        for issue in gate.get('unresolved', []):
-            result['warnings'].append('门禁：'+issue.get('evidence', '存在待确认问题。'))
-            for detail in issue.get('issues', [])[:3]:
-                result['warnings'].append(f"门禁 {issue.get('region_id', '')}/{detail['category']}：{detail['evidence']}")
+    for issue in components_report['decision'].get('classification_unresolved', []):
+        result['warnings'].append('首轮分类：'+issue['evidence'])
     result['result_svg'],result['result_png']=_render_selection(result,result['selected_ids'],directory)
     _render_component_artifacts(result, directory)
     if _file_sha(source)!=digest:
