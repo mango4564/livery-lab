@@ -1,0 +1,275 @@
+[
+  {
+    "evidence_id": "ev_8865f35ad51443a76aec5409648bf7c4a29818c4fc5968a08c90748ef77a1aec",
+    "subject": {
+      "name": "fsfigure.dll",
+      "digest": {
+        "sha256": "28ea445060d95469820348cf333334cd7615f94e04f77f14c46f57d8b3764eff"
+      },
+      "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Plugins\\fsfigure.dll",
+      "format": "pe",
+      "architecture": "x86"
+    },
+    "provider": {
+      "id": "ghidra",
+      "name": "Ghidra",
+      "version": "12.1.4"
+    },
+    "analysis_profile": {
+      "provider": {
+        "id": "ghidra",
+        "name": "Ghidra",
+        "version": "12.1.4"
+      },
+      "parameters": {
+        "target_kind": "executable",
+        "target_format": "pe",
+        "executable_role": "shared-library",
+        "managed": false,
+        "native_aot_metadata": {
+          "contract_revision": "rtr-9.1-x64-pe-read-only-v5",
+          "source_bytes": 134217728,
+          "work_units": 67108864,
+          "working_memory_bytes": 67108864,
+          "report_bytes": 4194304
+        },
+        "architecture": "x86",
+        "available_architectures": [
+          "x86"
+        ],
+        "import_mode": "ephemeral-source-immutable",
+        "pdb_observations": "program-info-v5",
+        "annotation_policy": "atomic-function-entry-metadata-v1",
+        "load_image_observations": "source-mappings-entry-context-v2",
+        "function_body_evidence": "complete-inclusive-ranges-v1",
+        "function_references": "complete-body-and-entry-reference-manager-v2",
+        "call_relationship_coverage": "function-body-call-coverage-v5",
+        "function_dossier_coverage": "observed-facets-and-call-relationships-v1",
+        "string_inventory_evidence": "defined-data-coverage-v1",
+        "location_resolution": "explicit-address-exact-entry-symbol-first-v3",
+        "procedure_file_offset_resolution": "address-first-unique-target-source-mapping-v2",
+        "instruction_flow_evidence": "decoded-return-pcode-v1",
+        "instruction_references": "exact-address-incoming-without-synthetic-entry-v2",
+        "function_boundary_observations": "ghidra-function-boundary-limitations-v4",
+        "no_return_repair": "disabled-windows-p0",
+        "process_launch": "official-headless-script-v1",
+        "jump_table_evidence": "typed-case-default-blocks-v1",
+        "decompiler_jump_loads": true,
+        "loader": "auto-from-header",
+        "language_id": "auto-from-header",
+        "compiler_spec_id": "auto-default",
+        "analyzer_preset": "ghidra-default"
+      },
+      "digest": "e4be421d1cb130970e81b108d97068b73c12565909b409a13178a5c07539573b"
+    },
+    "predicate_type": "rea.analysis",
+    "operation": "procedure_pseudo_code",
+    "parameters": {
+      "procedure": "0x10004560"
+    },
+    "raw_result": {
+      "value": "\r\n/* public: virtual int __thiscall ABorder::flexiSerialize(class AArchive &) */\r\n\r\nint __thiscall ABorder::flexiSerialize(ABorder *this,AArchive *param_1)\r\n\r\n{\r\n  int iVar1;\r\n  \r\n                    /* 0x4560  98  ?flexiSerialize@ABorder@@UAEHAAVAArchive@@@Z\r\n                       0x4560  99  ?flexiSerialize@ACircle@@UAEHAAVAArchive@@@Z\r\n                       0x4560  100  ?flexiSerialize@AOval@@UAEHAAVAArchive@@@Z\r\n                       0x4560  101  ?flexiSerialize@ARectangle@@UAEHAAVAArchive@@@Z */\r\n  AArchive::TagStart(param_1);\r\n  AArchive::Tag(param_1,'\\0');\r\n  iVar1 = AFigure::flexiSerialize((AFigure *)this,param_1);\r\n  if (iVar1 != 0) {\r\n    AArchive::Tag(param_1,'\\x01');\r\n    iVar1 = (**(code **)(*(int *)(this + 0x94) + 0x2c))(param_1);\r\n    if (iVar1 != 0) {\r\n      AArchive::TagEnd(param_1);\r\n      if ((~*(uint *)(param_1 + 0x18) & 1) == 0) {\r\n        AObject::setObjectFlags((AObject *)this,0x20000000,0);\r\n      }\r\n      return 1;\r\n    }\r\n  }\r\n  return 0;\r\n}\r\n\r\n",
+      "limitations": []
+    },
+    "normalized_result": "\r\n/* public: virtual int __thiscall ABorder::flexiSerialize(class AArchive &) */\r\n\r\nint __thiscall ABorder::flexiSerialize(ABorder *this,AArchive *param_1)\r\n\r\n{\r\n  int iVar1;\r\n  \r\n                    /* 0x4560  98  ?flexiSerialize@ABorder@@UAEHAAVAArchive@@@Z\r\n                       0x4560  99  ?flexiSerialize@ACircle@@UAEHAAVAArchive@@@Z\r\n                       0x4560  100  ?flexiSerialize@AOval@@UAEHAAVAArchive@@@Z\r\n                       0x4560  101  ?flexiSerialize@ARectangle@@UAEHAAVAArchive@@@Z */\r\n  AArchive::TagStart(param_1);\r\n  AArchive::Tag(param_1,'\\0');\r\n  iVar1 = AFigure::flexiSerialize((AFigure *)this,param_1);\r\n  if (iVar1 != 0) {\r\n    AArchive::Tag(param_1,'\\x01');\r\n    iVar1 = (**(code **)(*(int *)(this + 0x94) + 0x2c))(param_1);\r\n    if (iVar1 != 0) {\r\n      AArchive::TagEnd(param_1);\r\n      if ((~*(uint *)(param_1 + 0x18) & 1) == 0) {\r\n        AObject::setObjectFlags((AObject *)this,0x20000000,0);\r\n      }\r\n      return 1;\r\n    }\r\n  }\r\n  return 0;\r\n}\r\n\r\n",
+    "confidence": "observed",
+    "authority": "shipped-artifact",
+    "environment": null,
+    "limitations": [
+      "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+      "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+      "Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.",
+      "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+      "Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.",
+      "External functions and functions without an analyzable body return null; other decompiler failures remain explicit.",
+      "Windows Ghidra P0 accepts native x86, x86-64, ARMNT (Thumb-2) and ARM64 PE applications and DLLs, and explicitly selected raw 6502 images; managed, hostile, sensitive, and mutable-path targets are unsupported.",
+      "The Windows bridge uses authenticated IPv4 loopback because Node path-based IPC does not expose Java AF_UNIX sockets; the endpoint file contains no bearer token.",
+      "Windows sessions require the matching packaged Windows x64 native addon, local NTFS targets and runtimes, and Windows 10 or later. Native handles enforce path admission, private DACLs, and Job Object ownership automatically."
+    ],
+    "relationship_coverage": null,
+    "locations": [],
+    "evidence_links": []
+  },
+  {
+    "evidence_id": "ev_d4480607e50b78d34c7462e2c8d5e5429d1f16f8dcde50be7c7ae0f1e0ec86ed",
+    "subject": {
+      "name": "fsfigure.dll",
+      "digest": {
+        "sha256": "28ea445060d95469820348cf333334cd7615f94e04f77f14c46f57d8b3764eff"
+      },
+      "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Plugins\\fsfigure.dll",
+      "format": "pe",
+      "architecture": "x86"
+    },
+    "provider": {
+      "id": "ghidra",
+      "name": "Ghidra",
+      "version": "12.1.4"
+    },
+    "analysis_profile": {
+      "provider": {
+        "id": "ghidra",
+        "name": "Ghidra",
+        "version": "12.1.4"
+      },
+      "parameters": {
+        "target_kind": "executable",
+        "target_format": "pe",
+        "executable_role": "shared-library",
+        "managed": false,
+        "native_aot_metadata": {
+          "contract_revision": "rtr-9.1-x64-pe-read-only-v5",
+          "source_bytes": 134217728,
+          "work_units": 67108864,
+          "working_memory_bytes": 67108864,
+          "report_bytes": 4194304
+        },
+        "architecture": "x86",
+        "available_architectures": [
+          "x86"
+        ],
+        "import_mode": "ephemeral-source-immutable",
+        "pdb_observations": "program-info-v5",
+        "annotation_policy": "atomic-function-entry-metadata-v1",
+        "load_image_observations": "source-mappings-entry-context-v2",
+        "function_body_evidence": "complete-inclusive-ranges-v1",
+        "function_references": "complete-body-and-entry-reference-manager-v2",
+        "call_relationship_coverage": "function-body-call-coverage-v5",
+        "function_dossier_coverage": "observed-facets-and-call-relationships-v1",
+        "string_inventory_evidence": "defined-data-coverage-v1",
+        "location_resolution": "explicit-address-exact-entry-symbol-first-v3",
+        "procedure_file_offset_resolution": "address-first-unique-target-source-mapping-v2",
+        "instruction_flow_evidence": "decoded-return-pcode-v1",
+        "instruction_references": "exact-address-incoming-without-synthetic-entry-v2",
+        "function_boundary_observations": "ghidra-function-boundary-limitations-v4",
+        "no_return_repair": "disabled-windows-p0",
+        "process_launch": "official-headless-script-v1",
+        "jump_table_evidence": "typed-case-default-blocks-v1",
+        "decompiler_jump_loads": true,
+        "loader": "auto-from-header",
+        "language_id": "auto-from-header",
+        "compiler_spec_id": "auto-default",
+        "analyzer_preset": "ghidra-default"
+      },
+      "digest": "e4be421d1cb130970e81b108d97068b73c12565909b409a13178a5c07539573b"
+    },
+    "predicate_type": "rea.analysis",
+    "operation": "procedure_pseudo_code",
+    "parameters": {
+      "procedure": "0x1000a550"
+    },
+    "raw_result": {
+      "value": "\r\nundefined4 __thiscall FUN_1000a550(void *this,AArchive *param_1)\r\n\r\n{\r\n  AArchive *this_00;\r\n  int iVar1;\r\n  AArchive *pAVar2;\r\n  AArchive *this_01;\r\n  CArchive *this_02;\r\n  undefined4 uVar3;\r\n  double *pdVar4;\r\n  undefined4 uVar5;\r\n  AArchive **ppAVar6;\r\n  int *piVar7;\r\n  undefined1 uVar8;\r\n  undefined8 *puVar9;\r\n  \r\n  this_00 = param_1;\r\n  AArchive::TagStart(param_1);\r\n  AArchive::Tag(this_00,'\\0');\r\n  iVar1 = AAttrib::flexiSerialize(this,this_00);\r\n  if (iVar1 == 0) {\r\n    return 0;\r\n  }\r\n  if ((~*(uint *)(this_00 + 0x18) & 1) != 0) {\r\n    puVar9 = (undefined8 *)((int)this + 0x14);\r\n    param_1 = (AArchive *)CONCAT31(param_1._1_3_,*(undefined1 *)((int)this + 0x24));\r\n    pAVar2 = AArchive::Tag(this_00,'\\x01');\r\n    FUN_10001820((CArchive *)pAVar2,puVar9);\r\n    uVar3 = (undefined4)*(undefined8 *)((int)this + 0x28);\r\n    uVar5 = (undefined4)((ulonglong)*(undefined8 *)((int)this + 0x28) >> 0x20);\r\n    pAVar2 = param_1;\r\n    this_01 = AArchive::Tag(this_00,'\\x02');\r\n    uVar8 = SUB41(pAVar2,0);\r\n    this_02 = FUN_10001680(this_01,CONCAT44(uVar5,uVar3));\r\n    FUN_10009bb0(this_02,uVar8);\r\n    uVar3 = *(undefined4 *)((int)this + 8);\r\n    pAVar2 = AArchive::Tag(this_00,'\\x03');\r\n    FUN_10003290(pAVar2,uVar3);\r\n    uVar3 = (undefined4)*(undefined8 *)((int)this + 0xc);\r\n    uVar5 = (undefined4)((ulonglong)*(undefined8 *)((int)this + 0xc) >> 0x20);\r\n    pAVar2 = AArchive::Tag(this_00,'\\x04');\r\n    FUN_10001680(pAVar2,CONCAT44(uVar5,uVar3));\r\n    AArchive::TagEnd(this_00);\r\n    return 1;\r\n  }\r\n  param_1 = (AArchive *)CONCAT31(param_1._1_3_,1);\r\n  pAVar2 = AArchive::Tag(this_00,'\\x01');\r\n  pdVar4 = (double *)((int)this + 0x1c);\r\n  pAVar2 = AArchive::operator>>(pAVar2,(double *)((int)this + 0x14));\r\n  AArchive::operator>>(pAVar2,pdVar4);\r\n  ppAVar6 = &param_1;\r\n  pdVar4 = (double *)((int)this + 0x28);\r\n  pAVar2 = AArchive::Tag(this_00,'\\x02');\r\n  pAVar2 = AArchive::operator>>(pAVar2,pdVar4);\r\n  AArchive::operator>>(pAVar2,(uchar *)ppAVar6);\r\n  piVar7 = (int *)((int)this + 8);\r\n  pAVar2 = AArchive::Tag(this_00,'\\x03');\r\n  AArchive::operator>>(pAVar2,piVar7);\r\n  pdVar4 = (double *)((int)this + 0xc);\r\n  pAVar2 = AArchive::Tag(this_00,'\\x04');\r\n  AArchive::operator>>(pAVar2,pdVar4);\r\n  *(uint *)((int)this + 0x24) = (uint)param_1 & 0xff;\r\n  AArchive::TagEnd(this_00);\r\n  return 1;\r\n}\r\n\r\n",
+      "limitations": []
+    },
+    "normalized_result": "\r\nundefined4 __thiscall FUN_1000a550(void *this,AArchive *param_1)\r\n\r\n{\r\n  AArchive *this_00;\r\n  int iVar1;\r\n  AArchive *pAVar2;\r\n  AArchive *this_01;\r\n  CArchive *this_02;\r\n  undefined4 uVar3;\r\n  double *pdVar4;\r\n  undefined4 uVar5;\r\n  AArchive **ppAVar6;\r\n  int *piVar7;\r\n  undefined1 uVar8;\r\n  undefined8 *puVar9;\r\n  \r\n  this_00 = param_1;\r\n  AArchive::TagStart(param_1);\r\n  AArchive::Tag(this_00,'\\0');\r\n  iVar1 = AAttrib::flexiSerialize(this,this_00);\r\n  if (iVar1 == 0) {\r\n    return 0;\r\n  }\r\n  if ((~*(uint *)(this_00 + 0x18) & 1) != 0) {\r\n    puVar9 = (undefined8 *)((int)this + 0x14);\r\n    param_1 = (AArchive *)CONCAT31(param_1._1_3_,*(undefined1 *)((int)this + 0x24));\r\n    pAVar2 = AArchive::Tag(this_00,'\\x01');\r\n    FUN_10001820((CArchive *)pAVar2,puVar9);\r\n    uVar3 = (undefined4)*(undefined8 *)((int)this + 0x28);\r\n    uVar5 = (undefined4)((ulonglong)*(undefined8 *)((int)this + 0x28) >> 0x20);\r\n    pAVar2 = param_1;\r\n    this_01 = AArchive::Tag(this_00,'\\x02');\r\n    uVar8 = SUB41(pAVar2,0);\r\n    this_02 = FUN_10001680(this_01,CONCAT44(uVar5,uVar3));\r\n    FUN_10009bb0(this_02,uVar8);\r\n    uVar3 = *(undefined4 *)((int)this + 8);\r\n    pAVar2 = AArchive::Tag(this_00,'\\x03');\r\n    FUN_10003290(pAVar2,uVar3);\r\n    uVar3 = (undefined4)*(undefined8 *)((int)this + 0xc);\r\n    uVar5 = (undefined4)((ulonglong)*(undefined8 *)((int)this + 0xc) >> 0x20);\r\n    pAVar2 = AArchive::Tag(this_00,'\\x04');\r\n    FUN_10001680(pAVar2,CONCAT44(uVar5,uVar3));\r\n    AArchive::TagEnd(this_00);\r\n    return 1;\r\n  }\r\n  param_1 = (AArchive *)CONCAT31(param_1._1_3_,1);\r\n  pAVar2 = AArchive::Tag(this_00,'\\x01');\r\n  pdVar4 = (double *)((int)this + 0x1c);\r\n  pAVar2 = AArchive::operator>>(pAVar2,(double *)((int)this + 0x14));\r\n  AArchive::operator>>(pAVar2,pdVar4);\r\n  ppAVar6 = &param_1;\r\n  pdVar4 = (double *)((int)this + 0x28);\r\n  pAVar2 = AArchive::Tag(this_00,'\\x02');\r\n  pAVar2 = AArchive::operator>>(pAVar2,pdVar4);\r\n  AArchive::operator>>(pAVar2,(uchar *)ppAVar6);\r\n  piVar7 = (int *)((int)this + 8);\r\n  pAVar2 = AArchive::Tag(this_00,'\\x03');\r\n  AArchive::operator>>(pAVar2,piVar7);\r\n  pdVar4 = (double *)((int)this + 0xc);\r\n  pAVar2 = AArchive::Tag(this_00,'\\x04');\r\n  AArchive::operator>>(pAVar2,pdVar4);\r\n  *(uint *)((int)this + 0x24) = (uint)param_1 & 0xff;\r\n  AArchive::TagEnd(this_00);\r\n  return 1;\r\n}\r\n\r\n",
+    "confidence": "observed",
+    "authority": "shipped-artifact",
+    "environment": null,
+    "limitations": [
+      "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+      "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+      "Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.",
+      "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+      "Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.",
+      "External functions and functions without an analyzable body return null; other decompiler failures remain explicit.",
+      "Windows Ghidra P0 accepts native x86, x86-64, ARMNT (Thumb-2) and ARM64 PE applications and DLLs, and explicitly selected raw 6502 images; managed, hostile, sensitive, and mutable-path targets are unsupported.",
+      "The Windows bridge uses authenticated IPv4 loopback because Node path-based IPC does not expose Java AF_UNIX sockets; the endpoint file contains no bearer token.",
+      "Windows sessions require the matching packaged Windows x64 native addon, local NTFS targets and runtimes, and Windows 10 or later. Native handles enforce path admission, private DACLs, and Job Object ownership automatically."
+    ],
+    "relationship_coverage": null,
+    "locations": [],
+    "evidence_links": []
+  },
+  {
+    "evidence_id": "ev_4adab7cfac3230940b9f77c3d52fe2003334de9d5aa36121af9eedce98c23dd4",
+    "subject": {
+      "name": "fsfigure.dll",
+      "digest": {
+        "sha256": "28ea445060d95469820348cf333334cd7615f94e04f77f14c46f57d8b3764eff"
+      },
+      "local_path": "D:\\Program Files (x86)\\FlexiSIGN-PRO 8.1v1\\Plugins\\fsfigure.dll",
+      "format": "pe",
+      "architecture": "x86"
+    },
+    "provider": {
+      "id": "ghidra",
+      "name": "Ghidra",
+      "version": "12.1.4"
+    },
+    "analysis_profile": {
+      "provider": {
+        "id": "ghidra",
+        "name": "Ghidra",
+        "version": "12.1.4"
+      },
+      "parameters": {
+        "target_kind": "executable",
+        "target_format": "pe",
+        "executable_role": "shared-library",
+        "managed": false,
+        "native_aot_metadata": {
+          "contract_revision": "rtr-9.1-x64-pe-read-only-v5",
+          "source_bytes": 134217728,
+          "work_units": 67108864,
+          "working_memory_bytes": 67108864,
+          "report_bytes": 4194304
+        },
+        "architecture": "x86",
+        "available_architectures": [
+          "x86"
+        ],
+        "import_mode": "ephemeral-source-immutable",
+        "pdb_observations": "program-info-v5",
+        "annotation_policy": "atomic-function-entry-metadata-v1",
+        "load_image_observations": "source-mappings-entry-context-v2",
+        "function_body_evidence": "complete-inclusive-ranges-v1",
+        "function_references": "complete-body-and-entry-reference-manager-v2",
+        "call_relationship_coverage": "function-body-call-coverage-v5",
+        "function_dossier_coverage": "observed-facets-and-call-relationships-v1",
+        "string_inventory_evidence": "defined-data-coverage-v1",
+        "location_resolution": "explicit-address-exact-entry-symbol-first-v3",
+        "procedure_file_offset_resolution": "address-first-unique-target-source-mapping-v2",
+        "instruction_flow_evidence": "decoded-return-pcode-v1",
+        "instruction_references": "exact-address-incoming-without-synthetic-entry-v2",
+        "function_boundary_observations": "ghidra-function-boundary-limitations-v4",
+        "no_return_repair": "disabled-windows-p0",
+        "process_launch": "official-headless-script-v1",
+        "jump_table_evidence": "typed-case-default-blocks-v1",
+        "decompiler_jump_loads": true,
+        "loader": "auto-from-header",
+        "language_id": "auto-from-header",
+        "compiler_spec_id": "auto-default",
+        "analyzer_preset": "ghidra-default"
+      },
+      "digest": "e4be421d1cb130970e81b108d97068b73c12565909b409a13178a5c07539573b"
+    },
+    "predicate_type": "rea.analysis",
+    "operation": "procedure_pseudo_code",
+    "parameters": {
+      "procedure": "0x10009f10"
+    },
+    "raw_result": {
+      "value": "\r\n/* public: virtual class APath * __thiscall ARectangle::convertToPath(void)const  */\r\n\r\nAPath * __thiscall ARectangle::convertToPath(ARectangle *this)\r\n\r\n{\r\n  double dVar1;\r\n  bool bVar2;\r\n  bool bVar3;\r\n  bool bVar4;\r\n  double dVar5;\r\n  APath *this_00;\r\n  undefined4 unaff_EDI;\r\n  AFPoint *pAVar6;\r\n  undefined4 uVar7;\r\n  double local_68;\r\n  double local_60;\r\n  double local_58;\r\n  double local_50;\r\n  double local_48;\r\n  double local_40;\r\n  double local_38 [2];\r\n  double local_28;\r\n  double local_20;\r\n  void *pvStack_14;\r\n  undefined1 *puStack_10;\r\n  undefined4 local_c;\r\n  \r\n                    /* 0x9f10  79  ?convertToPath@ARectangle@@UBEPAVAPath@@XZ */\r\n  local_c = 0xffffffff;\r\n  puStack_10 = &LAB_1002753a;\r\n  pvStack_14 = ExceptionList;\r\n  local_60 = *(double *)(this + 0xa8);\r\n  local_50 = *(double *)(this + 0xb0);\r\n  if (*(int *)(this + 0xb8) == 1) {\r\n    bVar2 = false;\r\n    bVar4 = true;\r\n    bVar3 = true;\r\nLAB_1000a02b:\r\n    local_68 = 0.0;\r\n  }\r\n  else {\r\n    dVar5 = local_50;\r\n    if (local_60 < local_50) {\r\n      dVar5 = local_60;\r\n    }\r\n    if (100.0 <= *(double *)(this + 0xbc)) {\r\n      dVar1 = 100.0;\r\n    }\r\n    else {\r\n      dVar1 = *(double *)(this + 0xbc);\r\n    }\r\n    local_68 = dVar1 * dVar5 * 0.005;\r\n    bVar2 = 1e-05 <= ABS(local_68);\r\n    bVar3 = 1e-05 <= ABS((local_68 + local_68) - local_60);\r\n    bVar4 = 1e-05 <= ABS((local_68 + local_68) - local_50);\r\n    if (!bVar2) goto LAB_1000a02b;\r\n  }\r\n  ExceptionList = &pvStack_14;\r\n  this_00 = operator_new(0xa4);\r\n  local_c = 0;\r\n  if (this_00 == (APath *)0x0) {\r\n    this_00 = (APath *)0x0;\r\n  }\r\n  else {\r\n    local_48 = local_60 - local_68;\r\n    local_40 = local_50;\r\n    APath::APath(this_00,(AFPoint *)&local_48,(APen *)0x0,(ABrush *)0x0);\r\n    *(undefined ***)this_00 = &PTR_LAB_1002b0dc;\r\n  }\r\n  local_c = 0xffffffff;\r\n  if (ABS(local_60) < 1e-05) {\r\n    ExceptionList = pvStack_14;\r\n    return this_00;\r\n  }\r\n  if (ABS(local_50) < 1e-05) {\r\n    ExceptionList = pvStack_14;\r\n    return this_00;\r\n  }\r\n  if (bVar3) {\r\n    local_48 = local_68;\r\n    local_40 = local_50;\r\n    APath::appendLine(this_00,(AFPoint *)&local_48,1);\r\n  }\r\n  if (bVar2) {\r\n    if (*(int *)(this + 0xb8) == 2) {\r\n      local_48 = local_68;\r\n      local_40 = local_50 - local_68;\r\n      APath::appendArc(this_00,(AFPoint *)&local_48,(double)CONCAT44(unaff_EDI,0x3ff921fb));\r\n    }\r\n    else {\r\n      local_48 = 0.0;\r\n      if (*(int *)(this + 0xb8) == 3) {\r\n        local_40 = local_50;\r\n        APath::appendArc(this_00,(AFPoint *)&local_48,(double)CONCAT44(unaff_EDI,0xbff921fb));\r\n      }\r\n      else {\r\n        local_40 = local_50 - local_68;\r\n        APath::appendLine(this_00,(AFPoint *)&local_48,1);\r\n      }\r\n    }\r\n  }\r\n  if (bVar4) {\r\n    local_48 = 0.0;\r\n    local_40 = local_68;\r\n    APath::appendLine(this_00,(AFPoint *)&local_48,1);\r\n  }\r\n  if (bVar2) {\r\n    if (*(int *)(this + 0xb8) == 2) {\r\n      local_48 = local_68;\r\n      local_40 = local_68;\r\n      APath::appendArc(this_00,(AFPoint *)&local_48,(double)CONCAT44(unaff_EDI,0x3ff921fb));\r\n    }\r\n    else if (*(int *)(this + 0xb8) == 3) {\r\n      local_48 = 0.0;\r\n      local_40 = 0.0;\r\n      APath::appendArc(this_00,(AFPoint *)&local_48,(double)CONCAT44(unaff_EDI,0xbff921fb));\r\n    }\r\n    else {\r\n      local_48 = local_68;\r\n      local_40 = 0.0;\r\n      APath::appendLine(this_00,(AFPoint *)&local_48,1);\r\n    }\r\n  }\r\n  if (bVar3) {\r\n    local_48 = local_60 - local_68;\r\n    local_40 = 0.0;\r\n    APath::appendLine(this_00,(AFPoint *)&local_48,1);\r\n  }\r\n  if (bVar2) {\r\n    if (*(int *)(this + 0xb8) == 2) {\r\n      local_28 = local_60 - local_68;\r\n      pAVar6 = (AFPoint *)&local_28;\r\n      local_20 = local_68;\r\n      uVar7 = 0x3ff921fb;\r\n    }\r\n    else {\r\n      if (*(int *)(this + 0xb8) != 3) {\r\n        local_48 = local_60;\r\n        local_40 = local_68;\r\n        APath::appendLine(this_00,(AFPoint *)&local_48,1);\r\n        goto LAB_1000a2b6;\r\n      }\r\n      local_38[0] = local_60;\r\n      pAVar6 = (AFPoint *)local_38;\r\n      local_38[1] = 0.0;\r\n      uVar7 = 0xbff921fb;\r\n    }\r\n    APath::appendArc(this_00,pAVar6,(double)CONCAT44(unaff_EDI,uVar7));\r\n  }\r\nLAB_1000a2b6:\r\n  if (bVar4) {\r\n    local_28 = local_60;\r\n    local_20 = local_50 - local_68;\r\n    APath::appendLine(this_00,(AFPoint *)&local_28,1);\r\n  }\r\n  if (bVar2) {\r\n    if (*(int *)(this + 0xb8) == 2) {\r\n      local_28 = local_60 - local_68;\r\n      local_20 = local_50 - local_68;\r\n      APath::appendArc(this_00,(AFPoint *)&local_28,(double)CONCAT44(unaff_EDI,0x3ff921fb));\r\n      ExceptionList = puStack_10;\r\n      return this_00;\r\n    }\r\n    if (*(int *)(this + 0xb8) == 3) {\r\n      local_28 = local_60;\r\n      local_20 = local_50;\r\n      APath::appendArc(this_00,(AFPoint *)&local_28,(double)CONCAT44(unaff_EDI,0xbff921fb));\r\n      ExceptionList = puStack_10;\r\n      return this_00;\r\n    }\r\n    local_60 = local_60 - local_68;\r\n    local_58 = local_50;\r\n    APath::appendLine(this_00,(AFPoint *)&local_60,1);\r\n  }\r\n  ExceptionList = pvStack_14;\r\n  return this_00;\r\n}\r\n\r\n",
+      "limitations": []
+    },
+    "normalized_result": "\r\n/* public: virtual class APath * __thiscall ARectangle::convertToPath(void)const  */\r\n\r\nAPath * __thiscall ARectangle::convertToPath(ARectangle *this)\r\n\r\n{\r\n  double dVar1;\r\n  bool bVar2;\r\n  bool bVar3;\r\n  bool bVar4;\r\n  double dVar5;\r\n  APath *this_00;\r\n  undefined4 unaff_EDI;\r\n  AFPoint *pAVar6;\r\n  undefined4 uVar7;\r\n  double local_68;\r\n  double local_60;\r\n  double local_58;\r\n  double local_50;\r\n  double local_48;\r\n  double local_40;\r\n  double local_38 [2];\r\n  double local_28;\r\n  double local_20;\r\n  void *pvStack_14;\r\n  undefined1 *puStack_10;\r\n  undefined4 local_c;\r\n  \r\n                    /* 0x9f10  79  ?convertToPath@ARectangle@@UBEPAVAPath@@XZ */\r\n  local_c = 0xffffffff;\r\n  puStack_10 = &LAB_1002753a;\r\n  pvStack_14 = ExceptionList;\r\n  local_60 = *(double *)(this + 0xa8);\r\n  local_50 = *(double *)(this + 0xb0);\r\n  if (*(int *)(this + 0xb8) == 1) {\r\n    bVar2 = false;\r\n    bVar4 = true;\r\n    bVar3 = true;\r\nLAB_1000a02b:\r\n    local_68 = 0.0;\r\n  }\r\n  else {\r\n    dVar5 = local_50;\r\n    if (local_60 < local_50) {\r\n      dVar5 = local_60;\r\n    }\r\n    if (100.0 <= *(double *)(this + 0xbc)) {\r\n      dVar1 = 100.0;\r\n    }\r\n    else {\r\n      dVar1 = *(double *)(this + 0xbc);\r\n    }\r\n    local_68 = dVar1 * dVar5 * 0.005;\r\n    bVar2 = 1e-05 <= ABS(local_68);\r\n    bVar3 = 1e-05 <= ABS((local_68 + local_68) - local_60);\r\n    bVar4 = 1e-05 <= ABS((local_68 + local_68) - local_50);\r\n    if (!bVar2) goto LAB_1000a02b;\r\n  }\r\n  ExceptionList = &pvStack_14;\r\n  this_00 = operator_new(0xa4);\r\n  local_c = 0;\r\n  if (this_00 == (APath *)0x0) {\r\n    this_00 = (APath *)0x0;\r\n  }\r\n  else {\r\n    local_48 = local_60 - local_68;\r\n    local_40 = local_50;\r\n    APath::APath(this_00,(AFPoint *)&local_48,(APen *)0x0,(ABrush *)0x0);\r\n    *(undefined ***)this_00 = &PTR_LAB_1002b0dc;\r\n  }\r\n  local_c = 0xffffffff;\r\n  if (ABS(local_60) < 1e-05) {\r\n    ExceptionList = pvStack_14;\r\n    return this_00;\r\n  }\r\n  if (ABS(local_50) < 1e-05) {\r\n    ExceptionList = pvStack_14;\r\n    return this_00;\r\n  }\r\n  if (bVar3) {\r\n    local_48 = local_68;\r\n    local_40 = local_50;\r\n    APath::appendLine(this_00,(AFPoint *)&local_48,1);\r\n  }\r\n  if (bVar2) {\r\n    if (*(int *)(this + 0xb8) == 2) {\r\n      local_48 = local_68;\r\n      local_40 = local_50 - local_68;\r\n      APath::appendArc(this_00,(AFPoint *)&local_48,(double)CONCAT44(unaff_EDI,0x3ff921fb));\r\n    }\r\n    else {\r\n      local_48 = 0.0;\r\n      if (*(int *)(this + 0xb8) == 3) {\r\n        local_40 = local_50;\r\n        APath::appendArc(this_00,(AFPoint *)&local_48,(double)CONCAT44(unaff_EDI,0xbff921fb));\r\n      }\r\n      else {\r\n        local_40 = local_50 - local_68;\r\n        APath::appendLine(this_00,(AFPoint *)&local_48,1);\r\n      }\r\n    }\r\n  }\r\n  if (bVar4) {\r\n    local_48 = 0.0;\r\n    local_40 = local_68;\r\n    APath::appendLine(this_00,(AFPoint *)&local_48,1);\r\n  }\r\n  if (bVar2) {\r\n    if (*(int *)(this + 0xb8) == 2) {\r\n      local_48 = local_68;\r\n      local_40 = local_68;\r\n      APath::appendArc(this_00,(AFPoint *)&local_48,(double)CONCAT44(unaff_EDI,0x3ff921fb));\r\n    }\r\n    else if (*(int *)(this + 0xb8) == 3) {\r\n      local_48 = 0.0;\r\n      local_40 = 0.0;\r\n      APath::appendArc(this_00,(AFPoint *)&local_48,(double)CONCAT44(unaff_EDI,0xbff921fb));\r\n    }\r\n    else {\r\n      local_48 = local_68;\r\n      local_40 = 0.0;\r\n      APath::appendLine(this_00,(AFPoint *)&local_48,1);\r\n    }\r\n  }\r\n  if (bVar3) {\r\n    local_48 = local_60 - local_68;\r\n    local_40 = 0.0;\r\n    APath::appendLine(this_00,(AFPoint *)&local_48,1);\r\n  }\r\n  if (bVar2) {\r\n    if (*(int *)(this + 0xb8) == 2) {\r\n      local_28 = local_60 - local_68;\r\n      pAVar6 = (AFPoint *)&local_28;\r\n      local_20 = local_68;\r\n      uVar7 = 0x3ff921fb;\r\n    }\r\n    else {\r\n      if (*(int *)(this + 0xb8) != 3) {\r\n        local_48 = local_60;\r\n        local_40 = local_68;\r\n        APath::appendLine(this_00,(AFPoint *)&local_48,1);\r\n        goto LAB_1000a2b6;\r\n      }\r\n      local_38[0] = local_60;\r\n      pAVar6 = (AFPoint *)local_38;\r\n      local_38[1] = 0.0;\r\n      uVar7 = 0xbff921fb;\r\n    }\r\n    APath::appendArc(this_00,pAVar6,(double)CONCAT44(unaff_EDI,uVar7));\r\n  }\r\nLAB_1000a2b6:\r\n  if (bVar4) {\r\n    local_28 = local_60;\r\n    local_20 = local_50 - local_68;\r\n    APath::appendLine(this_00,(AFPoint *)&local_28,1);\r\n  }\r\n  if (bVar2) {\r\n    if (*(int *)(this + 0xb8) == 2) {\r\n      local_28 = local_60 - local_68;\r\n      local_20 = local_50 - local_68;\r\n      APath::appendArc(this_00,(AFPoint *)&local_28,(double)CONCAT44(unaff_EDI,0x3ff921fb));\r\n      ExceptionList = puStack_10;\r\n      return this_00;\r\n    }\r\n    if (*(int *)(this + 0xb8) == 3) {\r\n      local_28 = local_60;\r\n      local_20 = local_50;\r\n      APath::appendArc(this_00,(AFPoint *)&local_28,(double)CONCAT44(unaff_EDI,0xbff921fb));\r\n      ExceptionList = puStack_10;\r\n      return this_00;\r\n    }\r\n    local_60 = local_60 - local_68;\r\n    local_58 = local_50;\r\n    APath::appendLine(this_00,(AFPoint *)&local_60,1);\r\n  }\r\n  ExceptionList = pvStack_14;\r\n  return this_00;\r\n}\r\n\r\n",
+    "confidence": "observed",
+    "authority": "shipped-artifact",
+    "environment": null,
+    "limitations": [
+      "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+      "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+      "Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.",
+      "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+      "Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.",
+      "External functions and functions without an analyzable body return null; other decompiler failures remain explicit.",
+      "Windows Ghidra P0 accepts native x86, x86-64, ARMNT (Thumb-2) and ARM64 PE applications and DLLs, and explicitly selected raw 6502 images; managed, hostile, sensitive, and mutable-path targets are unsupported.",
+      "The Windows bridge uses authenticated IPv4 loopback because Node path-based IPC does not expose Java AF_UNIX sockets; the endpoint file contains no bearer token.",
+      "Windows sessions require the matching packaged Windows x64 native addon, local NTFS targets and runtimes, and Windows 10 or later. Native handles enforce path admission, private DACLs, and Job Object ownership automatically."
+    ],
+    "relationship_coverage": null,
+    "locations": [],
+    "evidence_links": []
+  }
+]

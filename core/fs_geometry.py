@@ -156,8 +156,9 @@ def decode_oval(payload, word):
 def decode_rectangle(payload, word):
     """Decode sharp ARectangle primitives, applying their figure matrix once.
 
-    Field 1 holds local dimensions; field 2 starts with the corner amount.
-    Rounded/chamfered corners are deliberately rejected until decoded.
+    Field 1 holds local dimensions; field 2 is amount:f64, style:u8.
+    Native style 1 is sharp and ignores the retained corner amount. Rounded
+    style 2 is supported here only when its effective radius is zero.
     """
     top = fields(payload, word=word)
     base = fields(top[0], word=word)
@@ -167,7 +168,10 @@ def decode_rectangle(payload, word):
     if len(corner) != 9 or corner[8] not in (1, 2):
         raise ValueError('unsupported rectangle corner encoding')
     amount, = struct.unpack('<d', corner[:8])
-    if amount != 0 or int.from_bytes(params.get(3, b'\0'), 'little') != 0:
+    # fsfigure!ARectangle::convertToPath (0x10009f10) ignores amount for
+    # style 1; see research/native_rendering/rectangle_corners.json.
+    if ((corner[8] != 1 and amount != 0)
+            or int.from_bytes(params.get(3, b'\0'), 'little') != 0):
         raise ValueError('unsupported rectangle corner style')
     matrix = struct.unpack('<6d', base[1])
     if (not all(math.isfinite(v) and abs(v) < 1e12 for v in (width, height) + matrix)
@@ -182,7 +186,8 @@ def decode_rectangle(payload, word):
                     for i, (x, y) in enumerate(points)) + ' Z'
     return path, points, base, {
         'closed': True, 'primitive': 'rectangle', 'width': width, 'height': height,
-        'geometry_evidence': 'ARectangle field1/field1 dimensions; zero corner amount; AFigure matrix applied once'}
+        'corner_style': corner[8], 'stored_corner_amount': amount,
+        'geometry_evidence': 'ARectangle sharp style ignores retained amount; AFigure matrix applied once'}
 
 
 def extract_geometry(source, page='Page 1'):
