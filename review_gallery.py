@@ -13,7 +13,7 @@ from image_preview import ImagePreview
 from reviewed_exports import LABELS, SOURCE_VIEWS, export_reviewed, infer_source_view
 from vector_preview import VectorImage
 from source_locator import source_rectangle, SourceLocator, SourceLocatorRenderer
-from core.source_regions import object_regions, region_for_ids, split_by_region, valid_region_name
+from core.source_regions import object_regions, region_for_ids, split_by_region, valid_region_name, normalize_source_regions
 import xml.etree.ElementTree as ET
 
 
@@ -221,7 +221,7 @@ class ReviewGallery(tk.Toplevel):
 
     def __init__(self, parent, result, output_root, manual_candidate=None):
         super().__init__(parent)
-        self.result = dict(result, source_regions=[dict(r) for r in result.get('source_regions', [])])
+        self.result = dict(result, source_regions=normalize_source_regions(result.get('source_regions', [])))
         self.regions = self.result['source_regions']
         self.region_assignments = object_regions(result['objects'], self.regions)
         self.by_id = {o['id']: o for o in result['objects']}
@@ -341,7 +341,7 @@ class ReviewGallery(tk.Toplevel):
         self.browse_button.pack(side='left')
         self.export_button = ttk.Button(row, text='导出六类已确认成品', command=self._export)
         self.export_button.pack(side='left', padx=(8,0))
-        ttk.Label(outer, text='每个图案分别导出：区域名称_类别_序号_FS文件名.svg / .png；区域名称自动继承，来源方向可手动更正。', foreground='#666666').pack(anchor='w')
+        ttk.Label(outer, text='按类别分目录，每个图案分别导出：区域名称_类别_序号_FS文件名.svg / .png；整车底图单独保存。', foreground='#666666').pack(anchor='w')
         ttk.Label(outer, textvariable=self.status, wraplength=1250).pack(anchor='w', pady=6)
 
     def _restore(self):

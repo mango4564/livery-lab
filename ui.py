@@ -563,7 +563,7 @@ class LiveryApp:
             from engine import export_selection
             updated = export_selection(result, ids, category_name=category_name)
             self.events.put(("result", item, updated))
-            self.events.put(("log", f"修正结果已保存：{updated.get("result_svg")}"))
+            self.events.put(("log", f"修正结果已保存：{updated.get('result_svg')}"))
             self.events.put(("exported", item, updated))
         except Exception as exc:
             self.events.put(("error", f"保存失败：{exc}"))

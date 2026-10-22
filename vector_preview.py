@@ -115,43 +115,79 @@ class VectorImage:
             raise ValueError('Invalid SVG viewport')
         nodes = []
         changed = False
-        identifiers = set()
+        # Semantic export attributes do not affect drawing. Keep native
+        # cosmetic strokes on the same renderer before and after layering.
+        group_attributes = {'transform', 'id', 'data-layer',
+                            '{http://www.inkscape.org/namespaces/inkscape}groupmode',
+                            '{http://www.inkscape.org/namespaces/inkscape}label'}
+        by_id = {}
+        parents = {child: parent for parent in root.iter() for child in parent}
+        for node in root.iter():
+            identifier = node.get('id')
+            if identifier:
+                if identifier in by_id:
+                    raise ValueError('Duplicate SVG id')
+                by_id[identifier] = node
         def visit(parent, matrix):
             nonlocal changed
             for node in parent:
                 tag = node.tag.rsplit('}', 1)[-1]
-                if tag in ('metadata', 'defs'):
+                if tag in ('metadata', 'defs', 'title'):
                     continue
-                if tag == 'g' and not (set(node.attrib) - {'transform'}):
+                if tag == 'g' and not (set(node.attrib) - group_attributes):
                     visit(node, skia.Matrix.Concat(matrix, self._matrix(node.get('transform', ''))))
                     continue
+                node_matrix = matrix
+                if tag == 'use':
+                    xlink = '{http://www.w3.org/1999/xlink}href'
+                    if set(node.attrib) - {'href', xlink, 'transform', 'data-layer', 'data-source-id'}:
+                        raise ValueError('Unsupported SVG reference')
+                    href = node.get('href', node.get(xlink, ''))
+                    if (not href.startswith('#') or node.get(xlink, href) != href
+                            or href[1:] not in by_id):
+                        raise ValueError('Unsupported SVG reference')
+                    node_matrix = skia.Matrix.Concat(matrix, self._matrix(node.get('transform', '')))
+                    node = by_id[href[1:]]
+                    tag = node.tag.rsplit('}', 1)[-1]
+                    # Export references point directly to paths. General use
+                    # trees, inherited styles and cycles stay with SVGDOM.
+                    if tag != 'path':
+                        raise ValueError('Unsupported SVG reference target')
+                    ancestor = parents.get(node)
+                    while ancestor is not None and ancestor is not root:
+                        attributes = (group_attributes - {'transform'}
+                                      if ancestor.tag.rsplit('}', 1)[-1] == 'g' else {'id'})
+                        if set(ancestor.attrib) - attributes:
+                            raise ValueError('Unsupported SVG reference ancestry')
+                        ancestor = parents.get(ancestor)
                 if tag not in ('path', 'rect') or 'style' in node.attrib or 'clip-path' in node.attrib:
                     raise ValueError('Unsupported SVG node')
                 # renderNode deliberately omits ancestors; apply their matrices.
                 if (tag == 'rect' and not (set(node.attrib) - {'x', 'y', 'width', 'height', 'fill'})
                         and re.fullmatch(r'#[0-9a-fA-F]{6}', node.get('fill', ''))):
-                    nodes.append((node, matrix, 'rect'))
+                    nodes.append((node, node_matrix, 'rect'))
                     continue
                 identifier = node.get('id')
                 if not identifier:
                     identifier = f'__preview_node_{len(nodes)}'
+                    while identifier in by_id:
+                        identifier += '_'
                     node.set('id', identifier)
+                    by_id[identifier] = node
                     changed = True
-                if identifier in identifiers:
-                    raise ValueError('Duplicate SVG id')
-                identifiers.add(identifier)
                 hairline = node.get('data-fs-hairline') == 'true'
                 path = None
                 if hairline:
                     allowed = {'id', 'd', 'transform', 'fill', 'fill-rule', 'stroke', 'stroke-width',
-                               'vector-effect', 'data-fs-hairline'}
+                               'vector-effect', 'data-fs-hairline', 'data-layer', 'data-source-id',
+                               'data-shared-categories', 'data-paint-editable'}
                     if (tag != 'path' or not re.fullmatch(r'none|#[0-9a-fA-F]{6}', node.get('fill', ''))
                             or set(node.attrib) - allowed):
                         raise ValueError('Unsupported cosmetic stroke')
                     if not re.fullmatch(r'#[0-9a-fA-F]{6}', node.get('stroke', '')):
                         raise ValueError('Unsupported stroke color')
                     path = self._path(node.get('d', ''))
-                nodes.append((node, matrix, path))
+                nodes.append((node, node_matrix, path))
         visit(root, viewport)
         ET.register_namespace('', 'http://www.w3.org/2000/svg')
         dom = self._parse(ET.tostring(root, encoding='unicode')) if changed else self.dom

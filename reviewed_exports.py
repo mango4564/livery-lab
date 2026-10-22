@@ -8,9 +8,11 @@ from pathlib import Path
 
 from geometry import rasterize
 from core.svg_layers import layered_svg
-from core.source_regions import object_regions, region_for_ids, split_by_region
+from core.source_regions import object_regions, region_for_ids, split_by_region, normalize_source_regions
 
 LABELS = {'车身': '车身', '彩条': '彩条', '文字': '文字', 'logo': 'logo', '门徽': '徽章', '车漆': '车漆'}
+BASE_DIR = '整车底图'
+CATEGORY_DIRS = {'车身': '车身', '彩条': '彩条', '文字': '文字', 'logo': 'logo', '门徽': '门徽', '车漆': '车漆'}
 SOURCE_VIEWS = ('待确认视图', '左视图', '右视图', '前视图', '后视图', '顶视图', '底视图', '整体视图', '独立图案', '混合视图')
 
 
@@ -86,7 +88,7 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
     # Legacy callers retain their filenames; direction-aware reviews publish each
     # confirmed pattern separately, while category IDs remain a coverage summary.
     reviewed_patterns = {}
-    regions = result.get('source_regions', [])
+    regions = normalize_source_regions(result.get('source_regions', []))
     assignments = object_regions(result['objects'], regions)
     if patterns is not None:
         if set(patterns) != set(LABELS):
@@ -165,8 +167,10 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
             svg, info = layered_svg(result['objects'], categories, bounds=bounds, width=2400,
                 metadata={'source_sha256': digest, 'human_reviewed': True},
                 layer_names=('车漆', '车身'), source_order_fallback=True)
-            (staging/'vehicle-base.svg').write_text(svg, encoding='utf8')
-            rasterize(svg, staging/'vehicle-base.png', max_width=2400)
+            base_dir = staging / BASE_DIR
+            base_dir.mkdir()
+            (base_dir/'vehicle-base.svg').write_text(svg, encoding='utf8')
+            rasterize(svg, base_dir/'vehicle-base.png', max_width=2400)
             manifest['layer_status'] = info['layer_status']
             manifest['base_rendering'] = info['rendering']
             manifest.setdefault('schema_version', 2)
@@ -175,6 +179,10 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
             files = []
             entries = reviewed_patterns[name] if patterns is not None else ([{'selected_ids': ids}] if ids else [])
             pattern_records = []
+            folder_name = CATEGORY_DIRS[name]
+            target_dir = staging / folder_name
+            if entries:
+                target_dir.mkdir()
             for index, entry in enumerate(entries, 1):
                 pattern_ids = entry['selected_ids']
                 id_set = set(pattern_ids)
@@ -187,19 +195,50 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
                               'human_reviewed': True})
                 stem = (f"{entry.get('region_name', entry.get('source_view'))}_{label}_{index:02d}_{source.stem}"
                         if patterns is not None else label + '_' + source.stem)
-                (staging/(stem+'.svg')).write_text(svg, encoding='utf8')
-                rasterize(svg, staging/(stem+'.png'), max_width=2400)
-                pair = [stem+'.svg', stem+'.png']
+                (target_dir/(stem+'.svg')).write_text(svg, encoding='utf8')
+                rasterize(svg, target_dir/(stem+'.png'), max_width=2400)
+                pair = [f'{folder_name}/{stem}.svg', f'{folder_name}/{stem}.png']
                 files.extend(pair)
                 pattern_records.append(dict(entry, files=pair))
             manifest['categories'][label] = {'status':'reviewed' if ids else 'confirmed_absent',
                                               'selected_ids':ids, 'files':files}
             if patterns is not None:
                 manifest['categories'][label]['patterns'] = pattern_records
+            # Placement hints must reference the final, category-relative files.
+            reviewed_patterns[name] = pattern_records
+        if selected['车漆']:
+            from core.placements import attach_placements
+            # Legacy callers lack individual motifs; retain that uncertainty.
+            placement_patterns = reviewed_patterns
+            if patterns is None:
+                placement_patterns = {}
+                for name in LABELS:
+                    entries = []
+                    for group in split_by_region(selected[name], assignments):
+                        entry = {'selected_ids': group,
+                                 'files': manifest['categories'][LABELS[name]]['files']}
+                        region = region_for_ids(group, assignments, regions)
+                        if region:
+                            entry.update(source_region=region['id'], region_name=region['name'],
+                                         source_view=region['source_view'])
+                        entries.append(entry)
+                    placement_patterns[name] = entries
+            base_dir = staging / BASE_DIR
+            base_path = base_dir / 'vehicle-base.svg'
+            svg, placements = attach_placements(base_path.read_text(encoding='utf8'),
+                base_dir / 'vehicle-base.png', result['objects'], placement_patterns, regions,
+                digest, individual_patterns=patterns is not None)
+            base_path.write_text(svg, encoding='utf8')
+            (base_dir / 'vehicle-base.placements.json').write_text(
+                json.dumps(placements, ensure_ascii=False, indent=2, allow_nan=False), encoding='utf8')
+            manifest['placements'] = {'schema_version': placements['schema_version'],
+                                      'template_id': placements['template_id'],
+                                      'file': f'{BASE_DIR}/vehicle-base.placements.json',
+                                      'slot_count': len(placements['slots'])}
         if hashlib.sha256(source.read_bytes()).hexdigest() != digest:
             raise ValueError('导出期间源 FS 发生变化，未发布成品。')
-        manifest['artifact_sha256'] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
-                                      for p in staging.iterdir() if p.is_file()}
+        manifest['artifact_sha256'] = {p.relative_to(staging).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                                      for p in staging.rglob('*') if p.is_file()}
         (staging/'复核记录.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf8')
         if destination.exists():
             backup = root/'.review_history'/source.stem/token

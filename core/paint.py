@@ -6,6 +6,22 @@ CATEGORY_KEYS = {'车身': 'body', '车漆': 'paint', '彩条': 'stripes',
                  '文字': 'text', 'logo': 'logo', '门徽': 'emblem'}
 
 
+class CategoryOverlapError(ValueError):
+    """Contradictory source ownership, with fixed local diagnostic text."""
+    def __init__(self, categories):
+        self.conflicts = []
+        names = [name for name in CATEGORY_KEYS if name != '车身']
+        for index, first in enumerate(names):
+            for second in names[index+1:]:
+                if {first, second} == {'logo', '门徽'}:
+                    continue
+                shared = set(categories[first]) & set(categories[second])
+                if shared:
+                    self.conflicts.append({'categories': [first, second], 'source_ids': sorted(shared)})
+        detail = '、'.join('/'.join(c['categories'])+f"（{len(c['source_ids'])} 条）" for c in self.conflicts)
+        super().__init__('非车身类别存在重叠对象：'+detail+'；仅 logo 与门徽可共享源对象。')
+
+
 def category_conflicts(categories, *, include_body=False):
     """Only a logo embedded in a door emblem may share nonbody source IDs."""
     owners = {}
@@ -83,7 +99,7 @@ def normalize_categories(objects, categories):
         result[name] = list(ids)
     result['文字'] = [i for i in result['文字'] if i not in category_exclusions('文字', result)]
     if category_conflicts(result):
-        raise ValueError('非车身类别存在重叠对象；仅 logo 与门徽可共享源对象。')
+        raise CategoryOverlapError(result)
     result['车身'] = [i for i in result['车身'] if i not in claimed]
     return result
 

@@ -36,7 +36,33 @@ def build_source_regions(candidates, decision):
         regions.append(dict(proposal, bbox=union_bounds(anchors),
                             selected_ids=list(dict.fromkeys(
                                 i for c in anchors for i in c['member_ids']))))
-    return regions
+    return normalize_source_regions(regions)
+
+
+def normalize_source_regions(regions):
+    """Drop redundant standalone subgroups inside one complete vehicle view.
+
+    Require both source membership and full spatial containment. Overlapping
+    views, independent source copies and uncertain ownership remain separate.
+    """
+    vehicle_views = {'左视图', '右视图', '前视图', '后视图', '顶视图', '底视图'}
+    result = []
+    for region in regions:
+        owners = []
+        members = set(region.get('selected_ids', []))
+        if region.get('source_view') == '独立图案' and members:
+            b = region['bbox']
+            for parent in regions:
+                if parent is region or parent.get('source_view') not in vehicle_views:
+                    continue
+                a = parent['bbox']
+                if (members < set(parent.get('selected_ids', []))
+                        and a[0] <= b[0] and a[1] <= b[1]
+                        and b[2] <= a[2] and b[3] <= a[3]):
+                    owners.append(parent)
+        if len(owners) != 1:
+            result.append(dict(region))
+    return result
 
 
 def object_regions(objects, regions):

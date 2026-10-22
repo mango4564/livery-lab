@@ -5,6 +5,9 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
+import subprocess
+import sys
 import uuid
 import zipfile
 
@@ -117,13 +120,13 @@ GUIDE = '''彩条提取工作台 — 源码体验版
 '''
 
 
-def payload():
-    files = {f'{name}.py': (ROOT / f'{name}.py').read_bytes() for name in MODULES}
-    files.update({p.relative_to(ROOT).as_posix(): p.read_bytes()
-                  for p in sorted((ROOT / 'core').glob('*.py'))})
+def payload(root=ROOT):
+    files = {f'{name}.py': (root / f'{name}.py').read_bytes() for name in MODULES}
+    files.update({p.relative_to(root).as_posix(): p.read_bytes()
+                  for p in sorted((root / 'core').glob('*.py'))})
     for name in ('requirements.txt', 'settings.example.json'):
-        files[name] = (ROOT / name).read_bytes()
-    files['scripts/source_runtime.py'] = (ROOT / 'scripts/source_runtime.py').read_bytes()
+        files[name] = (root / name).read_bytes()
+    files['scripts/source_runtime.py'] = (root / 'scripts/source_runtime.py').read_bytes()
     # Catch missing local modules, including imports inside functions.
     for name, data in files.items():
         if not name.endswith('.py'):
@@ -135,7 +138,7 @@ def payload():
                        else [node.module] if isinstance(node, ast.ImportFrom) and node.module else [])
             for module in imports:
                 candidate = module.split('.')[0] + '.py'
-                if (ROOT / candidate).is_file() and candidate not in files:
+                if (root / candidate).is_file() and candidate not in files:
                     raise RuntimeError(f'Missing local dependency: {candidate}')
         if re.search(rb'(?:sk-[A-Za-z0-9_-]{20,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)', data):
             raise RuntimeError(f'Possible credential in {name}; review before sharing')
@@ -152,10 +155,51 @@ def payload():
     return files
 
 
-def main():
-    files = payload()
-    label = '彩条提取工作台_源码体验版_' + datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:6]
-    destination = ROOT / 'release' / (label + '.zip')
+def validate_legacy_syntax(files):
+    """Compile the exact payload with the oldest supported Python, offline."""
+    candidates = []
+    if sys.version_info[:2] == (3, 10):
+        candidates.append([sys.executable])
+    if shutil.which('py'):
+        found = subprocess.run(['py', '-3.10', '-c', 'import sys; print(sys.executable)'],
+                               capture_output=True, text=True, timeout=30)
+        if found.returncode == 0 and found.stdout.strip():
+            candidates.append([found.stdout.strip()])
+    if shutil.which('uv'):
+        found = subprocess.run(['uv', 'python', 'find', '3.10', '--no-python-downloads'],
+                               capture_output=True, text=True, timeout=30)
+        if found.returncode == 0 and found.stdout.strip():
+            candidates.append([found.stdout.strip()])
+    checker = (
+        'import json, sys\n'
+        'assert sys.version_info[:2] == (3, 10), "Python 3.10 required"\n'
+        'for name, source in json.load(sys.stdin).items():\n'
+        '    compile(source, name, "exec")\n'
+    )
+    sources = json.dumps({name: data.decode('utf-8-sig') for name, data in files.items()
+                          if name.endswith('.py')}, ensure_ascii=True)
+    for command in candidates:
+        try:
+            result = subprocess.run([*command, '-X', 'utf8', '-c', checker], input=sources,
+                                    capture_output=True, text=True, encoding='utf8', timeout=60)
+        except OSError:
+            continue
+        if result.returncode:
+            raise RuntimeError('Python 3.10 源码兼容检查失败，已停止出包：\n' + result.stderr)
+        return
+    raise RuntimeError('源码包发布需要 Python 3.10 做兼容检查。请安装 CPython 3.10，'
+                       '或执行 uv python install 3.10 后重试；不会跳过检查生成包。')
+
+
+def create_archive(destination=None, *, root=ROOT):
+    """Build and verify the same allowlisted demo for standalone or EXE builds."""
+    files = payload(root)
+    validate_legacy_syntax(files)
+    if destination is None:
+        label = '彩条提取工作台_源码体验版_' + datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:6]
+        destination = root / 'release' / (label + '.zip')
+    destination = Path(destination)
+    label = destination.stem
     destination.parent.mkdir(exist_ok=True)
     with zipfile.ZipFile(destination, 'x', compression=zipfile.ZIP_DEFLATED) as bundle:
         for name, data in files.items():
@@ -165,9 +209,13 @@ def main():
         assert set(bundle.namelist()) == {label + '/' + name for name in files}
         for name, data in files.items():
             assert bundle.read(label + '/' + name) == data, name
-    print(json.dumps({'archive': str(destination), 'file_count': len(files),
-                      'bytes': destination.stat().st_size,
-                      'sha256': hashlib.sha256(destination.read_bytes()).hexdigest()}, ensure_ascii=False))
+    return {'archive': str(destination), 'file_count': len(files),
+            'bytes': destination.stat().st_size,
+            'sha256': hashlib.sha256(destination.read_bytes()).hexdigest()}
+
+
+def main():
+    print(json.dumps(create_archive(), ensure_ascii=False))
 
 
 if __name__ == '__main__':

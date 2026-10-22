@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from PIL import Image
 
-from reviewed_exports import LABELS, export_reviewed
+from reviewed_exports import LABELS, CATEGORY_DIRS, export_reviewed
 
 
 def fixture(root):
@@ -33,9 +33,9 @@ class ReviewedExportTests(unittest.TestCase):
         folder=Path(published['output_dir'])
         stem=Path(self.result['source']).stem
         self.assertEqual(folder,self.output/stem)
-        names={label+'_'+stem+suffix for name,label in LABELS.items() if self.choices[name] for suffix in ('.svg','.png')}
-        self.assertEqual({p.name for p in folder.iterdir()},names|{'复核记录.json'})
-        for p in folder.glob('*.png'):
+        names={CATEGORY_DIRS[name]+'/'+label+'_'+stem+suffix for name,label in LABELS.items() if self.choices[name] for suffix in ('.svg','.png')}
+        self.assertEqual({p.relative_to(folder).as_posix() for p in folder.rglob('*') if p.is_file()},names|{'复核记录.json'})
+        for p in folder.rglob('*.png'):
             with Image.open(p) as im:
                 self.assertEqual(im.mode,'RGBA')
                 self.assertEqual(im.getextrema()[3][0],0)
@@ -55,11 +55,11 @@ class ReviewedExportTests(unittest.TestCase):
 
     def test_failed_png_keeps_previous_final_files_and_cleans_staging(self):
         first=export_reviewed(self.result,self.choices,self.output)
-        folder=Path(first['output_dir']); before={p.name:p.read_bytes() for p in folder.iterdir()}
+        folder=Path(first['output_dir']); before={p.relative_to(folder).as_posix():p.read_bytes() for p in folder.rglob('*') if p.is_file()}
         self.choices['彩条']=['5']
         with patch('reviewed_exports.rasterize',side_effect=RuntimeError('PNG failed')):
             with self.assertRaises(RuntimeError):export_reviewed(self.result,self.choices,self.output)
-        self.assertEqual(before,{p.name:p.read_bytes() for p in folder.iterdir()})
+        self.assertEqual(before,{p.relative_to(folder).as_posix():p.read_bytes() for p in folder.rglob('*') if p.is_file()})
         self.assertFalse(list(self.output.glob('.review_stage_*')))
 
     def test_reexport_archives_old_and_removes_now_absent_pair(self):
@@ -68,8 +68,8 @@ class ReviewedExportTests(unittest.TestCase):
         self.choices['彩条']=['5']
         second=export_reviewed(self.result,self.choices,self.output)
         self.assertEqual(first['output_dir'],second['output_dir'])
-        self.assertTrue(list(Path(second['previous_version']).glob('logo*.svg')))
-        self.assertFalse(list(Path(second['output_dir']).glob('logo*.svg')))
+        self.assertTrue(list((Path(second['previous_version'])/'logo').glob('logo*.svg')))
+        self.assertFalse(list((Path(second['output_dir'])/'logo').glob('logo*.svg')))
         self.assertEqual(second['manifest']['categories']['彩条']['selected_ids'],['5'])
 
     def test_same_name_different_source_cannot_merge(self):

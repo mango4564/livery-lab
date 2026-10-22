@@ -12,6 +12,11 @@ import sys
 import uuid
 import zipfile
 
+if __package__:
+    from .package_source import create_archive
+else:
+    from package_source import create_archive
+
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_NAME = '彩条提取工作台'
@@ -30,7 +35,9 @@ def run(command, log, *, cwd=ROOT, timeout=600):
 def source_digest():
     digest = hashlib.sha256()
     paths = sorted([*ROOT.glob('*.py'), *(ROOT/'core').rglob('*.py'),
-                    ROOT/'requirements.txt', ROOT/'settings.example.json', ROOT/'README.md'])
+                    ROOT/'requirements.txt', ROOT/'settings.example.json', ROOT/'README.md',
+                    *(ROOT/'scripts'/name for name in
+                      ('build_windows.py', 'package_source.py', 'source_runtime.py'))])
     for path in paths:
         digest.update(path.relative_to(ROOT).as_posix().encode('utf8'))
         digest.update(path.read_bytes())
@@ -83,6 +90,8 @@ def main():
     release_root.mkdir(exist_ok=True)
     destination = release_root/release_name
     archive = release_root/(release_name+'.zip')
+    demo_name = APP_NAME+'_源码体验版_'+stamp+'.zip'
+    demo_archive = release_root/demo_name
     try:
         print('[1/5] 检查依赖并运行源码自检…', flush=True)
         try:
@@ -92,6 +101,9 @@ def main():
                                f'"{sys.executable}" -m pip install -r "{ROOT / "requirements.txt"}" "pyinstaller>=6,<7"\n'
                                f'原始错误见：{log}') from exc
         snapshot = source_digest()
+        print('检查源码体验包的 Python 3.10 兼容性…', flush=True)
+        staged_demo = work/demo_name
+        create_archive(staged_demo, root=ROOT)
         run([sys.executable, '-X', 'utf8', ROOT/'app.py', '--self-test'], log, timeout=90)
         print('[2/5] 构建 EXE（详细进度写入日志）…', flush=True)
         dist = work/'dist'
@@ -128,7 +140,9 @@ def main():
                     raise RuntimeError('发布包包含本机配置或密钥，已停止发布。')
             if bundle.testzip() is not None:
                 raise RuntimeError('ZIP 完整性检查失败，已停止发布。')
-        if destination.exists() or archive.exists():
+        if source_digest() != snapshot:
+            raise RuntimeError('生成体验包期间源码发生变化，请等待修改结束后重新打包。')
+        if destination.exists() or archive.exists() or demo_archive.exists():
             raise RuntimeError('目标发布路径已经存在，已停止以保留旧包。')
         inherited = inherit_local_config(ROOT, app)
         if inherited:
@@ -138,8 +152,9 @@ def main():
         # Build and verification finish before the launcher can discover the EXE.
         dist.rename(destination)
         staged_zip.rename(archive)
+        staged_demo.rename(demo_archive)
         print(f'\n打包成功。\n程序：{destination / APP_NAME / (APP_NAME+".exe")}\n'
-              f'ZIP：{archive}\n日志：{log}\n' +
+              f'EXE ZIP：{archive}\n同事体验 ZIP：{demo_archive}\n日志：{log}\n' +
               ('本机 EXE 已沿用最近保存的 AI 配置。' if inherited else '本机尚无 AI 配置，请在程序内配置。') +
               '\nZIP 不含本机配置或密钥，分享给他人后需自行配置 AI 接口。', flush=True)
         return 0

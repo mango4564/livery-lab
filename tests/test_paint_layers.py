@@ -149,15 +149,15 @@ class PaintLayersTests(unittest.TestCase):
             choices = dict(result['component_categories'], 车漆=['5'])
             published = export_reviewed(result, choices, root/'out')
             folder = Path(published['output_dir'])
-            tree = ET.parse(folder/'vehicle-base.svg')
+            tree = ET.parse(folder/'整车底图'/'vehicle-base.svg')
             groups = tree.findall(f'.//{{{SVG}}}g[@data-layer]')
             self.assertEqual([g.get('data-layer') for g in groups], ['paint', 'body'])
             self.assertEqual([p.get('id') for p in groups[0].findall(f'{{{SVG}}}path')], ['5'])
             data = json.loads(tree.find(f'{{{SVG}}}metadata').text)
             self.assertTrue(data['human_reviewed'])
             self.assertEqual(data['source_sha256'], result['source_sha256'])
-            self.assertIn('vehicle-base.svg', published['manifest']['artifact_sha256'])
-            single = ET.parse(next(folder.glob('车漆_*.svg')))
+            self.assertIn('整车底图/vehicle-base.svg', published['manifest']['artifact_sha256'])
+            single = ET.parse(next((folder/'车漆').glob('车漆_*.svg')))
             self.assertIsNotNone(single.find(f'.//{{{SVG}}}g[@id="layer-paint"]'))
 
     def test_conflicting_new_base_never_overwrites_previous_export(self):
@@ -167,14 +167,14 @@ class PaintLayersTests(unittest.TestCase):
             choices = dict(result['component_categories'])
             first = export_reviewed(result, choices, root/'out')
             folder = Path(first['output_dir'])
-            before = {p.name: p.read_bytes() for p in folder.iterdir()}
+            before = {p.relative_to(folder).as_posix(): p.read_bytes() for p in folder.rglob('*') if p.is_file()}
             result['objects'][5] = dict(result['objects'][0], id='5', fill='#ff0000')
             choices['车漆'] = ['5']
             # Even the source-order fallback must pass rendering validation.
             with patch('core.svg_layers._same_render', return_value=False):
                 with self.assertRaises(LayerOrderError):
                     export_reviewed(result, choices, root/'out')
-            self.assertEqual(before, {p.name: p.read_bytes() for p in folder.iterdir()})
+            self.assertEqual(before, {p.relative_to(folder).as_posix(): p.read_bytes() for p in folder.rglob('*') if p.is_file()})
             self.assertFalse(list((root/'out').glob('.review_stage_*')))
 
     def test_unknown_paint_never_publishes_diagnostic_grey_as_source_colour(self):

@@ -5,6 +5,7 @@ import json
 import math
 import re
 import struct
+import time
 from pathlib import Path
 
 import olefile
@@ -373,13 +374,86 @@ def prepare(source, directory, limit=120):
 
 
 def recognize_groups(candidates, directory, config):
-    from vision import recognize
+    from vision import recognize, ComponentClassificationError
+    from core.paint import CategoryOverlapError
     directory = Path(directory)
     metadata = [{k: c[k] for k in ('id', 'bbox', 'native_type', 'source_span')} |
                 {'path_count': len(c['member_ids'])} for c in candidates]
-    return recognize({'objects': candidates, 'component_mode': True, 'group_metadata': metadata},
-                     directory/'source_scene.png', directory/'group_atlas.png',
-                     dict(config, max_candidates=max(len(candidates), 1)))
+    scene = {'objects': candidates, 'component_mode': True, 'group_metadata': metadata}
+    members = {c['id']: set(c['member_ids']) for c in candidates}
+    source_objects = [{'id': oid} for oid in dict.fromkeys(
+        oid for c in candidates for oid in c['member_ids'])]
+    deadline = time.monotonic() + float(config.get('timeout_seconds', 90))
+    attempts = []
+    protected = {}
+    for attempt in range(2):
+        remaining = deadline - time.monotonic()
+        if remaining < 1:
+            raise ValueError('六类分类校验的请求时间预算已耗尽，请重试或人工复核。')
+        protocol_error = None
+        try:
+            decision = recognize(scene, directory/'source_scene.png', directory/'group_atlas.png',
+                                 dict(config, max_candidates=max(len(candidates), 1), timeout_seconds=remaining))
+        except ComponentClassificationError as exc:
+            decision, protocol_error = exc.payload, exc
+        record = {'attempt': attempt+1, 'categories': decision['categories']}
+        try:
+            resolved = resolve_categories(source_objects, candidates, decision)
+            if protocol_error:
+                raise protocol_error
+        except (CategoryOverlapError, ComponentClassificationError) as exc:
+            details = getattr(exc, 'conflicts', [])
+            if not details:
+                for index, first in enumerate(CATEGORIES):
+                    for second in CATEGORIES[index+1:]:
+                        if {first, second} == {'logo', '门徽'}:
+                            continue
+                        shared_groups = set(decision['categories'][first]) & set(decision['categories'][second])
+                        if shared_groups:
+                            details.append({'categories': [first, second], 'source_ids': sorted(
+                                set().union(*(members[gid] for gid in shared_groups)))})
+            conflicts = []
+            for conflict in details:
+                first, second = conflict['categories']
+                shared = set(conflict['source_ids'])
+                pairs = []
+                for a in decision['categories'][first]:
+                    for b in decision['categories'][second]:
+                        overlap = members[a] & members[b] & shared
+                        if overlap:
+                            pairs.append({'first': a, 'second': b, 'shared_source_count': len(overlap),
+                                          'first_contains_second': members[b] <= members[a],
+                                          'second_contains_first': members[a] <= members[b]})
+                conflicts.append({'categories': [first, second], 'source_count': len(shared),
+                                  'candidate_pairs': pairs})
+            record.update(status='source_overlap', conflicts=conflicts)
+            attempts.append(record)
+            (directory/'classification_validation.json').write_text(
+                json.dumps(attempts, ensure_ascii=False, indent=2), encoding='utf8')
+            if attempt:
+                raise ValueError('同一模型纠正一次后仍有分类冲突。'+str(exc)) from None
+            scene['component_conflict_feedback'] = {'previous_categories': decision['categories'],
+                                                    'source_conflicts': conflicts}
+            conflicting_ids = set(oid for detail in details for oid in detail['source_ids'])
+            expanded = {name: set().union(*(members[gid] for gid in gids)) if gids else set()
+                        for name, gids in decision['categories'].items()}
+            expanded['文字'] -= expanded['logo']
+            protected = {name: ids-conflicting_ids for name, ids in expanded.items() if name != '车身'}
+        else:
+            dropped = {name: len(ids-set(resolved[name])) for name, ids in protected.items()
+                       if not ids <= set(resolved[name])}
+            if dropped:
+                record.update(status='dropped_valid_selection', missing_source_counts=dropped)
+                attempts.append(record)
+                (directory/'classification_validation.json').write_text(
+                    json.dumps(attempts, ensure_ascii=False, indent=2), encoding='utf8')
+                detail = '、'.join(name+f'（{count} 条）' for name, count in dropped.items())
+                raise ValueError('模型纠正时丢失原有无冲突分类：'+detail+'；已拒绝该响应，请重新识别或人工复核。')
+            record['status'] = 'validated'
+            attempts.append(record)
+            (directory/'classification_validation.json').write_text(
+                json.dumps(attempts, ensure_ascii=False, indent=2), encoding='utf8')
+            return decision
 
 
 def resolve_categories(objects, candidates, decision):
@@ -413,6 +487,9 @@ def run(source, directory, config, *, use_ai=True):
     categories = resolve_categories(objects, candidates, decision)
     report = {'source': str(source.resolve()), 'source_sha256': digest, 'coverage': coverage,
               'decision': decision, 'categories': categories, 'status': 'review', 'views': []}
+    validation_path = directory/'classification_validation.json'
+    report['classification_validation'] = (json.loads(validation_path.read_text(encoding='utf8'))
+                                           if use_ai and validation_path.exists() else [])
     report['candidates'] = review_candidates(candidates, decision)
     from core.source_regions import build_source_regions
     report['source_regions'] = build_source_regions(candidates, decision)
