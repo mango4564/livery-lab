@@ -580,6 +580,22 @@ def build_candidates(objects, containers, limit=120):
         leftovers.extend(local[cap:])
     leftovers.sort(key=lambda c: c['native_type'] not in priority_types)
     selected.extend(leftovers[:max(0, limit-len(selected))])
+    # The atlas budget may trim generated proposals, never complete large
+    # native groups. Busy pages must not silently lose a vehicle/end view.
+    selected_members = {tuple(c['member_ids']) for c in selected if c['native_type'] == 'AGroup'}
+    for c in candidates:
+        if (c['native_type'] == 'AGroup' and c['area'] > max_area*.025
+                and tuple(c['member_ids']) not in selected_members
+                and not any(set(c['member_ids']) <= set(old['member_ids'])
+                            for old in selected if old['native_type'] == 'AGroup')):
+            selected.append(c)
+            selected_members.add(tuple(c['member_ids']))
+    for c in selected:
+        span = c.get('source_span')
+        c['native_parent_spans'] = [g['source_span'] for g in candidates
+            if span and g is not c and g['source_span'][0] < span[0]
+            and span[1] <= g['source_span'][1]
+            and set(c['member_ids']) <= set(g['member_ids'])]
     attach_native_contexts(selected, candidates)
     for i, c in enumerate(selected):
         c.update(id=f'G{i+1:03d}', score=1, fill='none')
@@ -845,6 +861,19 @@ def recognize_groups(candidates, directory, config, *, surface_audit=False, clas
     if surface_audit:
         scene['body_surface_audit'] = True
     scene['paint_consistency'] = bool(config.get('_paint_consistency'))
+    scene['native_group_stage'] = bool(config.get('_native_group_stage'))
+    scene['local_member_stage'] = bool(config.get('_local_member_stage'))
+    for item, candidate in zip(metadata, candidates):
+        item['native_parent_spans'] = candidate.get('native_parent_spans', [])
+        item['selected_parent_categories'] = [dict(group_id=parent['id'], category=name)
+            for parent, name in config.get('_selected_group_context', [])
+            if set(candidate['member_ids']) <= set(parent['member_ids'])]
+    scene['confirmed_body_ids'] = config.get('_confirmed_body_ids', [])
+    if scene['native_group_stage'] and not surface_audit and directory.name != 'conflicts':
+        stage = 'native_groups'
+    elif scene['local_member_stage'] and not surface_audit and directory.name != 'conflicts':
+        stage = 'local_members'
+    scene['request_stage'] = stage
     if (directory/'region_context.json').exists():
         scene['region_context'] = json.loads((directory/'region_context.json').read_text(encoding='utf8'))
         scene['paint_completeness'] = bool(config.get('_paint_completeness'))
@@ -973,12 +1002,19 @@ def recover_empty_classification(candidates, decision, directory, config, *, bat
                                                      source_view=view, anchor_ids=[gid]))
         reasons.append(checked['reason'])
         confidences.append(checked['confidence'])
-    merged['reason'] += '；全空结果分批复核：'+'；'.join(reasons)
+    label = {'native_groups': '原生整组识别', 'local_members': '局部成员分类'}.get(phase, '全空结果分批复核')
+    merged['reason'] += '；'+label+'：'+'；'.join(reasons)
     # Confidence is not accuracy; preserve the most cautious batch assessment.
     merged['confidence'] = min(confidences)
     _validate_components(merged, {c['id'] for c in candidates})
     # Different G IDs can own the same source paths. Bring contradictory
     # labels together once; do not resolve semantics by batch order or colour.
+    return review_classification_conflicts(candidates, merged, directory, config, phase, coverage)
+
+
+def review_classification_conflicts(candidates, merged, directory, config, phase, coverage):
+    """Resolve overlaps after either ordinary batches or sequential stages."""
+    from vision import _validate_components
     conflicts = recovery_conflicts(candidates, merged)
     if conflicts:
         path = Path(directory)/phase/'conflicts'
@@ -1006,6 +1042,75 @@ def recover_empty_classification(candidates, decision, directory, config, *, bat
     _validate_components(merged, {c['id'] for c in candidates})
     coverage['empty_recovery_classified'] = sum(len(ids) for ids in merged['categories'].values())
     return merged, coverage
+
+
+def classify_native_first(candidates, directory, config):
+    """Classify intact source groups before exposing generated local members.
+
+    Each stage is fully validated before its decision becomes later context.
+    Existing IDs and member arrays are immutable throughout both stages.
+    """
+    from vision import component_batch_size, _validate_components
+    size = component_batch_size(config) or 20
+    native = [c for c in candidates if c['native_type'] in ('AGroup', 'AComposite')]
+    local = [c for c in candidates if c['native_type'] not in ('AGroup', 'AComposite')]
+    merged = {'categories': {name: [] for name in CATEGORIES}, 'source_regions': [],
+              'source_views': {}, 'reason': '', 'confidence': 1.0}
+    coverage = {'native_group_stage_candidates': len(native), 'local_member_stage_candidates': len(local),
+                'initial_classification_batches': 0}
+    for phase, pool in (('native_groups', native), ('local_members', local)):
+        if not pool:
+            continue
+        anchors = selected_body_anchors(candidates, merged)
+        context = dict(config, _native_group_stage=phase == 'native_groups',
+                       _local_member_stage=phase == 'local_members',
+                       _confirmed_body_ids=list(merged['categories']['车身']),
+                       _selected_group_context=[(c, name) for name, ids in merged['categories'].items()
+                                                for c in candidates if c['id'] in ids])
+        if anchors:
+            context['_context_anchors'] = anchors
+        blank = {'categories': {name: [] for name in CATEGORIES}, 'reason': '', 'confidence': 1.0}
+        checked, stats = recover_empty_classification(pool, blank, directory, context,
+                                                      batch_size=size, phase=phase)
+        coverage[phase+'_batches'] = stats['empty_recovery_batches']
+        coverage['initial_classification_batches'] += stats['empty_recovery_batches']
+        for name in CATEGORIES:
+            merged['categories'][name].extend(checked['categories'][name])
+        merged['source_views'].update(checked.get('source_views', {}))
+        merged['reason'] = (merged['reason']+'；'+checked['reason'])[-5000:]
+        merged['confidence'] = min(merged['confidence'], checked['confidence'])
+        coverage[phase+'_unresolved_groups'] = stats['empty_recovery_unresolved_groups']
+    _validate_components(merged, {c['id'] for c in candidates})
+    merged, coverage = review_classification_conflicts(candidates, merged, directory,
+        dict(config, _native_group_stage=False, _local_member_stage=False),
+        'stage_conflicts', coverage)
+    # A local member labelled structural must not create an overlapping region
+    # inside its already selected complete vehicle parent.
+    for number, anchor in enumerate(selected_body_anchors(candidates, merged), 1):
+        view = merged['source_views'].get(anchor['id'], '待确认视图')
+        merged['source_regions'].append(dict(id=f'R{number}', name=f'{view}{number}',
+                                            source_view=view, anchor_ids=[anchor['id']]))
+    _validate_components(merged, {c['id'] for c in candidates})
+    return merged, coverage
+
+
+def body_group_audit(objects, candidates, decision):
+    """Record full parent membership and explicit category transfers."""
+    resolved = resolve_categories(objects, candidates, decision)
+    retained_ids = set(resolved['车身'])
+    result = []
+    for c in candidates:
+        if c['id'] not in decision['categories']['车身']:
+            continue
+        members = set(c['member_ids'])
+        retained = [oid for oid in c['member_ids'] if oid in retained_ids]
+        transfers = {name: [oid for oid in ids if oid in members]
+                     for name, ids in resolved.items() if name != '车身' and members.intersection(ids)}
+        result.append(dict(group_id=c['id'], native_type=c['native_type'],
+            source_span=c.get('source_span'), native_parent_spans=c.get('native_parent_spans', []),
+            original_member_ids=list(c['member_ids']), retained_member_ids=retained,
+            transfers=transfers))
+    return result
 
 
 def recovery_conflicts(candidates, decision):
@@ -1333,24 +1438,14 @@ def run(source, directory, config, *, use_ai=True):
     config.update(_region_workflow=True, _context_objects=objects,
                   _context_anchors=context_regions(candidates), _all_candidates=candidates)
     coverage['context_region_proposals'] = len(config['_context_anchors'])
-    from vision import component_batch_size, request_summary
-    size = component_batch_size(config)
+    from vision import request_summary
     decision = {'categories': {name: [] for name in CATEGORIES},
                 'reason': '手工复核模式，尚未分类；未调用 AI。', 'confidence': 0.0}
-    if use_ai and size:
-        decision['reason'] = '按当前模型配置，从首轮分批识别。'
-        decision, initial_coverage = recover_empty_classification(
-            candidates, decision, directory, config, batch_size=size, phase='classification')
-        coverage.update(initial_coverage)
-        coverage['initial_classification_batches'] = initial_coverage['empty_recovery_batches']
-        coverage['empty_recovery_batches'] = 0
-    elif use_ai:
-        render_region_context(candidates, directory, config)
-        decision = recognize_groups(candidates, directory, config)
     if use_ai:
-        if not size:
-            decision, recovery_coverage = recover_empty_classification(candidates, decision, directory, config)
-            coverage.update(recovery_coverage)
+        decision, initial_coverage = classify_native_first(candidates, directory, config)
+        coverage.update(initial_coverage)
+        coverage['empty_recovery_batches'] = 0
+    if use_ai:
         decision, audit_coverage = refine_body_surfaces(objects, candidates, decision, directory, config)
         coverage.update(audit_coverage)
         decision, consistency_coverage = refine_paint_consistency(objects, candidates, decision, directory, config)
@@ -1358,6 +1453,7 @@ def run(source, directory, config, *, use_ai=True):
     categories = resolve_categories(objects, candidates, decision)
     report = {'source': str(source.resolve()), 'source_sha256': digest, 'coverage': coverage,
               'decision': decision, 'categories': categories, 'status': 'review', 'views': []}
+    report['body_group_audit'] = body_group_audit(objects, candidates, decision)
     report['ai_request_summary'] = request_summary(directory/'ai_requests')
     report['ai_requests_json'] = str((directory/'ai_requests.json').resolve())
     (directory/'ai_requests.json').write_text(json.dumps(report['ai_request_summary'], ensure_ascii=False, indent=2), encoding='utf8')
@@ -1405,6 +1501,8 @@ def review_candidates(candidates, decision):
                 hints = ['车身']
         result.append({'id':c['id'], 'label':c['id']+' · '+c['native_type'],
                        'native_type': c['native_type'],
+                       'source_span': c.get('source_span'),
+                       'native_parent_spans': c.get('native_parent_spans', []),
                        'selected_ids':list(c['member_ids']), 'bbox':c['bbox'],
                        'source_view': decision.get('source_views', {}).get(c['id'], '待确认视图'),
                        'category_hints':hints, 'recommended_categories':recommended})

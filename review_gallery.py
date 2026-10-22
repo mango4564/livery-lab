@@ -13,7 +13,7 @@ from image_preview import ImagePreview
 from reviewed_exports import LABELS, SOURCE_VIEWS, export_reviewed, infer_source_view
 from vector_preview import VectorImage
 from source_locator import source_rectangle, SourceLocator, SourceLocatorRenderer
-from core.source_regions import object_regions, region_for_ids, split_by_region, valid_region_name, normalize_source_regions
+from core.source_regions import object_regions, region_for_ids, split_by_region, valid_region_name, normalize_source_regions, merge_surface_patterns
 import xml.etree.ElementTree as ET
 
 
@@ -283,6 +283,7 @@ class ReviewGallery(tk.Toplevel):
         self.output_root = tk.StringVar(value=str(Path(output_root).resolve()))
         self.show_all = tk.BooleanVar(value=False)
         self.source_view = tk.StringVar(value=SOURCE_VIEWS[0])
+        self.keep_separate = tk.BooleanVar(value=False)
         self.status = tk.StringVar(value='逐类添加需要导出的图案，并标注来源视图；没有图案的类别请明确标记。')
         self._build()
         self._restore()
@@ -350,6 +351,8 @@ class ReviewGallery(tk.Toplevel):
         self.view_combo.pack(side='left', padx=8)
         self.confirm_button = ttk.Button(right, text='✓ 添加此图 / 更新此图来源视图', command=self._confirm)
         self.confirm_button.pack(fill='x', pady=4)
+        ttk.Checkbutton(right, text='车身 / 车漆：本次添加单独导出（默认合并同一区域）',
+                        variable=self.keep_separate).pack(anchor='w')
         self.pattern_list = tk.Listbox(right, height=4, exportselection=False)
         self.pattern_list.pack(fill='x')
         self.pattern_list.bind('<<ListboxSelect>>', self._preview_pattern)
@@ -634,6 +637,7 @@ class ReviewGallery(tk.Toplevel):
             direction = infer_source_view(self.current_candidate['selected_ids'], self.result['objects'],
                                           self.candidates + [e for entries in self.patterns.values() for e in entries])
         self.source_view.set(direction)
+        self.keep_separate.set(bool((saved or self.current_candidate).get('keep_separate', False)))
         vector = VectorImage(self._svg(self.current_candidate))
         self.preview.set_image(None, vector, vector_label=('来源区域：'+region['name']+' · 自动继承名称' if region else '候选 SVG · 待确认区域，可手动标注来源视图'))
         self._request_location()
@@ -706,6 +710,8 @@ class ReviewGallery(tk.Toplevel):
             self.source_view.set(direction)
             return
         entry = {'selected_ids': list(ids), 'source_view': self.source_view.get()}
+        if category in ('车身', '车漆'):
+            entry['keep_separate'] = self.keep_separate.get()
         self._inherit_region(entry)
         entries = self.patterns[category]
         for index, old in enumerate(entries):
@@ -714,6 +720,7 @@ class ReviewGallery(tk.Toplevel):
                 break
         else:
             entries.append(entry)
+        self.patterns[category] = merge_surface_patterns(category, entries)
         self._sync_patterns(category)
 
     def _sync_patterns(self, category):
@@ -727,6 +734,7 @@ class ReviewGallery(tk.Toplevel):
             return
         self.current_candidate = self.patterns[self.category][rows[0]]
         self.source_view.set(self.current_candidate['source_view'])
+        self.keep_separate.set(bool(self.current_candidate.get('keep_separate', False)))
         self.preview.set_image(None, VectorImage(self._svg(self.current_candidate)),
                                vector_label='已添加图案 · 修改来源视图后点击更新')
         self._request_location()

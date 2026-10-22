@@ -480,6 +480,7 @@ def _run_components_worker(source,directory,digest,fingerprint,use_ai,reference_
             'candidate_png':str(directory/'group_atlas.png'),
             'views':components_report['views'], 'component_categories':categories,
             'component_candidates':components_report.get('candidates',[]),
+            'body_group_audit':components_report.get('body_group_audit',[]),
             'source_regions':components_report.get('source_regions',[]),
             'component_coverage':components_report['coverage'],
             'ai_result':components_report['decision'],

@@ -13,6 +13,23 @@ from test_reviewed_exports import fixture
 
 
 class DirectionalExportTests(TkTestCase):
+    def test_same_region_paint_additions_merge_in_gallery_with_separate_override(self):
+        result = dict(self.result, source_regions=[dict(id='R1', name='侧面A', source_view='左视图',
+            bbox=[0, 0, 120, 10], selected_ids=[])])
+        root = tk.Tk();root.withdraw();self.addCleanup(root.destroy)
+        with patch.object(ReviewGallery, '_locator_worker', return_value=None):
+            gallery = ReviewGallery(root, result, self.output)
+        gallery.withdraw();self.addCleanup(gallery.destroy)
+        gallery.source_view.set('左视图')
+        gallery._add_pattern('车漆', ['0'])
+        gallery._add_pattern('车漆', ['2'])
+        self.assertEqual(len(gallery.patterns['车漆']), 1)
+        self.assertEqual(gallery.patterns['车漆'][0]['selected_ids'], ['0', '2'])
+        gallery.keep_separate.set(True)
+        gallery._add_pattern('车漆', ['4'])
+        self.assertEqual(len(gallery.patterns['车漆']), 2)
+        self.assertTrue(gallery.patterns['车漆'][1]['keep_separate'])
+
     def test_multiple_logos_and_badges_in_one_region_are_independently_selectable_and_exportable(self):
         result = dict(self.result, component_categories={name: [] for name in LABELS})
         result['component_categories'].update(logo=['0', '1', '2'], 门徽=['3', '4', '5'])

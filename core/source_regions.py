@@ -164,3 +164,26 @@ def split_by_region(ids, assignments, *, objects=None):
         key = ('region', region) if region is not None else ('unknown', unknown_groups.get(oid))
         buckets.setdefault(key, []).append(oid)
     return list(buckets.values())
+
+
+def merge_surface_patterns(category, entries):
+    """One body/paint export per confirmed region, unless explicitly split.
+
+    Unknown regions and conflicting directions stay separate. Disconnected
+    source paths retain their coordinates; this never unions geometry.
+    """
+    result = []
+    for original in entries:
+        entry = dict(original, selected_ids=list(original['selected_ids']))
+        if 'keep_separate' in entry and not isinstance(entry['keep_separate'], bool):
+            raise ValueError('单独导出标记必须是布尔值。')
+        region = entry.get('source_region')
+        if category in ('车身', '车漆') and region and not entry.get('keep_separate'):
+            owner = next((old for old in result if old.get('source_region') == region
+                          and old['source_view'] == entry['source_view']
+                          and not old.get('keep_separate')), None)
+            if owner is not None:
+                owner['selected_ids'] = list(dict.fromkeys(owner['selected_ids']+entry['selected_ids']))
+                continue
+        result.append(entry)
+    return result

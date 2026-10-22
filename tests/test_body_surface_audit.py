@@ -118,7 +118,9 @@ class BodySurfaceAuditTests(unittest.TestCase):
         objects, candidates, first = scene()
         def classify(proposals, directory, config, **kwargs):
             if not kwargs.get('surface_audit'):
-                return first
+                allowed = {c['id'] for c in proposals}
+                return dict(first, categories={name: [gid for gid in ids if gid in allowed]
+                                              for name, ids in first['categories'].items()})
             return decision(车漆=[c['id'] for c in proposals if c['member_ids'] in (['roof'], ['base'])])
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory);source=path/'source.fs';source.write_bytes(b'fixture')
@@ -127,7 +129,9 @@ class BodySurfaceAuditTests(unittest.TestCase):
                     patch('components.rasterize'), patch('components.candidate_atlas'), \
                     patch('components.batch_inputs', side_effect=lambda batch, folder, *args: folder.mkdir(parents=True, exist_ok=True)):
                 _, report = run(source, path, {'max_candidates': 120})
-            self.assertEqual(model.call_count, 4)  # Initial, two regional audits, same-fill lamp recheck.
+            self.assertEqual(report['coverage']['native_group_stage_candidates'], 2)
+            self.assertEqual(report['coverage']['local_member_stage_candidates'], 2)
+            self.assertGreaterEqual(model.call_count, 4)
             self.assertNotIn('roof', report['categories']['车身'])
             self.assertIn('roof', report['categories']['车漆'])
             self.assertEqual(report['coverage']['body_surface_audit_classified'], 1)

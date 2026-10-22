@@ -8,7 +8,7 @@ from pathlib import Path
 
 from geometry import rasterize
 from core.svg_layers import layered_svg
-from core.source_regions import object_regions, region_for_ids, split_by_region, normalize_source_regions
+from core.source_regions import object_regions, region_for_ids, split_by_region, normalize_source_regions, merge_surface_patterns
 
 LABELS = {'车身': '车身', '彩条': '彩条', '文字': '文字', 'logo': 'logo', '门徽': '徽章', '车漆': '车漆'}
 BASE_DIR = '整车底图'
@@ -125,6 +125,10 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
                                          objects=result['objects'] if name in ('车漆', '彩条') else None)
                 for group in groups:
                     pattern = {'source_view': entry['source_view'], 'selected_ids': group}
+                    if 'keep_separate' in entry:
+                        if not isinstance(entry['keep_separate'], bool):
+                            raise ValueError('单独导出标记必须是布尔值。')
+                        pattern['keep_separate'] = entry['keep_separate']
                     region = region_for_ids(group, assignments, regions)
                     if region:
                         from core.source_regions import valid_region_name
@@ -139,7 +143,7 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
             expected = set(choices[name] or [])
             if covered != expected:
                 raise ValueError('图案记录与类别所选对象不一致，请重新确认。')
-            reviewed_patterns[name] = normalized
+            reviewed_patterns[name] = merge_surface_patterns(name, normalized)
         anchors = result.get('component_candidates', []) + [
             dict(entry) for entries in reviewed_patterns.values() for entry in entries]
         for entries in reviewed_patterns.values():
@@ -162,6 +166,18 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
     staging.mkdir()
     manifest = {'source': str(source), 'source_sha256': digest, 'reviewed_at': datetime.now().astimezone().isoformat(),
                 'status': 'human_reviewed', 'categories': {}, 'physical_scale_verified': False}
+    if result.get('body_group_audit'):
+        records = []
+        for record in result['body_group_audit']:
+            original = record['original_member_ids']
+            members = set(original)
+            transfers = {name: [oid for oid in ids if oid in members]
+                         for name, ids in selected.items() if name != '车身' and members.intersection(ids)}
+            accounted = set(selected['车身']).union(*(set(ids) for ids in transfers.values()))
+            records.append(dict(record,
+                retained_member_ids=[oid for oid in original if oid in selected['车身']],
+                transfers=transfers, unselected_member_ids=[oid for oid in original if oid not in accounted]))
+        manifest['body_group_audit'] = records
     if patterns is not None:
         manifest['schema_version'] = 3
         if regions:
