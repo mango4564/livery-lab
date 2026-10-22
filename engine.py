@@ -458,7 +458,10 @@ def export_selection(result, selected_ids, output_dir=None, *, category_name=Non
 def _run_components_worker(source,directory,digest,fingerprint,use_ai,reference_directory):
     from components import run
     started=time.monotonic()
-    objects, components_report=run(source,directory,read_config(),use_ai=use_ai)
+    config = dict(read_config(),
+                  _batch_cache_root=str(APP_DIR/'output'/'.cache'/'ai_batches'),
+                  _batch_cache_namespace=f'{digest}:{fingerprint}')
+    objects, components_report=run(source,directory,config,use_ai=use_ai)
     categories=components_report['categories']
     chosen={oid for ids in categories.values() for oid in ids}
     for obj in objects:

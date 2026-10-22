@@ -87,13 +87,14 @@ class PlainConfigTests(TkTestCase):
         self.app._configure_ai_tuning()
         dialog=next(w for w in self.root.winfo_children() if isinstance(w,tk.Toplevel))
         fields=[w for w in descendants(dialog) if isinstance(w,ttk.Combobox)]
-        self.assertEqual(len(fields),6)
-        fields[0].set('8');fields[3].set('8192')
+        self.assertEqual(len(fields),7)
+        fields[0].set('8');fields[3].set('8192');fields[6].set('2')
         next(w for w in descendants(dialog) if isinstance(w,ttk.Button)
              and w.cget('text')=='保存调优配置').invoke()
         actual=json.loads(self.path.read_text(encoding='utf8'))
         self.assertEqual(actual['component_batch_size'],8)
         self.assertEqual(actual['max_output_tokens'],8192)
+        self.assertEqual(actual['component_concurrency'],2)
         for key,value in original.items(): self.assertEqual(actual[key],value)
 
     def test_request_dialog_displays_batch_dimensions_and_details_offline(self):

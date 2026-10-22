@@ -119,15 +119,15 @@ class BodySurfaceAuditTests(unittest.TestCase):
         def classify(proposals, directory, config, **kwargs):
             if not kwargs.get('surface_audit'):
                 return first
-            roof = next(c['id'] for c in proposals if c['member_ids']==['roof'])
-            return decision(车漆=[roof])
+            return decision(车漆=[c['id'] for c in proposals if c['member_ids'] in (['roof'], ['base'])])
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory);source=path/'source.fs';source.write_bytes(b'fixture')
             with patch('components.prepare', return_value=(objects, deepcopy(candidates), {})), \
                     patch('components.recognize_groups', side_effect=classify) as model, \
-                    patch('components.rasterize'), patch('components.candidate_atlas'):
+                    patch('components.rasterize'), patch('components.candidate_atlas'), \
+                    patch('components.batch_inputs', side_effect=lambda batch, folder, *args: folder.mkdir(parents=True, exist_ok=True)):
                 _, report = run(source, path, {'max_candidates': 120})
-            self.assertEqual(model.call_count, 2)
+            self.assertEqual(model.call_count, 4)  # Initial, two regional audits, same-fill lamp recheck.
             self.assertNotIn('roof', report['categories']['车身'])
             self.assertIn('roof', report['categories']['车漆'])
             self.assertEqual(report['coverage']['body_surface_audit_classified'], 1)

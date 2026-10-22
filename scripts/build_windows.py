@@ -222,6 +222,9 @@ def main(argv=None):
                                f'"{sys.executable}" -m pip install -r "{ROOT / "requirements.txt"}" "pyinstaller>=6,<7"\n'
                                f'原始错误见：{log}') from exc
         snapshot = source_digest()
+        print('检查源码体验包的 Python 3.10 兼容性…', flush=True)
+        staged_demo = work/demo_name
+        create_archive(staged_demo, root=ROOT)
         run([sys.executable, '-X', 'utf8', ROOT/'app.py', '--self-test'], log, timeout=90)
         print('[2/5] 构建 EXE（详细进度写入日志）…', flush=True)
         dist = work/'dist'
@@ -259,8 +262,6 @@ def main(argv=None):
                     raise RuntimeError('发布包包含本机配置或密钥，已停止发布。')
             if bundle.testzip() is not None:
                 raise RuntimeError('ZIP 完整性检查失败，已停止发布。')
-        staged_demo = work/demo_name
-        create_archive(staged_demo, root=ROOT)
         if source_digest() != snapshot:
             raise RuntimeError('生成体验包期间源码发生变化，请等待修改结束后重新打包。')
         if destination.exists() or archive.exists() or demo_archive.exists():

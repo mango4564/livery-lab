@@ -121,7 +121,18 @@ class TuningTests(unittest.TestCase):
         with self.assertRaises(vision.VisionError):
             vision._label_categories(dict(base,labels={'G001':'车身'}),{'G001'},surface_audit=True)
 
-    def test_bad_label_response_splits_once_and_never_swallows_transport_errors(self):
+    def test_malformed_region_schema_is_repairable_but_truncated_response_is_not(self):
+        payload=dict(labels={'G001':'车漆'},source_regions={},source_views={},reason='test',confidence=.9)
+        def raw(finish):
+            return json.dumps({'choices':[{'finish_reason':finish,'message':{'content':json.dumps(payload)}}]}).encode()
+        scene=dict(component_mode=True,compact_labels=True,body_surface_audit=True)
+        with self.assertRaises(vision.CompactLabelError):
+            vision._decode_classification(raw('stop'),scene,{'G001'})
+        with self.assertRaises(vision.VisionError) as raised:
+            vision._decode_classification(raw('length'),scene,{'G001'})
+        self.assertNotIsInstance(raised.exception,vision.CompactLabelError)
+
+    def test_bad_labels_split_to_singleton_and_never_swallow_transport_errors(self):
         candidates=[dict(id=f'G{i:03}',bbox=[0,0,1,1],native_type='AGroup',source_span=[0,1],member_ids=[str(i)])
                     for i in range(4)]
         with tempfile.TemporaryDirectory() as tmp:
@@ -134,10 +145,28 @@ class TuningTests(unittest.TestCase):
             with patch('vision.recognize',side_effect=vision.CompactLabelError('missing')) as model, \
                     patch('components.candidate_atlas'):
                 with self.assertRaises(vision.CompactLabelError): recognize_groups(candidates,root,{'model':'qwen'})
-            self.assertEqual(model.call_count,2)
+            self.assertEqual(model.call_count,5)  # 4 -> 2 -> 1, then two bounded correction attempts.
             with patch('vision.recognize',side_effect=vision.VisionError('HTTP 400')) as model:
                 with self.assertRaises(vision.VisionError): recognize_groups(candidates,root,{'model':'qwen'})
             model.assert_called_once()
+
+    def test_second_protocol_failure_can_recover_without_losing_candidates(self):
+        candidates=[dict(id=f'G{i:03}',bbox=[0,0,1,1],native_type='AGroup',
+                         source_span=[0,1],member_ids=[str(i)]) for i in range(6)]
+        batches=[]
+        def classify(scene,*args):
+            ids=[c['id'] for c in scene['objects']]
+            batches.append((ids,scene['request_batch']))
+            if len(ids)>2:
+                raise vision.CompactLabelError('missing')
+            return decision(车漆=ids)
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'source_scene.png').write_bytes(b'preview')
+            with patch('vision.recognize',side_effect=classify),patch('components.candidate_atlas'):
+                checked=recognize_groups(candidates,root,{'model':'qwen'},surface_audit=True)
+        self.assertEqual(checked['categories']['车漆'],[c['id'] for c in candidates])
+        self.assertEqual([len(ids) for ids,_ in batches],[6,3,2,1,3,2,1])
+        self.assertEqual(len({batch for _,batch in batches}),len(batches))
 
     def test_compact_atlas_uses_two_columns_and_skips_duplicate_details(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
 from components import build_candidates, paint_candidates, detail_candidates
-from core.paint import normalize_categories
+from core.paint import normalize_categories, style_capability
 from core.svg_layers import SVG, INK, LayerOrderError, layered_svg, _same_render
 from geometry import svg_document
 from reviewed_exports import export_reviewed
@@ -222,6 +222,40 @@ class PaintLayersTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, '未知或未支持'):
                 export_reviewed(result, choices, root/'out')
             self.assertFalse((root/'out').exists())
+
+    def test_reviewed_no_fill_paths_preserve_source_strokes_and_memberships(self):
+        for status, closed in (('source_no_fill', True), ('wireframe_only', True),
+                               ('stored_display_rgb', False), ('source_gradient', False)):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                result = fixture(root)
+                obj = result['objects'][5]
+                obj.update(fill='none', fill_status=status, stroke='#123456', stroke_hairline=True,
+                           details={'closed': closed})
+                if not closed:
+                    obj['d'] = 'M100 0 L110 8'
+                before = deepcopy(obj)
+                # Export support must not turn outlines into paint candidates.
+                self.assertEqual(style_capability(obj), 'unsupported')
+                choices = dict(result['component_categories'], 车漆=['5'])
+                published = export_reviewed(result, choices, root/'out')
+                self.assertEqual(published['manifest']['categories']['车漆']['selected_ids'], ['5'])
+                path = next(Path(published['output_dir']).rglob('车漆_*.svg'))
+                node = ET.parse(path).find(f'.//{{{SVG}}}path[@id="5"]')
+                self.assertEqual(node.get('fill'), 'none')
+                self.assertEqual(node.get('stroke'), '#123456')
+                self.assertEqual(node.get('vector-effect'), 'non-scaling-stroke')
+                self.assertEqual(obj, before)
+
+    def test_no_fill_does_not_hide_missing_or_invalid_source_style(self):
+        for status in ('unsupported_appearance', 'invalid_appearance',
+                       'empty_appearance_inheritance_unknown', None):
+            obj = rectangle('0', 'none')
+            obj.update(fill_status=status, details={'closed': False})
+            self.assertEqual(style_capability(obj, allow_no_fill=True), 'unsupported')
+        obj = rectangle('0', 'none')
+        obj.update(fill_status='source_gradient', details={'closed': True})
+        self.assertEqual(style_capability(obj, allow_no_fill=True), 'unsupported')
 
 
 if __name__ == '__main__':

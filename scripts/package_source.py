@@ -5,6 +5,9 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
+import subprocess
+import sys
 import uuid
 import zipfile
 
@@ -152,9 +155,46 @@ def payload(root=ROOT):
     return files
 
 
+def validate_legacy_syntax(files):
+    """Compile the exact payload with the oldest supported Python, offline."""
+    candidates = []
+    if sys.version_info[:2] == (3, 10):
+        candidates.append([sys.executable])
+    if shutil.which('py'):
+        found = subprocess.run(['py', '-3.10', '-c', 'import sys; print(sys.executable)'],
+                               capture_output=True, text=True, timeout=30)
+        if found.returncode == 0 and found.stdout.strip():
+            candidates.append([found.stdout.strip()])
+    if shutil.which('uv'):
+        found = subprocess.run(['uv', 'python', 'find', '3.10', '--no-python-downloads'],
+                               capture_output=True, text=True, timeout=30)
+        if found.returncode == 0 and found.stdout.strip():
+            candidates.append([found.stdout.strip()])
+    checker = (
+        'import json, sys\n'
+        'assert sys.version_info[:2] == (3, 10), "Python 3.10 required"\n'
+        'for name, source in json.load(sys.stdin).items():\n'
+        '    compile(source, name, "exec")\n'
+    )
+    sources = json.dumps({name: data.decode('utf-8-sig') for name, data in files.items()
+                          if name.endswith('.py')}, ensure_ascii=True)
+    for command in candidates:
+        try:
+            result = subprocess.run([*command, '-X', 'utf8', '-c', checker], input=sources,
+                                    capture_output=True, text=True, encoding='utf8', timeout=60)
+        except OSError:
+            continue
+        if result.returncode:
+            raise RuntimeError('Python 3.10 源码兼容检查失败，已停止出包：\n' + result.stderr)
+        return
+    raise RuntimeError('源码包发布需要 Python 3.10 做兼容检查。请安装 CPython 3.10，'
+                       '或执行 uv python install 3.10 后重试；不会跳过检查生成包。')
+
+
 def create_archive(destination=None, *, root=ROOT):
     """Build and verify the same allowlisted demo for standalone or EXE builds."""
     files = payload(root)
+    validate_legacy_syntax(files)
     if destination is None:
         label = '彩条提取工作台_源码体验版_' + datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:6]
         destination = root / 'release' / (label + '.zip')

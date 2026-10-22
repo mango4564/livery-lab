@@ -83,8 +83,12 @@ def export_reviewed(result, choices, output_root, *, patterns=None):
     if not any(selected.values()):
         raise ValueError('所有类别均无图案，没有可导出的文件。')
     from core.paint import style_capability
-    if any(style_capability(by_id[i]) == 'unsupported' for i in selected['车漆']):
-        raise ValueError('车漆包含未知或未支持的填充，无法保留原色或渐变，请重新复核。')
+    unsupported = [i for i in selected['车漆']
+                   if style_capability(by_id[i], allow_no_fill=True) == 'unsupported']
+    if unsupported:
+        details = '、'.join(f"{i}（{by_id[i].get('fill_status', 'unknown')}）" for i in unsupported[:8])
+        raise ValueError(f'车漆包含未知或未支持的填充，无法保留原色或渐变，请重新复核。'
+                         f'共 {len(unsupported)} 个对象：{details}')
     # Legacy callers retain their filenames; direction-aware reviews publish each
     # confirmed pattern separately, while category IDs remain a coverage summary.
     reviewed_patterns = {}

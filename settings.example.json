@@ -9,6 +9,7 @@
   "allow_insecure": false,
   "use_system_proxy": true,
   "component_batch_size": "auto",
+  "component_concurrency": 1,
   "prompt_style": "auto",
   "reasoning_effort": "",
   "max_output_tokens": 0,

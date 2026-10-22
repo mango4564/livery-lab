@@ -40,7 +40,17 @@ def color_is_neutral(fill):
     return max(r, g, b) - min(r, g, b) <= 18
 
 
-def style_capability(obj):
+def style_capability(obj, *, allow_no_fill=False):
+    # Reviewed selections may contain source outlines/open paths alongside
+    # painted surfaces. They are safe to preserve, but are not paint-surface
+    # candidates. Keep the default strict for candidate recall/audits.
+    if allow_no_fill and obj.get('fill') == 'none' and not obj.get('gradient'):
+        status = obj.get('fill_status')
+        if status in ('source_no_fill', 'wireframe_only') or (
+                obj.get('details', {}).get('closed') is False and status in (
+                    'source_gradient', 'stored_display_rgb', 'stored_spot_display_rgb',
+                    'source_cmyk_approximation', 'source_lab_approximation')):
+            return 'source_no_fill'
     gradient = obj.get('gradient')
     if gradient:
         definition = gradient.get('definition', {})

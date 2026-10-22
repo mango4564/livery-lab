@@ -314,18 +314,19 @@ class LiveryApp:
             ('reasoning_effort', '思考强度（空白=服务端默认）', ('', 'low', 'medium', 'high')),
             ('max_output_tokens', '输出 token 上限（0=服务端默认）', ('0', '4096', '8192', '16384')),
             ('temperature', 'temperature（空白=服务端默认）', ('', '0.7', '1.0')),
-            ('top_p', 'top_p（空白=服务端默认）', ('', '0.8', '0.95')))
+            ('top_p', 'top_p（空白=服务端默认）', ('', '0.8', '0.95')),
+            ('component_concurrency', '同时请求批次（1=串行；最多3）', ('1', '2', '3')))
         for row, (key, label, choices) in enumerate(options):
             ttk.Label(frame, text=label).grid(row=row, column=0, sticky='w', pady=5)
             value = config.get(key)
             fields[key] = tk.StringVar(value='' if value is None else str(value))
             ttk.Combobox(frame, textvariable=fields[key], values=choices, width=18).grid(row=row, column=1, padx=8)
         include_usage = tk.BooleanVar(value=config.get('include_usage', False))
-        ttk.Checkbutton(frame, text='请求服务端返回 token 用量（需接口支持）', variable=include_usage).grid(row=6, column=0, columnspan=2, sticky='w')
+        ttk.Checkbutton(frame, text='请求服务端返回 token 用量（需接口支持）', variable=include_usage).grid(row=len(options), column=0, columnspan=2, sticky='w')
         ttk.Label(frame, text='auto：Qwen 从首轮小批次识别，使用简洁的逐候选分类；其他模型沿用原方式。\n'
                   '社内接口实测不接受 reasoning_effort=high，请留空。参数是否生效需看请求明细及服务端配置。\n'
-                  '更多批次会增加调用量。保存不发起请求；重新提取后生效。', wraplength=600,
-                  foreground='#666666').grid(row=7, column=0, columnspan=2, pady=12, sticky='w')
+                  '并发只重叠独立请求的等待，不减少图片、候选或复核；默认串行。保存后重新提取生效。', wraplength=600,
+                  foreground='#666666').grid(row=len(options)+1, column=0, columnspan=2, pady=12, sticky='w')
         def save():
             try:
                 data = {k: v.get().strip() for k, v in fields.items()}
@@ -344,7 +345,7 @@ class LiveryApp:
                 return
             dialog.destroy()
             self._append_log('AI 调优配置已保存，重新提取后生效。')
-        ttk.Button(frame, text='保存调优配置', command=save).grid(row=8, column=1, sticky='e')
+        ttk.Button(frame, text='保存调优配置', command=save).grid(row=len(options)+2, column=1, sticky='e')
 
     def _show_ai_requests(self):
         result = self.results.get(self.current, {})
@@ -657,7 +658,7 @@ class LiveryApp:
             from engine import export_selection
             updated = export_selection(result, ids, category_name=category_name)
             self.events.put(("result", item, updated))
-            self.events.put(("log", f"修正结果已保存：{updated.get("result_svg")}"))
+            self.events.put(("log", f"修正结果已保存：{updated.get('result_svg')}"))
             self.events.put(("exported", item, updated))
         except Exception as exc:
             self.events.put(("error", f"保存失败：{exc}"))

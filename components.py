@@ -6,6 +6,10 @@ import json
 import math
 import re
 import struct
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from collections import deque
+from functools import wraps
 from pathlib import Path
 
 import olefile
@@ -19,6 +23,55 @@ from geometry import svg_document, rasterize, union_bounds
 from vector_preview import VectorImage
 
 CATEGORIES = ('车身', '彩条', '文字', 'logo', '门徽', '车漆')
+
+
+# Only request waits overlap. Image preparation retains its serial execution.
+_BATCH_RENDER_LOCK = threading.RLock()
+
+
+def _serial_render(function):
+    @wraps(function)
+    def locked(*args, **kwargs):
+        with _BATCH_RENDER_LOCK:
+            return function(*args, **kwargs)
+    return locked
+
+
+def _ordered_batches(batches, config, prepare, classify):
+    """Bounded request overlap with deterministic input-order consumption.
+
+    Prepare on the caller thread. Workers return isolated validated decisions;
+    callers retain ownership of merging. Exceptions cancel pending work and
+    propagate, never turning failed requests into negative labels.
+    """
+    from vision import tuning_options
+    workers = tuning_options(config)['component_concurrency']
+    if workers == 1:
+        for number, batch in enumerate(batches, 1):
+            local = prepare(number, batch)
+            yield batch, local, classify(batch, local)
+        return
+    pending = deque()
+    iterator = iter(enumerate(batches, 1))
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix='livery-vision') as pool:
+        def submit_next():
+            item = next(iterator, None)
+            if item is None:
+                return
+            number, batch = item
+            local = prepare(number, batch)
+            pending.append((batch, local, pool.submit(classify, batch, local)))
+        try:
+            for _ in range(workers):
+                submit_next()
+            while pending:
+                batch, local, future = pending.popleft()
+                response = future.result()
+                yield batch, local, response
+                submit_next()
+        finally:
+            for _, _, future in pending:
+                future.cancel()
 
 
 def paint_candidates(objects):
@@ -595,38 +648,224 @@ def prepare(source, directory, limit=120):
     return objects, candidates, coverage
 
 
+def context_regions(candidates):
+    """Geometric crop proposals only; never infer a vehicle/category label."""
+    largest = max((c.get('area', 0) for c in candidates), default=0)
+    proposals = [c for c in candidates if c.get('native_type') == 'AGroup'
+                 and len(c.get('member_ids', [])) >= 60
+                 and .4 < c.get('aspect', 0) < 5.5
+                 and c.get('area', 0) > largest*.025]
+    # Prefer bounded local groups over a page parent containing several views.
+    local = []
+    for parent in proposals:
+        children = [c for c in proposals if c is not parent
+                    and c['area'] < parent['area']*.8
+                    and _inside_region(c['bbox'], parent['bbox'])]
+        if not any(not _boxes_overlap(a['bbox'], b['bbox'])
+                   for i, a in enumerate(children) for b in children[i+1:]):
+            local.append(parent)
+    result = []
+    for c in sorted(local, key=lambda c: -c['area']):
+        if any(_inside_region(c['bbox'], old['bbox']) for old in result):
+            continue
+        result.append(c)
+    return result
+
+
+def _boxes_overlap(a, b):
+    return min(a[2], b[2]) > max(a[0], b[0]) and min(a[3], b[3]) > max(a[1], b[1])
+
+
+def _inside_region(box, region):
+    dx = max(region[2]-region[0], 1)*.002
+    dy = max(region[3]-region[1], 1)*.002
+    return (region[0]-dx <= box[0] and region[1]-dy <= box[1]
+            and box[2] <= region[2]+dx and box[3] <= region[3]+dy)
+
+
+def candidate_region(candidate, anchors):
+    forced = candidate.get('body_anchor_id')
+    if forced:
+        return next((a for a in anchors if a['id'] == forced), None)
+    if not candidate.get('bbox'):
+        return None
+    matches = [a for a in anchors if _inside_region(candidate['bbox'], a['bbox'])]
+    return min(matches, key=lambda a: a.get('area', float('inf')), default=None)
+
+
+def region_batches(candidates, size, anchors):
+    """Keep one region per batch and every input ID exactly once, unchanged."""
+    if size < 1:
+        raise ValueError('区域批次数量必须大于零。')
+    buckets = {a['id']: [] for a in anchors}
+    buckets[None] = []
+    for c in candidates:
+        anchor = candidate_region(c, anchors)
+        buckets[anchor['id'] if anchor else None].append(c)
+    batches = []
+    for key, bucket in buckets.items():
+        if key is not None:
+            bucket = sorted(bucket, key=lambda c: (
+                c['id'] != key,
+                c.get('native_type') not in ('PaintRegion', 'PaintSurface', 'SourcePath'),
+                -c.get('area', 0)))
+        batches.extend(bucket[start:start+size] for start in range(0, len(bucket), size))
+    return batches
+
+
+def render_region_context(candidates, directory, config):
+    """Original crop + ID locator + current paint, using exact source bounds."""
+    objects = config.get('_context_objects')
+    if not objects or not candidates:
+        return False
+    anchors = config.get('_context_anchors', [])
+    groups = {}
+    for c in candidates:
+        anchor = candidate_region(c, anchors)
+        key = anchor['id'] if anchor else None
+        groups.setdefault(key, {'anchor': anchor, 'candidates': []})['candidates'].append(c)
+    # Multi-region conflict calls still get every candidate in a bounded sheet.
+    rows = list(groups.values())
+    if len(rows) > 6:
+        rows = [{'anchor': None, 'candidates': candidates}]
+    paint = set(config.get('_context_paint_ids', []))
+    auditing = config.get('_paint_completeness', False)
+    pw, ph = 560, 340
+    cols = 3 if auditing else 2
+    sheet = Image.new('RGB', (pw*cols, (ph+48)*len(rows)), '#e5e7eb')
+    font = ImageFont.truetype('C:/Windows/Fonts/arial.ttf', 14)
+    draw = ImageDraw.Draw(sheet)
+    metadata = []
+    for row, group in enumerate(rows):
+        anchor, batch = group['anchor'], group['candidates']
+        bounds = union_bounds(([anchor] if anchor else [])+batch)
+        dx, dy = (bounds[2]-bounds[0])*.04, (bounds[3]-bounds[1])*.04
+        bounds = [bounds[0]-dx, bounds[1]-dy, bounds[2]+dx, bounds[3]+dy]
+        visible = [o for o in objects if _boxes_overlap(o['bbox'], bounds)]
+        def panel(items):
+            svg = svg_document(items, bounds=bounds, width=pw-20, margin=0, background='#ffffff')
+            vector = VectorImage(svg)
+            scale = min((pw-20)/vector.width, (ph-10)/vector.height)
+            size = (max(1, round(vector.width*scale)), max(1, round(vector.height*scale)))
+            im, _, _ = vector.render(scale, (0, 0), size)
+            return im.convert('RGB')
+        original = panel(visible)
+        locator = original.copy()
+        marks = ImageDraw.Draw(locator)
+        sx, sy = original.width/(bounds[2]-bounds[0]), original.height/(bounds[3]-bounds[1])
+        labels = []
+        for c in batch:
+            b = c['bbox']
+            box = [(b[0]-bounds[0])*sx, (bounds[3]-b[3])*sy,
+                   (b[2]-bounds[0])*sx, (bounds[3]-b[1])*sy]
+            marks.rectangle(box, outline='#d00000', width=2)
+            lx = min(max(0, box[0]+2), max(0, original.width-48))
+            ly = min(max(0, box[1]+2), max(0, original.height-18))
+            positions = list(range(int(ly), max(1, original.height-17), 18))
+            positions += list(range(0, int(ly), 18))
+            for y_label in positions:
+                label_box = [lx, y_label, lx+48, y_label+17]
+                if not any(_boxes_overlap(label_box, old) for old in labels):
+                    ly = y_label
+                    break
+            labels.append([lx, ly, lx+48, ly+17])
+            marks.line([(box[0], box[1]), (lx, ly)], fill='#d00000', width=1)
+            marks.rectangle(labels[-1], fill='white')
+            marks.text((lx+1, ly), c['id'], font=font, fill='#c00000')
+        panels = [('ORIGINAL', original), ('CANDIDATE LOCATIONS', locator)]
+        if auditing:
+            panels.append(('CURRENT PAINT - REVIEW FOR OMISSIONS / WRONG PARTS',
+                           panel([o for o in visible if o['id'] in paint])))
+        label = anchor['id'] if anchor else 'unassigned source area'
+        y = row*(ph+48)
+        for col, (title, im) in enumerate(panels):
+            x = col*pw
+            sheet.paste(im, (x+(pw-im.width)//2, y+30+(ph-im.height)//2))
+            draw.text((x+8, y+5), title, font=font, fill='#172333')
+            draw.text((x+8, y+ph+31), label+' | '+', '.join(c['id'] for c in batch), font=font, fill='#172333')
+        metadata.append({'anchor_id': anchor['id'] if anchor else None, 'bbox': bounds,
+                         'candidate_ids': [c['id'] for c in batch]})
+    sheet.save(directory/'group_details.png')
+    (directory/'region_context.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding='utf8')
+    if auditing:
+        # Actual source-path removal disambiguates a filled shell from the
+        # seams/grilles drawn above it. A bbox alone can enclose both.
+        tw, th = 420, 180
+        details = Image.new('RGB', (tw*3, th*len(candidates)), '#e5e7eb')
+        labels = ImageDraw.Draw(details)
+        for row, c in enumerate(candidates):
+            b = c['bbox']; anchor = candidate_region(c, anchors)
+            a = anchor['bbox'] if anchor else b
+            dx = max((b[2]-b[0])*.15, (a[2]-a[0])*.03)
+            dy = max((b[3]-b[1])*.25, (a[3]-a[1])*.08)
+            crop = [b[0]-dx, b[1]-dy, b[2]+dx, b[3]+dy]
+            neighbours = [o for o in objects if _boxes_overlap(o['bbox'], crop)]
+            target = set(c['member_ids'])
+            for col, (title, items) in enumerate((
+                    ('ORIGINAL DETAIL', neighbours),
+                    ('TARGET SOURCE ONLY', [o for o in neighbours if o['id'] in target]),
+                    ('ORIGINAL WITHOUT TARGET', [o for o in neighbours if o['id'] not in target]))):
+                svg = svg_document(items, bounds=crop, width=tw-16, margin=0, background='#bbbbbb')
+                vector = VectorImage(svg)
+                scale = min((tw-16)/vector.width, (th-30)/vector.height)
+                size = (max(1, round(vector.width*scale)), max(1, round(vector.height*scale)))
+                im, _, _ = vector.render(scale, (0, 0), size)
+                x, y = col*tw, row*th
+                details.paste(im.convert('RGB'), (x+(tw-im.width)//2, y+25+(th-30-im.height)//2))
+                labels.text((x+6, y+3), c['id']+' | '+title, font=font, fill='#172333')
+        details.save(directory/'surface_details.png')
+    return True
+
+
 def recognize_groups(candidates, directory, config, *, surface_audit=False, classification_batch=False):
     from vision import recognize, CompactLabelError, _validate_components
     directory = Path(directory)
     metadata = [{k: c[k] for k in ('id', 'bbox', 'native_type', 'source_span')} |
                 {'path_count': len(c['member_ids'])} for c in candidates]
-    if classification_batch:
+    if classification_batch or config.get('_region_workflow'):
         for item, candidate in zip(metadata, candidates):
             ids = set(candidate['member_ids'])
-            item['shared_source_candidates'] = [c['id'] for c in candidates
-                if c['id'] != candidate['id'] and ids.intersection(c['member_ids'])]
+            item['shared_source_candidates'] = list(dict.fromkeys(
+                c['id'] for c in config.get('_all_candidates', candidates)
+                if c['id'] != candidate['id'] and ids.intersection(c['member_ids'])))
+            anchor = candidate_region(candidate, config.get('_context_anchors', []))
+            if anchor:
+                item['context_anchor'] = anchor['id']
+            if candidate.get('recheck_paint'):
+                item['previous_category'] = '车漆'
     scene = {'objects': candidates, 'component_mode': True, 'group_metadata': metadata}
-    stage = ('body_surface_audit' if surface_audit else 'conflict_review' if directory.name == 'conflicts'
+    stage = ('paint_consistency_audit' if config.get('_paint_consistency') else
+             'body_surface_audit' if surface_audit else 'conflict_review' if directory.name == 'conflicts'
              else 'empty_recovery' if directory.parent.name == 'empty_recovery'
              else 'classification' if classification_batch else 'initial')
     scene.update(request_trace_dir=config.get('_trace_root', str(directory/'ai_requests')),
-                 request_stage=stage, request_batch=directory.name)
-    if directory.parent.name == 'protocol_repair':
-        scene['request_batch'] = f'{directory.parent.parent.name}/protocol_repair/{directory.name}'
+                 request_stage=stage, request_batch=config.get('_request_batch', directory.name))
     if classification_batch:
         scene['classification_batch'] = True
     if surface_audit:
         scene['body_surface_audit'] = True
+    scene['paint_consistency'] = bool(config.get('_paint_consistency'))
+    if (directory/'region_context.json').exists():
+        scene['region_context'] = json.loads((directory/'region_context.json').read_text(encoding='utf8'))
+        scene['paint_completeness'] = bool(config.get('_paint_completeness'))
     if (directory/'group_details.png').exists():
         scene['candidate_sheet_png'] = str(directory/'group_details.png')
+    if (directory/'surface_details.png').exists():
+        scene['surface_detail_png'] = str(directory/'surface_details.png')
     try:
-        return recognize(scene, directory/'source_scene.png', directory/'group_atlas.png',
+        return recognize(scene, config.get('_source_image_path', directory/'source_scene.png'), directory/'group_atlas.png',
                          dict(config, max_candidates=max(len(candidates), 1)))
     except CompactLabelError:
-        # Never silently treat omitted labels as negatives. Retry each half once;
-        # a second protocol failure still stops the task with its saved trace.
-        if config.get('_label_repair_depth', 0) or len(candidates) < 2:
-            raise
+        # Every retry is strictly smaller, down to a single source candidate.
+        # Missing labels never become negatives; transport failures still stop.
+        if len(candidates) < 2:
+            attempt = config.get('_protocol_retry', 0)
+            if attempt >= 2:
+                raise
+            return recognize_groups(candidates, directory, dict(config,
+                _protocol_retry=attempt+1,
+                _request_batch=f"{scene['request_batch']}/format_retry/{attempt+1}"),
+                surface_audit=surface_audit, classification_batch=classification_batch)
         merged = {'categories': {name: [] for name in CATEGORIES}, 'source_regions': [],
                   'source_views': {}, 'reason': '', 'confidence': 1.0}
         size = (len(candidates)+1)//2
@@ -634,10 +873,11 @@ def recognize_groups(candidates, directory, config, *, surface_audit=False, clas
             batch = candidates[start:start+size]
             local = directory/'protocol_repair'/f'{start//size+1:02d}'
             batch_inputs(batch, local, directory, config)
-            if surface_audit and (directory/'group_details.png').exists():
+            if surface_audit and not (local/'region_context.json').exists() and (directory/'group_details.png').exists():
                 import shutil
                 shutil.copyfile(directory/'group_details.png', local/'group_details.png')
-            checked = recognize_groups(batch, local, dict(config, _label_repair_depth=1),
+            checked = recognize_groups(batch, local, dict(config,
+                                       _request_batch=f"{scene['request_batch']}/protocol_repair/{local.name}"),
                                        surface_audit=surface_audit, classification_batch=classification_batch)
             for name in CATEGORIES:
                 merged['categories'][name].extend(checked['categories'][name])
@@ -668,6 +908,7 @@ def resolve_categories(objects, candidates, decision):
         name: [o['id'] for o in objects if o['id'] in ids] for name, ids in categories.items()})
 
 
+@_serial_render
 def batch_inputs(candidates, directory, source_directory, config):
     """Bounded, readable sheets; never resize or change source geometry."""
     import shutil
@@ -676,6 +917,8 @@ def batch_inputs(candidates, directory, source_directory, config):
     shutil.copyfile(Path(source_directory)/'source_scene.png', directory/'source_scene.png')
     compact = compact_prompt(config)
     candidate_atlas(candidates, directory/'group_atlas.png', columns=2 if compact else 4)
+    if render_region_context(candidates, directory, config):
+        return
     if not compact:
         detail = detail_candidates(candidates)
         if detail:
@@ -690,6 +933,8 @@ def recover_empty_classification(candidates, decision, directory, config, *, bat
     """
     import copy
     from vision import _validate_components
+    if config.get('_image_cache') is not None:
+        config = dict(config, _source_image_path=Path(directory)/'source_scene.png')
     coverage = {'empty_recovery_batches': 0, 'empty_recovery_classified': 0,
                 'empty_recovery_conflict_groups': 0, 'empty_recovery_unresolved_groups': 0}
     if any(decision['categories'].values()) or not candidates:
@@ -697,12 +942,18 @@ def recover_empty_classification(candidates, decision, directory, config, *, bat
     merged = copy.deepcopy(decision)
     merged.update(source_regions=[], source_views={})
     reasons, confidences = [], []
-    for start in range(0, len(candidates), batch_size):
-        batch = candidates[start:start+batch_size]
-        path = Path(directory)/phase/f'{start//batch_size+1:02d}'
+    batches = (region_batches(candidates, batch_size, config.get('_context_anchors', []))
+               if config.get('_region_workflow') else
+               [candidates[start:start+batch_size] for start in range(0, len(candidates), batch_size)])
+    def prepare_batch(number, batch):
+        path = Path(directory)/phase/f'{number:02d}'
         batch_inputs(batch, path, directory, config)
+        return path
+    def classify_batch(batch, path):
         checked = recognize_groups(batch, path, config, classification_batch=True)
         _validate_components(checked, {c['id'] for c in batch})
+        return checked
+    for batch, path, checked in _ordered_batches(batches, config, prepare_batch, classify_batch):
         (path/'decision.json').write_text(json.dumps(checked, ensure_ascii=False, indent=2), encoding='utf8')
         coverage['empty_recovery_batches'] += 1
         for name in CATEGORIES:
@@ -771,7 +1022,21 @@ def recovery_conflicts(candidates, decision):
     return conflicts
 
 
-def residual_surface_candidates(objects, candidates, decision, limit=120):
+def selected_body_anchors(candidates, decision):
+    """Use the selected parent as context for its mislabelled local members.
+
+    This refines review context only, never the model's category ownership.
+    A roof fill selected as body must not become its own vehicle crop.
+    """
+    selected = set(decision['categories']['车身'])
+    bodies = [c for c in candidates if c['id'] in selected]
+    memberships = {c['id']: set(c['member_ids']) for c in bodies}
+    return [c for c in bodies if not any(
+        memberships[c['id']] < memberships[parent['id']]
+        and _inside_region(c['bbox'], parent['bbox']) for parent in bodies)]
+
+
+def residual_surface_candidates(objects, candidates, decision, limit=None):
     """Expose residual and omitted filled paths at each body's local scale.
 
     This is a review queue, not a paint detector. Windows, lamps and tyres
@@ -782,8 +1047,7 @@ def residual_surface_candidates(objects, candidates, decision, limit=120):
     resolved = resolve_categories(objects, candidates, decision)
     body_ids = set(resolved['车身'])
     reserved = {i for name, ids in resolved.items() if name != '车身' for i in ids}
-    selected = set(decision['categories']['车身'])
-    bodies = [c for c in candidates if c['id'] in selected]
+    bodies = selected_body_anchors(candidates, decision)
     text_ids = {i for c in candidates if c['native_type'] in ('AText', 'AArcText', 'TextBlock')
                 for i in c['member_ids']}
     queues = [[] for _ in bodies]
@@ -877,20 +1141,35 @@ def residual_surface_candidates(objects, candidates, decision, limit=120):
     ordered = [queue[i] for i in range(max(map(len, queues), default=0))
                for queue in queues if i < len(queue)]
     first = max((int(c['id'][1:]) for c in candidates), default=0)+1
-    for index, c in enumerate(ordered[:limit], first):
+    provided = ordered if limit is None else ordered[:limit]
+    for index, c in enumerate(provided, first):
         c['id'] = f'G{index:03d}'
-    return ordered[:limit], len(ordered)
+    return provided, len(ordered)
 
 
 def refine_body_surfaces(objects, candidates, decision, directory, config):
     """Visually audit residual body surfaces and merge only explicit labels."""
     import copy
+    regional = config.get('_region_workflow', False)
+    selected_paint = set(decision['categories']['车漆'])
+    recheck = [dict(c, recheck_paint=True) for c in candidates if c['id'] in selected_paint] if regional else []
+    # The initial atlas budget is not a completeness budget. Review every
+    # eligible residual surface in bounded regional batches, including those
+    # ranked after the first 120 (small roof shells frequently land there).
     audit, total = residual_surface_candidates(objects, candidates, decision)
     coverage = {'body_surface_audit_candidates': len(audit),
+                'body_surface_audit_eligible': total,
                 'body_surface_audit_omitted': total-len(audit),
                 'body_surface_audit_classified': 0}
+    coverage['paint_completeness_rechecked'] = len(recheck)
+    audit = recheck+audit
     if not audit:
         return decision, coverage
+    if regional:
+        anchors = selected_body_anchors(candidates, decision)
+        config = dict(config, _context_objects=objects, _context_anchors=anchors,
+                      _context_paint_ids=resolve_categories(objects, candidates, decision)['车漆'],
+                      _paint_completeness=True, _all_candidates=candidates+audit)
     path = Path(directory)/'body_surface_audit';path.mkdir(parents=True, exist_ok=True)
     candidate_atlas(audit, path/'group_atlas.png')
     rasterize(svg_document(objects, width=2000, background='#ffffff'), path/'source_scene.png')
@@ -898,20 +1177,33 @@ def refine_body_surfaces(objects, candidates, decision, directory, config):
     rasterize(svg_document([o for o in objects if o['id'] in body_ids], width=2000,
                            background='#bbbbbb'), path/'group_details.png')
     from vision import component_batch_size, compact_prompt
-    size = component_batch_size(config)
-    if size and len(audit) > size:
+    if config.get('_image_cache') is not None:
+        config = dict(config, _source_image_path=path/'source_scene.png')
+    size = component_batch_size(config) or 20
+    if regional or (size and len(audit) > size):
         checked = {'categories': {name: [] for name in CATEGORIES}, 'source_regions': [],
                    'source_views': {}, 'reason': '', 'confidence': 1.0}
-        for start in range(0, len(audit), size):
-            batch = audit[start:start+size]
-            local = path/'batches'/f'{start//size+1:02d}'
+        batches = (region_batches(audit, size, config['_context_anchors']) if regional else
+                   [audit[start:start+size] for start in range(0, len(audit), size)])
+        coverage['paint_completeness_batches'] = len(batches) if regional else 0
+        @_serial_render
+        def prepare_batch(number, batch):
+            local = path/'batches'/f'{number:02d}'
             batch_inputs(batch, local, path, config)
-            if compact_prompt(config):
+            if compact_prompt(config) and not regional:
                 anchors = {c['body_anchor_id'] for c in batch}
                 context = [c for c in candidates if c['id'] in anchors]
                 if context:
                     candidate_atlas(context, local/'group_details.png', columns=2)
+            return local
+        def classify_batch(batch, local):
             response = recognize_groups(batch, local, config, surface_audit=True)
+            from vision import _validate_components
+            _validate_components(response, {c['id'] for c in batch})
+            if any(response['categories'][name] for name in ('车身', '文字', 'logo', '门徽')):
+                raise ValueError('残留面复核只能选择车漆与彩条。')
+            return response
+        for batch, local, response in _ordered_batches(batches, config, prepare_batch, classify_batch):
             (local/'decision.json').write_text(json.dumps(response, ensure_ascii=False, indent=2), encoding='utf8')
             for name in ('车漆', '彩条'):
                 checked['categories'][name].extend(response['categories'][name])
@@ -921,14 +1213,88 @@ def refine_body_surfaces(objects, candidates, decision, directory, config):
         checked = recognize_groups(audit, path, config, surface_audit=True)
     (path/'decision.json').write_text(json.dumps(checked, ensure_ascii=False, indent=2), encoding='utf8')
     merged = copy.deepcopy(decision)
+    if regional:
+        # Reconsider only paint IDs explicitly included in the complete review.
+        # A successful omission rejects the old label, not the source object.
+        merged['categories']['车漆'] = [g for g in merged['categories']['车漆']
+                                      if g not in {c['id'] for c in recheck}]
     for name in ('车漆', '彩条'):
         merged['categories'][name].extend(checked['categories'][name])
-        coverage['body_surface_audit_classified'] += len(checked['categories'][name])
+        coverage['body_surface_audit_classified'] += sum(g not in selected_paint for g in checked['categories'][name])
+    if regional:
+        coverage['paint_completeness_removed'] = len(selected_paint-set(merged['categories']['车漆']))
     merged.setdefault('source_views', {}).update(checked.get('source_views', {}))
     merged['reason'] += '；车身残留面复核：'+checked.get('reason', '')
     # Commit proposals only after the complete merged protocol validates.
-    resolve_categories(objects, candidates+audit, merged)
-    candidates.extend(audit)
+    new = [c for c in audit if c['id'] not in {old['id'] for old in candidates}]
+    resolve_categories(objects, candidates+new, merged)
+    candidates.extend(new)
+    return merged, coverage
+
+
+def refine_paint_consistency(objects, candidates, decision, directory, config):
+    """Recheck unclaimed same-appearance sources, never infer their category.
+
+    Cross-view matches are only a reason for one focused model review. Neutral
+    structure is excluded from this extra pass; all ordinary audit remains.
+    """
+    import copy
+    from core.paint import color_is_neutral, style_capability
+    resolved = resolve_categories(objects, candidates, decision)
+    by_id = {o['id']: o for o in objects}
+    def signature(obj):
+        if style_capability(obj) == 'unsupported':
+            return None
+        gradient = obj.get('gradient')
+        if gradient:
+            definition = gradient.get('definition', {})
+            stops = [(s['offset'], s['color'].lower()) for s in definition.get('stops', [])]
+            if any(not color_is_neutral(color) for _, color in stops):
+                return ('gradient', definition.get('kind'), tuple(stops))
+        fill = obj.get('fill')
+        if fill and not gradient and not color_is_neutral(fill):
+            return ('solid', fill.lower())
+        return None
+    styles = {key for oid in resolved['车漆'] if (key := signature(by_id[oid])) is not None}
+    claimed = {oid for name, ids in resolved.items() if name != '车身' for oid in ids}
+    anchors = selected_body_anchors(candidates, decision)
+    pool, seen = [], set()
+    first = max((int(c['id'][1:]) for c in candidates), default=0)+1
+    for c in candidates:
+        if len(c['member_ids']) != 1 or c['native_type'] not in ('PaintSurface', 'SourcePath'):
+            continue
+        oid = c['member_ids'][0]
+        if oid in claimed or oid in seen or signature(by_id[oid]) not in styles:
+            continue
+        anchor = candidate_region(c, anchors)
+        if anchor is None:
+            continue
+        seen.add(oid)
+        pool.append(dict(c, id=f'G{first+len(pool):03d}', native_type='PaintSurface',
+                         body_anchor_id=anchor['id']))
+    coverage = {'paint_consistency_candidates': len(pool), 'paint_consistency_added': 0}
+    if not pool:
+        return decision, coverage
+    context = dict(config, _region_workflow=True, _context_objects=objects,
+                   _context_anchors=anchors, _context_paint_ids=resolved['车漆'],
+                   _paint_completeness=True, _paint_consistency=True, _all_candidates=candidates+pool)
+    merged = copy.deepcopy(decision)
+    for number, c in enumerate(pool, 1):
+        local = Path(directory)/'paint_consistency_audit'/f'{number:02d}'
+        batch_inputs([c], local, directory, context)
+        response = recognize_groups([c], local, context, surface_audit=True)
+        from vision import _validate_components
+        _validate_components(response, {c['id']})
+        if any(response['categories'][name] for name in ('车身', '文字', 'logo', '门徽')):
+            raise ValueError('一致性复核只能选择车漆与彩条。')
+        (local/'decision.json').write_text(json.dumps(response, ensure_ascii=False, indent=2), encoding='utf8')
+        for name in ('车漆', '彩条'):
+            merged['categories'][name].extend(response['categories'][name])
+        merged['reason'] = (merged.get('reason', '')+'；同填充对象复核：'+response['reason'])[-5000:]
+    _validate_components(merged, {c['id'] for c in candidates+pool})
+    resolved_after = resolve_categories(objects, candidates+pool, merged)
+    coverage['paint_consistency_added'] = len(set(resolved_after['车漆'])-set(resolved['车漆']))
+    candidates.extend(pool)
     return merged, coverage
 
 
@@ -960,9 +1326,13 @@ def render_stripe_views(objects, ids, regions, directory, digest):
 
 def run(source, directory, config, *, use_ai=True):
     source, directory = Path(source), Path(directory)
-    config = dict(config, _trace_root=str(directory/'ai_requests'))
+    from vision import ImageInputCache
+    config = dict(config, _trace_root=str(directory/'ai_requests'), _image_cache=ImageInputCache())
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     objects, candidates, coverage = prepare(source, directory, min(config['max_candidates'], 120))
+    config.update(_region_workflow=True, _context_objects=objects,
+                  _context_anchors=context_regions(candidates), _all_candidates=candidates)
+    coverage['context_region_proposals'] = len(config['_context_anchors'])
     from vision import component_batch_size, request_summary
     size = component_batch_size(config)
     decision = {'categories': {name: [] for name in CATEGORIES},
@@ -975,6 +1345,7 @@ def run(source, directory, config, *, use_ai=True):
         coverage['initial_classification_batches'] = initial_coverage['empty_recovery_batches']
         coverage['empty_recovery_batches'] = 0
     elif use_ai:
+        render_region_context(candidates, directory, config)
         decision = recognize_groups(candidates, directory, config)
     if use_ai:
         if not size:
@@ -982,6 +1353,8 @@ def run(source, directory, config, *, use_ai=True):
             coverage.update(recovery_coverage)
         decision, audit_coverage = refine_body_surfaces(objects, candidates, decision, directory, config)
         coverage.update(audit_coverage)
+        decision, consistency_coverage = refine_paint_consistency(objects, candidates, decision, directory, config)
+        coverage.update(consistency_coverage)
     categories = resolve_categories(objects, candidates, decision)
     report = {'source': str(source.resolve()), 'source_sha256': digest, 'coverage': coverage,
               'decision': decision, 'categories': categories, 'status': 'review', 'views': []}
