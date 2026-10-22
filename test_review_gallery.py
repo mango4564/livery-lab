@@ -29,11 +29,11 @@ class ReviewGalleryTests(TkTestCase):
         g.tree.selection_set('1');g._preview();g._confirm()
         self.assertEqual(g.choices['彩条'],['5'])
         g.tree.selection_set('0');g._preview()
-        self.assertEqual(g.choices['彩条'],['5'])
+        self.assertEqual(g.choices['彩条'],['1'])
         g._switch_category('logo');g._absent()
         self.assertIsNone(g.choices['logo'])
         g._switch_category('车身')
-        self.assertEqual(g.choices['彩条'],['5'])
+        self.assertEqual(g.choices['彩条'],['1'])
         self.assertEqual(len(g.photos),1)
 
     def test_show_all_exposes_unclassified_groups_without_selecting_them(self):

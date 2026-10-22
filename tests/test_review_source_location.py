@@ -66,7 +66,8 @@ class ReviewSourceLocationTests(TkTestCase):
         self.assert_location('5')
         g.pattern_list.selection_set(0)
         g._preview_pattern()
-        self.assert_location('1')
+        self.assert_location('5')
+        self.assertEqual(g.choices['彩条'], ['5'])
         self.assertEqual(self.reader.call_count, 1)
 
     def test_empty_category_clears_location_and_ignores_stale_result(self):

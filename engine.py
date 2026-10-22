@@ -429,8 +429,10 @@ def _run_components_worker(source,directory,digest,fingerprint,use_ai,reference_
                         '当前解码 APath、AEditPath、AOval；其他原语、纹理及部分字体/裁剪效果可能缺失。',
                         '当前仅提取第1页。物理比例未验证。'],
             'elapsed_seconds':round(time.monotonic()-started,3)}
-    if len(result['classification_validation']) > 1:
+    if any(v.get('status') == 'source_overlap' for v in result['classification_validation']):
         result['warnings'].append('模型初次分类存在源曲线重叠，已请求同一模型纠正一次并通过校验；仍须人工复核。')
+    if any(v.get('status') == 'protocol_error' for v in result['classification_validation']):
+        result['warnings'].append('模型返回格式曾不符合协议，已请求同一模型纠正并通过严格校验；仍须人工复核。')
     result['result_svg'],result['result_png']=_render_selection(result,result['selected_ids'],directory)
     _render_component_artifacts(result, directory)
     if _file_sha(source)!=digest:

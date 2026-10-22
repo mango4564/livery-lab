@@ -70,7 +70,8 @@ class TextLogoSeparationTests(TkTestCase):
                     gallery._switch_category('文字')
                     self.assertEqual(gallery._effective_ids(gallery.current_candidate), ['2','3'])
                     gallery._switch_category('logo')
-                    gallery._confirm()
+                    gallery.tree.selection_set('0')
+                    gallery._preview()
                     for category in gallery.category_buttons:
                         if category not in ('文字','logo'):
                             gallery._switch_category(category)

@@ -4,7 +4,7 @@
   "model": "",
   "api_key": "",
   "api_key_env": "LIVERY_API_KEY",
-  "timeout_seconds": 90,
+  "timeout_seconds": 600,
   "max_candidates": 150,
   "allow_insecure": false,
   "use_system_proxy": true

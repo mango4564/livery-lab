@@ -374,7 +374,7 @@ def prepare(source, directory, limit=120):
 
 
 def recognize_groups(candidates, directory, config):
-    from vision import recognize, ComponentClassificationError
+    from vision import recognize, ComponentClassificationError, ComponentProtocolError, DEFAULTS
     from core.paint import CategoryOverlapError
     directory = Path(directory)
     metadata = [{k: c[k] for k in ('id', 'bbox', 'native_type', 'source_span')} |
@@ -383,20 +383,45 @@ def recognize_groups(candidates, directory, config):
     members = {c['id']: set(c['member_ids']) for c in candidates}
     source_objects = [{'id': oid} for oid in dict.fromkeys(
         oid for c in candidates for oid in c['member_ids'])]
-    deadline = time.monotonic() + float(config.get('timeout_seconds', 90))
+    timeout = float(config.get('timeout_seconds', DEFAULTS['timeout_seconds']))
+    deadline = time.monotonic() + timeout
     attempts = []
     protected = {}
     for attempt in range(2):
         remaining = deadline - time.monotonic()
         if remaining < 1:
-            raise ValueError('六类分类校验的请求时间预算已耗尽，请重试或人工复核。')
+            raise ValueError(f'六类分类校验的请求时间预算已耗尽（{timeout:g} 秒，含初次识别及纠错），请重试或人工复核。')
         protocol_error = None
+        scene.pop('component_protocol_normalizations', None)
         try:
             decision = recognize(scene, directory/'source_scene.png', directory/'group_atlas.png',
                                  dict(config, max_candidates=max(len(candidates), 1), timeout_seconds=remaining))
+        except ComponentProtocolError as exc:
+            attempts.append({'attempt': attempt+1, 'status': 'protocol_error',
+                             'stage': 'components',
+                             'error': str(exc), 'candidate_count': len(candidates)})
+            (directory/'classification_validation.json').write_text(
+                json.dumps(attempts, ensure_ascii=False, indent=2), encoding='utf8')
+            if attempt:
+                raise ValueError(f'六类分类同一模型纠正一次后仍不符合返回协议：{exc}') from None
+            previous = exc.payload.get('categories') if isinstance(exc.payload, dict) else None
+            if (isinstance(previous, dict) and set(previous) == set(CATEGORIES)
+                    and all(isinstance(ids, list) and all(isinstance(gid, str) and gid in members for gid in ids)
+                            and len(ids) == len(set(ids)) for ids in previous.values())):
+                try:
+                    valid_sources = resolve_categories(source_objects, candidates, {'categories': previous})
+                except CategoryOverlapError:
+                    pass
+                else:
+                    for name, ids in valid_sources.items():
+                        protected.setdefault(name, set()).update(ids)
+            scene['component_protocol_feedback'] = {'validation_error': str(exc), 'received_json': exc.payload}
+            continue
         except ComponentClassificationError as exc:
             decision, protocol_error = exc.payload, exc
         record = {'attempt': attempt+1, 'categories': decision['categories']}
+        if scene.get('component_protocol_normalizations'):
+            record['protocol_normalizations'] = scene['component_protocol_normalizations']
         try:
             resolved = resolve_categories(source_objects, candidates, decision)
             if protocol_error:
@@ -439,6 +464,9 @@ def recognize_groups(candidates, directory, config):
                         for name, gids in decision['categories'].items()}
             expanded['文字'] -= expanded['logo']
             protected = {name: ids-conflicting_ids for name, ids in expanded.items() if name != '车身'}
+            scene['component_conflict_feedback']['required_preserved_categories'] = {
+                name: [gid for gid in decision['categories'][name] if members[gid] <= ids]
+                for name, ids in protected.items()}
         else:
             dropped = {name: len(ids-set(resolved[name])) for name, ids in protected.items()
                        if not ids <= set(resolved[name])}

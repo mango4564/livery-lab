@@ -63,6 +63,16 @@ class ComponentConflictRepairTests(unittest.TestCase):
                 recognize_groups(self.candidates, self.directory, self.config)
         self.assertEqual(self.audit()[-1]['status'], 'dropped_valid_selection')
 
+    def test_repair_feedback_explicitly_lists_unrelated_groups_to_preserve(self):
+        self.candidates.append(dict(self.candidates[0], id='unrelated', member_ids=['text']))
+        invalid = decision(车漆=['parent'], 彩条=['child'], 文字=['unrelated'])
+        valid = decision(车漆=['clean'], 彩条=['child'], 文字=['unrelated'])
+        with patch('vision.recognize', side_effect=[invalid, valid]) as model:
+            self.assertEqual(recognize_groups(self.candidates, self.directory, self.config), valid)
+        feedback = model.call_args.args[0]['component_conflict_feedback']
+        self.assertEqual(feedback['required_preserved_categories']['文字'], ['unrelated'])
+        self.assertEqual(feedback['required_preserved_categories']['彩条'], [])
+
     def test_duplicate_candidate_protocol_error_is_also_corrected(self):
         invalid = decision(车漆=['child'], 彩条=['child'])
         with patch('vision.recognize', side_effect=[ComponentClassificationError(invalid), self.valid]) as recognize:
@@ -89,6 +99,18 @@ class ComponentConflictRepairTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, '时间预算'):
                 recognize_groups(self.candidates, self.directory, self.config)
         self.assertEqual(recognize.call_count, 1)
+
+    def test_default_budget_allows_slow_first_response_and_bounded_repair(self):
+        from vision import DEFAULTS, read_config
+        self.assertEqual(DEFAULTS['timeout_seconds'], 600)
+        with patch.dict('os.environ', {}, clear=True):
+            self.assertEqual(read_config(self.directory/'missing.json')['timeout_seconds'], 600)
+        config = {'model': 'same-model'}
+        with patch('vision.recognize', side_effect=[self.invalid, self.valid]) as recognize, \
+                patch('components.time.monotonic', side_effect=[0, 0, 240]):
+            self.assertEqual(recognize_groups(self.candidates, self.directory, config), self.valid)
+        self.assertEqual(recognize.call_count, 2)
+        self.assertEqual([c.args[3]['timeout_seconds'] for c in recognize.call_args_list], [600, 360])
 
     def test_corrective_request_keeps_images_model_and_strict_schema_instructions(self):
         config = dict(self.config, enabled=True, base_url='https://example.invalid/v1', api_key='test-key')
